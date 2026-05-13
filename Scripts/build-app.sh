@@ -6,6 +6,9 @@ APP_DIR="$ROOT_DIR/build/PicSee.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+ICON_SOURCE="$ROOT_DIR/Images/picsee_icon.png"
+ICON_TIFF="$ROOT_DIR/build/AppIcon.tiff"
+ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 
 cd "$ROOT_DIR"
 swift build -c release
@@ -13,7 +16,15 @@ swift build -c release
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$ROOT_DIR/.build/release/PicSee" "$MACOS_DIR/PicSee"
-cp "$ROOT_DIR/Resources/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
+
+if [ ! -f "$ICON_SOURCE" ]; then
+  echo "Missing icon source: $ICON_SOURCE" >&2
+  exit 1
+fi
+
+sips -s format tiff "$ICON_SOURCE" --out "$ICON_TIFF" >/dev/null
+tiff2icns "$ICON_TIFF" "$ICON_ICNS"
+cp "$ICON_ICNS" "$RESOURCES_DIR/AppIcon.icns"
 
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

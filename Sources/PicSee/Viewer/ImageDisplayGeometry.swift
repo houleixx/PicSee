@@ -6,16 +6,16 @@ struct ImageDisplayGeometry {
     let zoomScale: CGFloat
     let panOffset: CGSize
 
-    var coverScale: CGFloat {
+    var fitScale: CGFloat {
         guard imageSize.width > 0, imageSize.height > 0, viewportSize.width > 0, viewportSize.height > 0 else {
             return 1
         }
 
-        return max(viewportSize.width / imageSize.width, viewportSize.height / imageSize.height)
+        return min(viewportSize.width / imageSize.width, viewportSize.height / imageSize.height)
     }
 
     var displayScale: CGFloat {
-        max(0.01, coverScale * max(1, zoomScale))
+        max(0.01, fitScale * max(1, zoomScale))
     }
 
     var displaySize: CGSize {

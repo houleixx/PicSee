@@ -143,14 +143,14 @@ final class CanvasNSView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        switch event.keyCode {
-        case 123:
+        switch KeyboardNavigation.action(for: event.keyCode) {
+        case .previous:
             onPrevious?()
-        case 124:
+        case .next:
             onNext?()
-        case 53:
+        case .quit:
             NSApp.terminate(nil)
-        default:
+        case .none:
             super.keyDown(with: event)
         }
     }

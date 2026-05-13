@@ -56,9 +56,6 @@ final class CanvasNSView: NSView {
     var onNext: (() -> Void)?
     var onReset: (() -> Void)?
 
-    private var dragStartPoint: NSPoint?
-    private var dragStartOffset: CGSize = .zero
-
     override var acceptsFirstResponder: Bool { true }
 
     override func viewDidMoveToWindow() {
@@ -110,23 +107,14 @@ final class CanvasNSView: NSView {
             return
         }
 
-        dragStartPoint = convert(event.locationInWindow, from: nil)
-        dragStartOffset = panOffset
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let dragStartPoint else { return }
-        let currentPoint = convert(event.locationInWindow, from: nil)
-        let nextOffset = CGSize(
-            width: dragStartOffset.width + currentPoint.x - dragStartPoint.x,
-            height: dragStartOffset.height + currentPoint.y - dragStartPoint.y
-        )
-        panOffset = constrainedPan(nextOffset)
-        onPanChanged?(panOffset)
+        window?.performDrag(with: event)
     }
 
     override func mouseUp(with event: NSEvent) {
-        dragStartPoint = nil
+        super.mouseUp(with: event)
     }
 
     override func keyDown(with event: NSEvent) {
@@ -140,16 +128,5 @@ final class CanvasNSView: NSView {
         default:
             super.keyDown(with: event)
         }
-    }
-
-    private func constrainedPan(_ proposed: CGSize) -> CGSize {
-        guard let image else { return .zero }
-        let geometry = ImageDisplayGeometry(
-            imageSize: image.size,
-            viewportSize: bounds.size,
-            zoomScale: zoomScale,
-            panOffset: panOffset
-        )
-        return geometry.constrainedPan(proposed)
     }
 }

@@ -72,14 +72,13 @@ final class CanvasNSView: NSView {
 
         guard let image, image.size.width > 0, image.size.height > 0 else { return }
 
-        let fitScale = min(bounds.width / image.size.width, bounds.height / image.size.height)
-        let displayScale = max(0.01, fitScale * zoomScale)
-        let displaySize = NSSize(width: image.size.width * displayScale, height: image.size.height * displayScale)
-        let origin = NSPoint(
-            x: bounds.midX - displaySize.width / 2 + panOffset.width,
-            y: bounds.midY - displaySize.height / 2 + panOffset.height
+        let geometry = ImageDisplayGeometry(
+            imageSize: image.size,
+            viewportSize: bounds.size,
+            zoomScale: zoomScale,
+            panOffset: panOffset
         )
-        let rect = NSRect(origin: origin, size: displaySize)
+        let rect = NSRect(origin: geometry.imageRect.origin, size: geometry.imageRect.size)
 
         image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [
             .interpolation: NSImageInterpolation.high.rawValue
@@ -116,7 +115,7 @@ final class CanvasNSView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard zoomScale > 1, let dragStartPoint else { return }
+        guard let dragStartPoint else { return }
         let currentPoint = convert(event.locationInWindow, from: nil)
         let nextOffset = CGSize(
             width: dragStartOffset.width + currentPoint.x - dragStartPoint.x,
@@ -137,7 +136,7 @@ final class CanvasNSView: NSView {
         case 124:
             onNext?()
         case 53:
-            window?.close()
+            NSApp.terminate(nil)
         default:
             super.keyDown(with: event)
         }
@@ -145,15 +144,12 @@ final class CanvasNSView: NSView {
 
     private func constrainedPan(_ proposed: CGSize) -> CGSize {
         guard let image else { return .zero }
-        let fitScale = min(bounds.width / image.size.width, bounds.height / image.size.height)
-        let displayWidth = image.size.width * fitScale * zoomScale
-        let displayHeight = image.size.height * fitScale * zoomScale
-        let maxX = max(0, (displayWidth - bounds.width) / 2 + 80)
-        let maxY = max(0, (displayHeight - bounds.height) / 2 + 80)
-
-        return CGSize(
-            width: min(max(proposed.width, -maxX), maxX),
-            height: min(max(proposed.height, -maxY), maxY)
+        let geometry = ImageDisplayGeometry(
+            imageSize: image.size,
+            viewportSize: bounds.size,
+            zoomScale: zoomScale,
+            panOffset: panOffset
         )
+        return geometry.constrainedPan(proposed)
     }
 }

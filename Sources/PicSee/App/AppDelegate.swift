@@ -9,12 +9,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where FolderImageNavigator.isSupportedImage(url) {
-            windowManager.openViewer(for: url)
+        let imageURLs = urls.filter(FolderImageNavigator.isSupportedImage)
+        let routing = ImageOpenRouting.route(urls: imageURLs, hasOpenViewer: windowManager.hasOpenViewer)
+
+        if let currentProcessURL = routing.currentProcessURL {
+            windowManager.openViewer(for: currentProcessURL)
+        }
+
+        for spawnedURL in routing.spawnedProcessURLs {
+            spawnNewProcess(for: spawnedURL)
         }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    private func spawnNewProcess(for url: URL) {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-n", "-b", bundleIdentifier, url.path]
+
+        do {
+            try process.run()
+        } catch {
+            NSSound.beep()
+        }
     }
 }

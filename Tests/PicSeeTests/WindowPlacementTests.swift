@@ -3,7 +3,7 @@ import XCTest
 @testable import PicSee
 
 final class WindowPlacementTests: XCTestCase {
-    func testUsesEightyPercentOfVisibleHeightAndCentersWindow() {
+    func testUsesEightyPercentOfScreenHeightAndCentersWindow() {
         let screen = NSRect(x: 0, y: 0, width: 1440, height: 900)
         let imageSize = NSSize(width: 1200, height: 800)
 
@@ -15,7 +15,7 @@ final class WindowPlacementTests: XCTestCase {
         XCTAssertEqual(frame.midY, screen.midY, accuracy: 0.001)
     }
 
-    func testClampsWidthToVisibleFrameWhenImageIsVeryWide() {
+    func testClampsWidthToScreenFrameWhenImageIsVeryWide() {
         let screen = NSRect(x: 0, y: 0, width: 1000, height: 800)
         let imageSize = NSSize(width: 4000, height: 500)
 

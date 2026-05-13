@@ -19,8 +19,9 @@ final class WindowManager {
         let rootView = ImageViewerView(viewModel: viewModel)
         let hostingController = NSHostingController(rootView: rootView)
 
+        let initialFrame = initialWindowFrame(for: viewModel.image)
         let window = NSWindow(
-            contentRect: initialWindowFrame(for: viewModel.image),
+            contentRect: initialFrame,
             styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -41,6 +42,7 @@ final class WindowManager {
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         window.contentViewController = hostingController
+        window.setFrame(initialFrame, display: false)
         window.makeKeyAndOrderFront(nil)
 
         let delegate = WindowDelegate(onClose: { [weak self] in
@@ -58,7 +60,7 @@ final class WindowManager {
             return NSRect(x: 0, y: 0, width: 1000, height: 760)
         }
 
-        return WindowPlacement.frame(for: image?.size, in: screen.visibleFrame)
+        return WindowPlacement.frame(for: image?.size, in: screen.frame)
     }
 
     private static var delegateAssociationKey: UInt8 = 0

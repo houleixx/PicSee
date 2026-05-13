@@ -44,4 +44,18 @@ final class ImageDisplayGeometryTests: XCTestCase {
         XCTAssertEqual(constrained.width, 0, accuracy: 0.001)
         XCTAssertEqual(constrained.height, 0, accuracy: 0.001)
     }
+
+    func testPanIsAllowedWhenImageIsZoomedIn() {
+        let geometry = ImageDisplayGeometry(
+            imageSize: CGSize(width: 400, height: 300),
+            viewportSize: CGSize(width: 1200, height: 600),
+            zoomScale: 2,
+            panOffset: .zero
+        )
+
+        let constrained = geometry.constrainedPan(CGSize(width: 250, height: 250))
+
+        XCTAssertEqual(constrained.width, 200, accuracy: 0.001)
+        XCTAssertEqual(constrained.height, 250, accuracy: 0.001)
+    }
 }

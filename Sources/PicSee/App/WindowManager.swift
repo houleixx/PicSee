@@ -58,29 +58,7 @@ final class WindowManager {
             return NSRect(x: 0, y: 0, width: 1000, height: 760)
         }
 
-        let visibleFrame = screen.visibleFrame
-        let maxWidth = visibleFrame.width * 0.86
-        let maxHeight = visibleFrame.height * 0.86
-        let fallbackSize = NSSize(width: min(1000, maxWidth), height: min(760, maxHeight))
-        let imageSize = image?.size ?? fallbackSize
-        let imageAspect = max(0.1, imageSize.width / max(1, imageSize.height))
-        var width = maxWidth
-        var height = width / imageAspect
-
-        if height > maxHeight {
-            height = maxHeight
-            width = height * imageAspect
-        }
-
-        width = max(360, min(width, maxWidth))
-        height = max(260, min(height, maxHeight))
-
-        return NSRect(
-            x: visibleFrame.midX - width / 2,
-            y: visibleFrame.midY - height / 2,
-            width: width,
-            height: height
-        )
+        return WindowPlacement.frame(for: image?.size, in: screen.visibleFrame)
     }
 
     private static var delegateAssociationKey: UInt8 = 0

@@ -997,3 +997,12 @@ git commit -m "test: record PicSee manual verification"
 - Spec coverage: Finder file-open handling is covered by Tasks 4 and 6; centered fit-to-window display, wheel zoom, drag pan, double-click reset, and arrow navigation are covered by Task 5; same-folder filtering and navigation are covered by Task 2; load state and transform reset are covered by Task 3; close-to-quit is covered by Task 4; buildable app bundle is covered by Task 6; manual desktop verification is covered by Task 7.
 - Placeholder scan: The plan contains no unresolved placeholder markers or unspecified implementation steps.
 - Type consistency: `FolderImageNavigator`, `ImageViewerViewModel`, `ImageViewerView`, `ImageCanvasView`, `AppDelegate`, and `WindowManager` names and method signatures are consistent across tasks.
+
+## Manual Verification Result
+
+- Date: 2026-05-13
+- Build command: `Scripts/build-app.sh`
+- Fixture images: `build/manual-fixtures/radial.png`, `build/manual-fixtures/sonoma.png`
+- Result: PASS with one residual manual check
+- Verified: app bundle launches by bundle id, image opens in a native PicSee window, window title shows the filename, right arrow moves to the next image and updates the title, left arrow moves to the previous image and updates the title, mouse wheel zooms in, dragging a zoomed image pans it, and closing the only window quits the app.
+- Residual check: double-click reset is implemented in `CanvasNSView.mouseDown(with:)`, but Computer Use did not produce an observable double-click reset event during automated desktop verification. This should be checked once by hand in the running app.

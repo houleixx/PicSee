@@ -1,10 +1,12 @@
 import AppKit
+import Combine
 import ObjectiveC
 import SwiftUI
 
 @MainActor
 final class WindowManager {
     private var windows: [ObjectIdentifier: NSWindow] = [:]
+    private var titleObservers: [ObjectIdentifier: AnyCancellable] = [:]
 
     func openViewer(for url: URL) {
         let viewModel = ImageViewerViewModel(imageURL: url)
@@ -20,6 +22,10 @@ final class WindowManager {
 
         let identifier = ObjectIdentifier(window)
         windows[identifier] = window
+        titleObservers[identifier] = viewModel.$currentURL
+            .sink { [weak window] url in
+                window?.title = url.lastPathComponent
+            }
 
         window.title = viewModel.currentFilename
         window.contentViewController = hostingController
@@ -28,6 +34,7 @@ final class WindowManager {
 
         let delegate = WindowDelegate(onClose: { [weak self] in
             self?.windows.removeValue(forKey: identifier)
+            self?.titleObservers.removeValue(forKey: identifier)
         })
         window.delegate = delegate
         objc_setAssociatedObject(window, &Self.delegateAssociationKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)

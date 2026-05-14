@@ -2,6 +2,7 @@ import AppKit
 import ImageIO
 import SwiftUI
 import Vision
+import VisionKit
 
 struct ImageCanvasView: NSViewRepresentable {
     let image: NSImage
@@ -98,9 +99,37 @@ private final class SelectionOverlayView: NSView {
     }
 }
 
+enum TextRecognitionBackend {
+    case liveText
+    case vision
+
+    static var preferred: TextRecognitionBackend {
+        ImageAnalyzer.isSupported ? .liveText : .vision
+    }
+}
+
 final class CanvasNSView: NSView {
     private let imageView = NSImageView(frame: .zero)
+    private let backend: TextRecognitionBackend
+
+    // Live Text path
+    private let liveTextOverlay = ImageAnalysisOverlayView()
+    private let analyzer = ImageAnalyzer()
+
+    // Vision path
     private let selectionOverlayView = SelectionOverlayView(frame: .zero)
+    private var recognizedLines: [RecognizedTextLine] = [] {
+        didSet {
+            updateSelectionOverlay()
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+    private var selectionAnchorLocation: FragmentLocation?
+    private var selectionFocusLocation: FragmentLocation?
+    private var selectedFragmentLocations: Set<FragmentLocation> = [] {
+        didSet { updateSelectionOverlay() }
+    }
 
     var image: NSImage? {
         didSet {
@@ -108,12 +137,11 @@ final class CanvasNSView: NSView {
             if imageChanged {
                 zoomScale = 1
                 panOffset = .zero
-                clearTextSelection()
-                recognizedLines = []
+                resetTextSelectionState()
             }
             imageView.image = image
             if imageChanged {
-                analyzeTextIfNeeded()
+                analyzeImageIfPossible()
             }
             needsLayout = true
             needsDisplay = true
@@ -124,7 +152,7 @@ final class CanvasNSView: NSView {
         didSet {
             guard oldValue != imageURL else { return }
             if image != nil {
-                analyzeTextIfNeeded()
+                analyzeImageIfPossible()
             }
         }
     }
@@ -161,33 +189,28 @@ final class CanvasNSView: NSView {
     private var dragType: DragType = .none
     private var dragStartPoint: NSPoint?
     private var dragStartOffset: CGSize = .zero
-    private var selectionAnchorLocation: FragmentLocation?
-    private var selectionFocusLocation: FragmentLocation?
-    private var selectedFragmentLocations: Set<FragmentLocation> = [] {
-        didSet { updateSelectionOverlay() }
-    }
-    private var recognizedLines: [RecognizedTextLine] = [] {
-        didSet {
-            updateSelectionOverlay()
-            needsDisplay = true
-            window?.invalidateCursorRects(for: self)
-        }
-    }
     private var lastReportedDisplayScale: CGFloat = -1
     private var trackingArea: NSTrackingArea?
     private var analysisTask: Task<Void, Never>?
+    private var analysisToken = 0
 
     private let topDragRegionHeight: CGFloat = 36
 
     override var acceptsFirstResponder: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    override init(frame frameRect: NSRect) {
+    init(frame frameRect: NSRect, backend: TextRecognitionBackend) {
+        self.backend = backend
         super.init(frame: frameRect)
         configureSubviews()
     }
 
+    override convenience init(frame frameRect: NSRect) {
+        self.init(frame: frameRect, backend: .preferred)
+    }
+
     required init?(coder: NSCoder) {
+        self.backend = .preferred
         super.init(coder: coder)
         configureSubviews()
     }
@@ -216,8 +239,13 @@ final class CanvasNSView: NSView {
         super.layout()
         let geometry = currentGeometry()
         imageView.frame = geometry.imageRect
-        selectionOverlayView.frame = bounds
-        updateSelectionOverlay()
+        switch backend {
+        case .liveText:
+            liveTextOverlay.frame = imageView.bounds
+        case .vision:
+            selectionOverlayView.frame = bounds
+            updateSelectionOverlay()
+        }
         reportDisplayScaleIfNeeded(geometry.displayScale)
     }
 
@@ -255,7 +283,9 @@ final class CanvasNSView: NSView {
             panOffset = .zero
             onPanChanged?(.zero)
         }
-        updateSelectionOverlay()
+        if backend == .vision {
+            updateSelectionOverlay()
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -268,7 +298,9 @@ final class CanvasNSView: NSView {
         selectionAnchorLocation = nil
         selectionFocusLocation = nil
 
-        if event.clickCount == 2, hitTextLocation(at: point, geometry: geometry) == nil {
+        let hitText = backend == .vision ? hitTextLocation(at: point, geometry: geometry) : nil
+
+        if event.clickCount == 2, hitText == nil {
             zoomScale = 1
             panOffset = .zero
             onZoomChanged?(1)
@@ -277,7 +309,7 @@ final class CanvasNSView: NSView {
             return
         }
 
-        if let textLocation = hitTextLocation(at: point, geometry: geometry) {
+        if let textLocation = hitText {
             dragType = .textSelection
             selectionAnchorLocation = textLocation
             selectionFocusLocation = textLocation
@@ -295,7 +327,7 @@ final class CanvasNSView: NSView {
             dragStartPoint = point
             dragStartOffset = panOffset
             NSCursor.closedHand.set()
-        } else {
+        } else if backend == .vision {
             clearTextSelection()
         }
     }
@@ -318,7 +350,7 @@ final class CanvasNSView: NSView {
             panOffset = constrainPan(nextOffset, geometry: geometry)
             onPanChanged?(panOffset)
         case .textSelection:
-            guard let anchor = selectionAnchorLocation else { return }
+            guard backend == .vision, let anchor = selectionAnchorLocation else { return }
             let geometry = currentGeometry()
             let target = nearestTextLocation(to: point, geometry: geometry) ?? anchor
             selectionFocusLocation = target
@@ -359,10 +391,14 @@ final class CanvasNSView: NSView {
         return super.performKeyEquivalent(with: event)
     }
 
+    @objc func copy(_ sender: Any?) {
+        _ = copySelectedTextToPasteboard()
+    }
+
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = NSMenu(title: "Image")
 
-        if !selectedFragmentLocations.isEmpty {
+        if backend == .vision, !selectedFragmentLocations.isEmpty {
             let copyItem = NSMenuItem(title: "复制", action: #selector(copySelectedText), keyEquivalent: "c")
             copyItem.target = self
             menu.addItem(copyItem)
@@ -394,14 +430,70 @@ final class CanvasNSView: NSView {
         imageView.layer?.contentsGravity = .resizeAspect
         addSubview(imageView)
 
-        selectionOverlayView.autoresizingMask = [.width, .height]
-        addSubview(selectionOverlayView)
+        switch backend {
+        case .liveText:
+            liveTextOverlay.autoresizingMask = [.width, .height]
+            liveTextOverlay.trackingImageView = imageView
+            liveTextOverlay.preferredInteractionTypes = .automatic
+            imageView.addSubview(liveTextOverlay)
+        case .vision:
+            selectionOverlayView.autoresizingMask = [.width, .height]
+            addSubview(selectionOverlayView)
+        }
     }
 
-    private func analyzeTextIfNeeded() {
-        analysisTask?.cancel()
-        recognizedLines = []
+    private func resetTextSelectionState() {
+        switch backend {
+        case .liveText:
+            liveTextOverlay.analysis = nil
+        case .vision:
+            clearTextSelection()
+            recognizedLines = []
+        }
+    }
 
+    private func analyzeImageIfPossible() {
+        analysisTask?.cancel()
+        analysisToken &+= 1
+        let token = analysisToken
+
+        switch backend {
+        case .liveText:
+            liveTextOverlay.analysis = nil
+            analyzeWithLiveText(token: token)
+        case .vision:
+            recognizedLines = []
+            analyzeWithVision(token: token)
+        }
+    }
+
+    private func analyzeWithLiveText(token: Int) {
+        guard
+            ImageAnalyzer.isSupported,
+            let image,
+            let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return }
+
+        let orientation = exifOrientation(for: imageURL)
+        let configuration = ImageAnalyzer.Configuration([.text, .machineReadableCode, .visualLookUp])
+
+        analysisTask = Task { [weak self, analyzer] in
+            do {
+                let analysis = try await analyzer.analyze(cgImage, orientation: orientation, configuration: configuration)
+                await MainActor.run { [weak self] in
+                    guard let self, !Task.isCancelled, token == self.analysisToken else { return }
+                    self.liveTextOverlay.analysis = analysis
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    guard let self, token == self.analysisToken else { return }
+                    self.liveTextOverlay.analysis = nil
+                }
+            }
+        }
+    }
+
+    private func analyzeWithVision(token: Int) {
         guard
             let image,
             let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
@@ -436,12 +528,13 @@ final class CanvasNSView: NSView {
                 }
 
                 await MainActor.run { [weak self] in
-                    guard let self, !Task.isCancelled else { return }
+                    guard let self, !Task.isCancelled, token == self.analysisToken else { return }
                     self.recognizedLines = lines
                 }
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.recognizedLines = []
+                    guard let self, token == self.analysisToken else { return }
+                    self.recognizedLines = []
                 }
             }
         }
@@ -534,6 +627,7 @@ final class CanvasNSView: NSView {
     }
 
     private func hitTextLocation(at point: CGPoint, geometry: ImageDisplayGeometry) -> FragmentLocation? {
+        guard backend == .vision else { return nil }
         if let location = hitTextLocationWithoutFallback(at: point, geometry: geometry) {
             return location
         }
@@ -601,6 +695,7 @@ final class CanvasNSView: NSView {
     }
 
     private func updateSelectionOverlay() {
+        guard backend == .vision else { return }
         let geometry = currentGeometry()
         selectionOverlayView.selectionRects = selectedFragments().map {
             fragmentRectInView($0, geometry: geometry)
@@ -651,7 +746,7 @@ final class CanvasNSView: NSView {
             }
     }
 
-    private func selectedText() -> String {
+    private func selectedVisionText() -> String {
         let grouped = Dictionary(grouping: selectedFragments(), by: \.lineIndex)
         return grouped.keys.sorted().compactMap { lineIndex in
             grouped[lineIndex]?
@@ -662,8 +757,18 @@ final class CanvasNSView: NSView {
         .joined(separator: "\n")
     }
 
+    private func currentlySelectedText() -> String {
+        switch backend {
+        case .liveText:
+            return liveTextOverlay.selectedText
+        case .vision:
+            return selectedVisionText()
+        }
+    }
+
+    @discardableResult
     private func copySelectedTextToPasteboard() -> Bool {
-        let text = selectedText().trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = currentlySelectedText().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return false }
 
         let pasteboard = NSPasteboard.general
@@ -686,7 +791,7 @@ final class CanvasNSView: NSView {
 
     private func cursorForPoint(_ point: CGPoint) -> NSCursor {
         let geometry = currentGeometry()
-        if hitTextLocation(at: point, geometry: geometry) != nil {
+        if backend == .vision, hitTextLocation(at: point, geometry: geometry) != nil {
             return .iBeam
         }
         if dragType == .pan || (panImageMode(geometry) && geometry.imageRect.contains(point)) {
@@ -711,8 +816,30 @@ final class CanvasNSView: NSView {
 
 #if DEBUG
 extension CanvasNSView {
+    var debugBackend: TextRecognitionBackend { backend }
+
+    var debugLiveTextAnalysis: ImageAnalysis? {
+        liveTextOverlay.analysis
+    }
+
+    func debugWaitForAnalysis(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while liveTextOverlay.analysis == nil && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+        return liveTextOverlay.analysis != nil
+    }
+
     var debugRecognizedLineCount: Int {
         recognizedLines.count
+    }
+
+    func debugWaitForVisionRecognition(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while recognizedLines.isEmpty && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+        return !recognizedLines.isEmpty
     }
 
     func debugRecognizedTexts() -> [String] {
@@ -747,7 +874,7 @@ extension CanvasNSView {
     }
 
     func debugSelectedText() -> String {
-        selectedText()
+        currentlySelectedText()
     }
 
     @discardableResult

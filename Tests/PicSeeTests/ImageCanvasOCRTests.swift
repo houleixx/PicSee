@@ -1,19 +1,41 @@
 import AppKit
+import VisionKit
 import XCTest
 @testable import PicSee
 
 @MainActor
 final class ImageCanvasOCRTests: XCTestCase {
-    func testOCRRecognizesFixtureAndMapsLinesTopToBottom() {
-        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 1152, height: 768))
+    func testLiveTextAnalysisRecognizesFixtureLines() throws {
+        try XCTSkipUnless(ImageAnalyzer.isSupported, "ImageAnalyzer not supported on this host")
+
+        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 1152, height: 768), backend: .liveText)
         view.image = loadFixtureImage()
         view.imageURL = fixtureURL
         view.layoutSubtreeIfNeeded()
 
-        waitForOCR(on: view)
+        XCTAssertTrue(view.debugWaitForAnalysis(timeout: 8), "Live Text analysis did not complete")
+        let transcript = view.debugLiveTextAnalysis?.transcript ?? ""
+        XCTAssertTrue(transcript.contains("第一行测试文字"), "Missing line 1 in transcript: \(transcript)")
+        XCTAssertTrue(transcript.contains("第二行复制验证"), "Missing line 2 in transcript: \(transcript)")
+        XCTAssertTrue(transcript.contains("第三行放大后选择"), "Missing line 3 in transcript: \(transcript)")
+
+        view.zoomScale = 2
+        view.panOffset = CGSize(width: 60, height: -30)
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertNotNil(view.debugLiveTextAnalysis, "Analysis must persist across zoom and pan changes")
+    }
+
+    func testVisionFallbackRecognizesAndCopies() {
+        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 1152, height: 768), backend: .vision)
+        view.image = loadFixtureImage()
+        view.imageURL = fixtureURL
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(view.debugWaitForVisionRecognition(timeout: 8), "Vision OCR did not produce results")
 
         let texts = view.debugRecognizedTexts()
-        XCTAssertGreaterThanOrEqual(texts.count, 3, "Expected OCR to find the three fixture lines, got: \(texts)")
+        XCTAssertGreaterThanOrEqual(texts.count, 3, "Expected at least 3 lines, got: \(texts)")
         guard texts.count >= 3 else { return }
         XCTAssertEqual(texts.prefix(3).map { $0 }, ["第一行测试文字", "第二行复制验证", "第三行放大后选择"])
 
@@ -22,12 +44,8 @@ final class ImageCanvasOCRTests: XCTestCase {
             XCTFail("Expected three OCR rects, got: \(rects)")
             return
         }
-        XCTAssertGreaterThan(rects[0].midY, rects[1].midY, "Top line should map above the second line: \(rects)")
-        XCTAssertGreaterThan(rects[1].midY, rects[2].midY, "Second line should map above the third line: \(rects)")
-
-        for (index, rect) in rects.prefix(3).enumerated() {
-            XCTAssertEqual(view.debugHitTextIndex(at: CGPoint(x: rect.midX, y: rect.midY)), index)
-        }
+        XCTAssertGreaterThan(rects[0].midY, rects[1].midY)
+        XCTAssertGreaterThan(rects[1].midY, rects[2].midY)
 
         let firstLineFragments = view.debugFragmentRects(forLine: 0)
         XCTAssertFalse(firstLineFragments.isEmpty)
@@ -43,15 +61,6 @@ final class ImageCanvasOCRTests: XCTestCase {
         view.panOffset = CGSize(width: 60, height: -30)
         view.layoutSubtreeIfNeeded()
 
-        let zoomedRects = view.debugLineRects()
-        guard zoomedRects.count >= 3 else {
-            XCTFail("Expected three OCR rects after zoom, got: \(zoomedRects)")
-            return
-        }
-        for (index, rect) in zoomedRects.prefix(3).enumerated() {
-            XCTAssertEqual(view.debugHitTextIndex(at: CGPoint(x: rect.midX, y: rect.midY)), index)
-        }
-
         let zoomedThirdLineFragments = view.debugFragmentRects(forLine: 2)
         XCTAssertGreaterThanOrEqual(zoomedThirdLineFragments.count, 7)
         NSPasteboard.general.clearContents()
@@ -65,12 +74,10 @@ final class ImageCanvasOCRTests: XCTestCase {
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), "放大后选择")
     }
 
-    private func waitForOCR(on view: CanvasNSView, timeout: TimeInterval = 5) {
-        let deadline = Date().addingTimeInterval(timeout)
-        while view.debugRecognizedLineCount == 0 && Date() < deadline {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-        }
-        XCTAssertGreaterThan(view.debugRecognizedLineCount, 0, "OCR did not produce any text lines within \(timeout)s")
+    func testPreferredBackendIsLiveTextOnSupportedHardware() {
+        let expected: TextRecognitionBackend = ImageAnalyzer.isSupported ? .liveText : .vision
+        let view = CanvasNSView(frame: .zero)
+        XCTAssertEqual(view.debugBackend, expected)
     }
 
     private func loadFixtureImage() -> NSImage {

@@ -19,6 +19,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        open(urls: urls)
+    }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        open(urls: [URL(fileURLWithPath: filename)])
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        open(urls: filenames.map { URL(fileURLWithPath: $0) })
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+
+    private func open(urls: [URL]) {
         let imageURLs = urls.filter(FolderImageNavigator.isSupportedImage)
         let routing = ImageOpenRouting.route(urls: imageURLs, hasOpenViewer: windowManager.hasOpenViewer)
 
@@ -29,10 +47,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for spawnedURL in routing.spawnedProcessURLs {
             spawnNewProcess(for: spawnedURL)
         }
-    }
-
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
     }
 
     private func spawnNewProcess(for url: URL) {

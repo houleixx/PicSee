@@ -13,7 +13,7 @@ ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 cd "$ROOT_DIR"
 ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
 X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
-APP_VERSION="${PICSEE_VERSION:-0.2.7}"
+APP_VERSION="${PICSEE_VERSION:-0.2.8}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
 SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
 
@@ -92,6 +92,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
             <string>Alternate</string>
             <key>LSItemContentTypes</key>
             <array>
+                <string>public.image</string>
                 <string>public.jpeg</string>
                 <string>public.png</string>
                 <string>com.compuserve.gif</string>
@@ -99,6 +100,18 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
                 <string>public.tiff</string>
                 <string>com.microsoft.bmp</string>
                 <string>org.webmproject.webp</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>jpg</string>
+                <string>jpeg</string>
+                <string>png</string>
+                <string>gif</string>
+                <string>heic</string>
+                <string>tif</string>
+                <string>tiff</string>
+                <string>bmp</string>
+                <string>webp</string>
             </array>
         </dict>
     </array>

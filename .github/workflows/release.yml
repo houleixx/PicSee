@@ -14,9 +14,12 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   release:
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout

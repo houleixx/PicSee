@@ -1,7 +1,10 @@
 .build/
+.build-arm64/
+.build-x86_64/
 .swiftpm/
 build/
 DerivedData/
 *.xcuserdata/
 .DS_Store
 .superpowers/
+.claude/

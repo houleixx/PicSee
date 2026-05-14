@@ -3,10 +3,16 @@ import Combine
 import ObjectiveC
 import SwiftUI
 
+private final class ViewerWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 @MainActor
 final class WindowManager {
     private var currentWindow: NSWindow?
     private var titleObserver: AnyCancellable?
+    private var keyEventMonitor: Any?
 
     var hasOpenViewer: Bool {
         currentWindow != nil
@@ -20,9 +26,9 @@ final class WindowManager {
         let hostingController = NSHostingController(rootView: rootView)
 
         let initialFrame = initialWindowFrame(for: viewModel.image)
-        let window = NSWindow(
+        let window = ViewerWindow(
             contentRect: initialFrame,
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            styleMask: [.borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -34,19 +40,23 @@ final class WindowManager {
             }
 
         window.title = viewModel.currentFilename
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isMovableByWindowBackground = true
-        window.backgroundColor = .black
-        window.standardWindowButton(.closeButton)?.isHidden = true
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        window.standardWindowButton(.zoomButton)?.isHidden = true
+        window.isMovableByWindowBackground = false
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
+        window.hasShadow = true
         window.contentViewController = hostingController
         window.setFrame(initialFrame, display: false)
         window.makeKeyAndOrderFront(nil)
+        window.makeKey()
+        applyRoundedCorners(to: window)
+        installKeyboardMonitor(for: viewModel)
 
         let delegate = WindowDelegate(onClose: { [weak self] in
             self?.titleObserver = nil
+            if let monitor = self?.keyEventMonitor {
+                NSEvent.removeMonitor(monitor)
+                self?.keyEventMonitor = nil
+            }
             self?.currentWindow = nil
         })
         window.delegate = delegate
@@ -64,6 +74,38 @@ final class WindowManager {
     }
 
     private static var delegateAssociationKey: UInt8 = 0
+
+    private func applyRoundedCorners(to window: NSWindow) {
+        guard let frameView = window.contentView?.superview else { return }
+        frameView.wantsLayer = true
+        frameView.layer?.cornerRadius = 14
+        frameView.layer?.masksToBounds = true
+    }
+
+    private func installKeyboardMonitor(for viewModel: ImageViewerViewModel) {
+        if let monitor = keyEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyEventMonitor = nil
+        }
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, let window = self.currentWindow, NSApp.keyWindow === window else {
+                return event
+            }
+            switch KeyboardNavigation.action(for: event.keyCode) {
+            case .previous:
+                viewModel.navigateToPrevious()
+                return nil
+            case .next:
+                viewModel.navigateToNext()
+                return nil
+            case .quit:
+                NSApp.terminate(nil)
+                return nil
+            case .none:
+                return event
+            }
+        }
+    }
 }
 
 private final class WindowDelegate: NSObject, NSWindowDelegate {

@@ -15,7 +15,7 @@ struct ImageDisplayGeometry {
     }
 
     var displayScale: CGFloat {
-        max(0.01, fitScale * max(1, zoomScale))
+        max(0.01, fitScale * max(0.1, zoomScale))
     }
 
     var displaySize: CGSize {
@@ -31,13 +31,26 @@ struct ImageDisplayGeometry {
         )
     }
 
-    func constrainedPan(_ proposed: CGSize) -> CGSize {
-        let maxX = max(0, (displaySize.width - viewportSize.width) / 2)
-        let maxY = max(0, (displaySize.height - viewportSize.height) / 2)
+    /// - Parameter allowSlackWhenFitted: When true and the scaled image is smaller than the viewport in an axis,
+    ///   still allow panning up to half the slack so the image can be repositioned (e.g. after zooming out).
+    func constrainedPan(_ proposed: CGSize, allowSlackWhenFitted: Bool = false) -> CGSize {
+        let maxX: CGFloat
+        let maxY: CGFloat
+        if allowSlackWhenFitted {
+            maxX = abs(displaySize.width - viewportSize.width) / 2
+            maxY = abs(displaySize.height - viewportSize.height) / 2
+        } else {
+            maxX = max(0, (displaySize.width - viewportSize.width) / 2)
+            maxY = max(0, (displaySize.height - viewportSize.height) / 2)
+        }
 
         return CGSize(
             width: min(max(proposed.width, -maxX), maxX),
             height: min(max(proposed.height, -maxY), maxY)
         )
+    }
+
+    var canPan: Bool {
+        displaySize.width > viewportSize.width || displaySize.height > viewportSize.height
     }
 }

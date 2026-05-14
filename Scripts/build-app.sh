@@ -6,20 +6,49 @@ APP_DIR="$ROOT_DIR/build/PicSee.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
-ICON_ICNS="$ROOT_DIR/Resources/AppIcon.icns"
+ICON_SOURCE="$ROOT_DIR/Images/picsee_icon.png"
+ICON_WORK_DIR="$ROOT_DIR/build/icon-tiff"
+ICON_TIFF="$ROOT_DIR/build/AppIcon.tiff"
+ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 
 cd "$ROOT_DIR"
-swift build -c release
+ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
+X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
+
+swift build -c release --arch arm64 --build-path "$ARM64_BUILD_DIR"
+swift build -c release --arch x86_64 --build-path "$X64_BUILD_DIR"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
-cp "$ROOT_DIR/.build/release/PicSee" "$MACOS_DIR/PicSee"
+lipo -create \
+  "$ARM64_BUILD_DIR/release/PicSee" \
+  "$X64_BUILD_DIR/release/PicSee" \
+  -output "$MACOS_DIR/PicSee"
 
-if [ ! -f "$ICON_ICNS" ]; then
-  echo "Missing icon resource: $ICON_ICNS" >&2
+if [ ! -f "$ICON_SOURCE" ]; then
+  echo "Missing icon source: $ICON_SOURCE" >&2
   exit 1
 fi
 
+rm -rf "$ICON_WORK_DIR"
+mkdir -p "$ICON_WORK_DIR"
+
+for size in 16 32 48 128 256 512 1024; do
+  sips -z "$size" "$size" "$ICON_SOURCE" --out "$ICON_WORK_DIR/icon-${size}.tiff" >/dev/null
+done
+
+tiffutil -cat \
+  "$ICON_WORK_DIR/icon-16.tiff" \
+  "$ICON_WORK_DIR/icon-32.tiff" \
+  "$ICON_WORK_DIR/icon-48.tiff" \
+  "$ICON_WORK_DIR/icon-128.tiff" \
+  "$ICON_WORK_DIR/icon-256.tiff" \
+  "$ICON_WORK_DIR/icon-512.tiff" \
+  "$ICON_WORK_DIR/icon-1024.tiff" \
+  -out "$ICON_TIFF"
+
+rm -f "$ICON_ICNS"
+tiff2icns "$ICON_TIFF"
 cp "$ICON_ICNS" "$RESOURCES_DIR/AppIcon.icns"
 
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
@@ -79,3 +108,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 PLIST
 
 echo "Built $APP_DIR"
+
+# 同步到用户「应用程序」文件夹（与 ~/Applications 同一路径，例如 /Users/holly/Applications）
+USER_APPS_DIR="${HOME}/Applications"
+mkdir -p "$USER_APPS_DIR"
+ditto "$APP_DIR" "$USER_APPS_DIR/PicSee.app"
+echo "Installed $USER_APPS_DIR/PicSee.app"

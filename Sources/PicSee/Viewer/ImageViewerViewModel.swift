@@ -9,6 +9,7 @@ final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published var zoomScale: CGFloat = 1
     @Published var panOffset: CGSize = .zero
+    @Published var displayScale: CGFloat = 1
 
     private var navigator: FolderImageNavigator?
 
@@ -19,6 +20,10 @@ final class ImageViewerViewModel: ObservableObject {
 
     var currentFilename: String {
         currentURL.lastPathComponent
+    }
+
+    var zoomPercentageText: String {
+        "\(Int((displayScale * 100).rounded()))%"
     }
 
     var previousURL: URL? {

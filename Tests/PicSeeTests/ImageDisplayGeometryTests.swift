@@ -58,4 +58,21 @@ final class ImageDisplayGeometryTests: XCTestCase {
         XCTAssertEqual(constrained.width, 200, accuracy: 0.001)
         XCTAssertEqual(constrained.height, 250, accuracy: 0.001)
     }
+
+    func testConstrainedPanSlackWhenFittedAllowsHorizontalNudge() {
+        let geometry = ImageDisplayGeometry(
+            imageSize: CGSize(width: 400, height: 300),
+            viewportSize: CGSize(width: 1200, height: 600),
+            zoomScale: 1,
+            panOffset: .zero
+        )
+
+        let withoutSlack = geometry.constrainedPan(CGSize(width: 80, height: 40), allowSlackWhenFitted: false)
+        XCTAssertEqual(withoutSlack.width, 0, accuracy: 0.001)
+        XCTAssertEqual(withoutSlack.height, 0, accuracy: 0.001)
+
+        let withSlack = geometry.constrainedPan(CGSize(width: 80, height: 40), allowSlackWhenFitted: true)
+        XCTAssertEqual(withSlack.width, 80, accuracy: 0.001)
+        XCTAssertEqual(withSlack.height, 0, accuracy: 0.001)
+    }
 }

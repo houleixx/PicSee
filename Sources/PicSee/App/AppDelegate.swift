@@ -14,7 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let info = Bundle.main.infoDictionary ?? [:]
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: AppMenu.applicationName(from: info),
-            .applicationVersion: AppMenu.versionSummary(from: info)
+            .applicationVersion: AppMenu.aboutPanelVersion(from: info)
         ])
     }
 

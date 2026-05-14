@@ -61,6 +61,10 @@ enum AppMenu {
         return "版本 \(shortVersion) (\(build))"
     }
 
+    static func aboutPanelVersion(from info: [String: Any]) -> String {
+        stringValue(for: "CFBundleShortVersionString", in: info) ?? "未知"
+    }
+
     private static func stringValue(for key: String, in info: [String: Any]) -> String? {
         guard let value = info[key] as? String, !value.isEmpty else { return nil }
         return value

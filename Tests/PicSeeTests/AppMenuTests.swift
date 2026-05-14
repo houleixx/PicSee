@@ -32,6 +32,7 @@ final class AppMenuTests: XCTestCase {
 
         XCTAssertEqual(AppMenu.applicationName(from: info), "PicSee")
         XCTAssertEqual(AppMenu.versionSummary(from: info), "版本 0.2.5 (7)")
+        XCTAssertEqual(AppMenu.aboutPanelVersion(from: info), "0.2.5")
     }
 
     func testImageContextMenuContainsAboutItem() {

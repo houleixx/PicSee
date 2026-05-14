@@ -14,6 +14,9 @@ ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 cd "$ROOT_DIR"
 ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
 X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
+APP_VERSION="${PICSEE_VERSION:-0.2.1}"
+APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
+SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
 
 swift build -c release --arch arm64 --build-path "$ARM64_BUILD_DIR"
 swift build -c release --arch x86_64 --build-path "$X64_BUILD_DIR"
@@ -51,7 +54,7 @@ rm -f "$ICON_ICNS"
 tiff2icns "$ICON_TIFF"
 cp "$ICON_ICNS" "$RESOURCES_DIR/AppIcon.icns"
 
-cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
+cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -73,9 +76,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>${APP_VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>${APP_BUILD_NUMBER}</string>
     <key>LSUIElement</key>
     <true/>
     <key>LSMinimumSystemVersion</key>
@@ -109,8 +112,19 @@ PLIST
 
 echo "Built $APP_DIR"
 
-# 同步到用户「应用程序」文件夹（与 ~/Applications 同一路径，例如 /Users/holly/Applications）
-USER_APPS_DIR="${HOME}/Applications"
-mkdir -p "$USER_APPS_DIR"
-ditto "$APP_DIR" "$USER_APPS_DIR/PicSee.app"
-echo "Installed $USER_APPS_DIR/PicSee.app"
+# 用稳定标识符做 ad-hoc 重新签名，让 macOS 隐私子系统(TCC)把每次重建的 app 视为同一个，
+# 用户授予「桌面/下载」等文件夹访问权后不会每次重新打包都再问。
+codesign --force --deep --sign - \
+  --identifier "local.picsee.viewer" \
+  --options runtime \
+  --timestamp=none \
+  "$APP_DIR" >/dev/null
+echo "Signed $APP_DIR (ad-hoc, stable identifier)"
+
+if [ "$SKIP_LOCAL_INSTALL" != "1" ]; then
+  # 同步到用户「应用程序」文件夹（与 ~/Applications 同一路径，例如 /Users/holly/Applications）
+  USER_APPS_DIR="${HOME}/Applications"
+  mkdir -p "$USER_APPS_DIR"
+  ditto "$APP_DIR" "$USER_APPS_DIR/PicSee.app"
+  echo "Installed $USER_APPS_DIR/PicSee.app"
+fi

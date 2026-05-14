@@ -1,0 +1,58 @@
+name: Build DMG Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example 0.2.1
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "dmg_name=PicSee-$VERSION.dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Make scripts executable
+        run: chmod +x Scripts/build-app.sh Scripts/build-dmg.sh
+
+      - name: Build DMG
+        run: |
+          PICSEE_VERSION="${{ steps.version.outputs.version }}" \
+          PICSEE_BUILD_NUMBER="${{ github.run_number }}" \
+          PICSEE_SKIP_LOCAL_INSTALL=1 \
+          Scripts/build-dmg.sh
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.dmg_name }}
+          path: build/dmg/${{ steps.version.outputs.dmg_name }}
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/dmg/${{ steps.version.outputs.dmg_name }}
+          generate_release_notes: true

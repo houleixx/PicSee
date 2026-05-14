@@ -104,10 +104,7 @@ enum TextRecognitionBackend {
     case vision
 
     static var preferred: TextRecognitionBackend {
-        preferredBackend(
-            liveTextSupported: ImageAnalyzer.isSupported,
-            supportsLiveTextSelection: supportsLiveTextSelection
-        )
+        ImageAnalyzer.isSupported ? .liveText : .vision
     }
 
     static func preferredBackend(
@@ -115,14 +112,6 @@ enum TextRecognitionBackend {
         supportsLiveTextSelection: Bool
     ) -> TextRecognitionBackend {
         liveTextSupported && supportsLiveTextSelection ? .liveText : .vision
-    }
-
-    private static var supportsLiveTextSelection: Bool {
-        if #available(macOS 14.0, *) {
-            true
-        } else {
-            false
-        }
     }
 }
 
@@ -790,10 +779,7 @@ final class CanvasNSView: NSView {
     private func currentlySelectedText() -> String {
         switch backend {
         case .liveText:
-            if #available(macOS 14.0, *) {
-                return liveTextOverlay.selectedText
-            }
-            return ""
+            return liveTextOverlay.selectedText
         case .vision:
             return selectedVisionText()
         }
@@ -848,7 +834,6 @@ final class CanvasNSView: NSView {
 }
 
 extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
-    @available(macOS 14.0, *)
     func overlayView(_ overlayView: ImageAnalysisOverlayView, updatedMenuFor menu: NSMenu, for event: NSEvent, at point: CGPoint) -> NSMenu {
         appendPicSeeContextMenuItems(to: menu)
         return menu

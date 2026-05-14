@@ -2,7 +2,7 @@ import AppKit
 import ImageIO
 import SwiftUI
 import Vision
-import VisionKit
+@preconcurrency import VisionKit
 
 struct ImageCanvasView: NSViewRepresentable {
     let image: NSImage

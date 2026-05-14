@@ -5,7 +5,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowManager = WindowManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let info = Bundle.main.infoDictionary ?? [:]
+        NSApp.mainMenu = AppMenu.buildMainMenu(appName: AppMenu.applicationName(from: info))
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc func showAboutPanel(_ sender: Any?) {
+        let info = Bundle.main.infoDictionary ?? [:]
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: AppMenu.applicationName(from: info),
+            .applicationVersion: AppMenu.versionSummary(from: info)
+        ])
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

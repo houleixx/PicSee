@@ -104,7 +104,25 @@ enum TextRecognitionBackend {
     case vision
 
     static var preferred: TextRecognitionBackend {
-        ImageAnalyzer.isSupported ? .liveText : .vision
+        preferredBackend(
+            liveTextSupported: ImageAnalyzer.isSupported,
+            supportsLiveTextSelection: supportsLiveTextSelection
+        )
+    }
+
+    static func preferredBackend(
+        liveTextSupported: Bool,
+        supportsLiveTextSelection: Bool
+    ) -> TextRecognitionBackend {
+        liveTextSupported && supportsLiveTextSelection ? .liveText : .vision
+    }
+
+    private static var supportsLiveTextSelection: Bool {
+        if #available(macOS 14.0, *) {
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -405,14 +423,11 @@ final class CanvasNSView: NSView {
             menu.addItem(.separator())
         }
 
-        let pathItem = NSMenuItem(title: "复制图片路径", action: #selector(copyImagePath), keyEquivalent: "")
-        pathItem.target = self
-        pathItem.isEnabled = imageURL != nil
-        menu.addItem(pathItem)
+        appendPicSeeContextMenuItems(to: menu)
         return menu
     }
 
-    @objc private func copyImagePath() {
+    @objc func copyImagePathForMenu(_ sender: Any?) {
         guard let path = imageURL?.path else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -421,6 +436,20 @@ final class CanvasNSView: NSView {
 
     @objc private func copySelectedText() {
         _ = copySelectedTextToPasteboard()
+    }
+
+    private func appendPicSeeContextMenuItems(to menu: NSMenu) {
+        if menu.items.first(where: { $0.action == #selector(copyImagePathForMenu(_:)) }) == nil {
+            if !menu.items.isEmpty {
+                menu.addItem(.separator())
+            }
+            let pathItem = NSMenuItem(title: "复制图片路径", action: #selector(copyImagePathForMenu(_:)), keyEquivalent: "")
+            pathItem.target = self
+            pathItem.isEnabled = imageURL != nil
+            menu.addItem(pathItem)
+        }
+
+        AppMenu.appendAboutItem(to: menu)
     }
 
     private func configureSubviews() {
@@ -434,6 +463,7 @@ final class CanvasNSView: NSView {
         case .liveText:
             liveTextOverlay.autoresizingMask = [.width, .height]
             liveTextOverlay.trackingImageView = imageView
+            liveTextOverlay.delegate = self
             liveTextOverlay.preferredInteractionTypes = .automatic
             imageView.addSubview(liveTextOverlay)
         case .vision:
@@ -760,7 +790,10 @@ final class CanvasNSView: NSView {
     private func currentlySelectedText() -> String {
         switch backend {
         case .liveText:
-            return liveTextOverlay.selectedText
+            if #available(macOS 14.0, *) {
+                return liveTextOverlay.selectedText
+            }
+            return ""
         case .vision:
             return selectedVisionText()
         }
@@ -811,6 +844,14 @@ final class CanvasNSView: NSView {
             return .up
         }
         return orientation
+    }
+}
+
+extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
+    @available(macOS 14.0, *)
+    func overlayView(_ overlayView: ImageAnalysisOverlayView, updatedMenuFor menu: NSMenu, for event: NSEvent, at point: CGPoint) -> NSMenu {
+        appendPicSeeContextMenuItems(to: menu)
+        return menu
     }
 }
 
@@ -880,6 +921,10 @@ extension CanvasNSView {
     @discardableResult
     func debugCopySelectedText() -> Bool {
         copySelectedTextToPasteboard()
+    }
+
+    func debugAppendPicSeeContextMenuItems(to menu: NSMenu) {
+        appendPicSeeContextMenuItems(to: menu)
     }
 }
 #endif

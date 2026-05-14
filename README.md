@@ -20,7 +20,7 @@ macOS 自带的「预览」在快速看图时有两处常见不便：**鼠标滚
 
 ## 运行环境
 
-- macOS 14 及以上
+- macOS 13 及以上
 - Xcode Command Line Tools 或完整 Xcode
 - Swift 6
 
@@ -52,7 +52,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.2 PICSEE_BUILD_NUMBER=1 Scripts/build-app.sh
+PICSEE_VERSION=0.2.6 PICSEE_BUILD_NUMBER=1 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -65,12 +65,12 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `/Users/holly/code/Demo/PicSee/build/dmg/PicSee-0.2.2.dmg`
+- DMG: `/Users/holly/code/Demo/PicSee/build/dmg/PicSee-0.2.6.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.2 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.6 Scripts/build-dmg.sh
 ```
 
 ## 使用方式
@@ -118,14 +118,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.2
-git push origin v0.2.2
+git tag v0.2.6
+git push origin v0.2.6
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.2`
-- Asset: `PicSee-0.2.2.dmg`
+- Release: `v0.2.6`
+- Asset: `PicSee-0.2.6.dmg`
 
 ## Release 说明
 

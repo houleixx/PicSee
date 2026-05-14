@@ -13,7 +13,7 @@ ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 cd "$ROOT_DIR"
 ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
 X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
-APP_VERSION="${PICSEE_VERSION:-0.2.2}"
+APP_VERSION="${PICSEE_VERSION:-0.2.6}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
 SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
 
@@ -78,7 +78,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>LSUIElement</key>
     <true/>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>13.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>CFBundleDocumentTypes</key>

@@ -80,6 +80,26 @@ final class ImageCanvasOCRTests: XCTestCase {
         XCTAssertEqual(view.debugBackend, expected)
     }
 
+    func testPreferredBackendFallsBackToVisionWhenLiveTextSelectionIsUnavailable() {
+        XCTAssertEqual(
+            TextRecognitionBackend.preferredBackend(
+                liveTextSupported: true,
+                supportsLiveTextSelection: false
+            ),
+            .vision
+        )
+    }
+
+    func testPreferredBackendUsesLiveTextWhenLiveTextSelectionIsAvailable() {
+        XCTAssertEqual(
+            TextRecognitionBackend.preferredBackend(
+                liveTextSupported: true,
+                supportsLiveTextSelection: true
+            ),
+            .liveText
+        )
+    }
+
     private func loadFixtureImage() -> NSImage {
         guard let image = NSImage(contentsOf: fixtureURL) else {
             XCTFail("Missing OCR fixture at \(fixtureURL.path)")

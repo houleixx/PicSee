@@ -10,8 +10,10 @@ struct ImageDisplayGeometry {
         guard imageSize.width > 0, imageSize.height > 0, viewportSize.width > 0, viewportSize.height > 0 else {
             return 1
         }
-
-        return min(viewportSize.width / imageSize.width, viewportSize.height / imageSize.height)
+        // 不对小图进行放大：当图像在两个维度上都小于视口时，基准缩放保持 1:1。
+        // 仅当任一维度超出视口时，才按较小比例缩小以完整显示。
+        let scaleToFit = min(viewportSize.width / imageSize.width, viewportSize.height / imageSize.height)
+        return min(1, scaleToFit)
     }
 
     var displayScale: CGFloat {

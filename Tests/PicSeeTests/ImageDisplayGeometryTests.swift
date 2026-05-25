@@ -3,7 +3,7 @@ import XCTest
 @testable import PicSee
 
 final class ImageDisplayGeometryTests: XCTestCase {
-    func testFitScaleShowsEntireImageWithoutCropping() {
+    func testDoesNotUpscaleSmallImagesAtBaseZoom() {
         let geometry = ImageDisplayGeometry(
             imageSize: CGSize(width: 400, height: 300),
             viewportSize: CGSize(width: 1200, height: 600),
@@ -11,13 +11,14 @@ final class ImageDisplayGeometryTests: XCTestCase {
             panOffset: .zero
         )
 
-        XCTAssertEqual(geometry.displaySize.width, 800, accuracy: 0.001)
-        XCTAssertEqual(geometry.displaySize.height, 600, accuracy: 0.001)
-        XCTAssertEqual(geometry.imageRect.minX, 200, accuracy: 0.001)
-        XCTAssertEqual(geometry.imageRect.minY, 0, accuracy: 0.001)
+        // 小图保持 1:1 显示并居中
+        XCTAssertEqual(geometry.displaySize.width, 400, accuracy: 0.001)
+        XCTAssertEqual(geometry.displaySize.height, 300, accuracy: 0.001)
+        XCTAssertEqual(geometry.imageRect.minX, 400, accuracy: 0.001)
+        XCTAssertEqual(geometry.imageRect.minY, 150, accuracy: 0.001)
     }
 
-    func testFitScaleCentersEntireImageInTallViewport() {
+    func testCentersSmallImageWithoutUpscalingInTallViewport() {
         let geometry = ImageDisplayGeometry(
             imageSize: CGSize(width: 400, height: 300),
             viewportSize: CGSize(width: 500, height: 900),
@@ -25,10 +26,11 @@ final class ImageDisplayGeometryTests: XCTestCase {
             panOffset: .zero
         )
 
-        XCTAssertEqual(geometry.displaySize.width, 500, accuracy: 0.001)
-        XCTAssertEqual(geometry.displaySize.height, 375, accuracy: 0.001)
-        XCTAssertEqual(geometry.imageRect.minX, 0, accuracy: 0.001)
-        XCTAssertEqual(geometry.imageRect.minY, 262.5, accuracy: 0.001)
+        // 不放大：保持 400x300，并在 500x900 的视口中居中
+        XCTAssertEqual(geometry.displaySize.width, 400, accuracy: 0.001)
+        XCTAssertEqual(geometry.displaySize.height, 300, accuracy: 0.001)
+        XCTAssertEqual(geometry.imageRect.minX, 50, accuracy: 0.001)
+        XCTAssertEqual(geometry.imageRect.minY, 300, accuracy: 0.001)
     }
 
     func testPanIsDisabledAtBaseZoomWhenImageAlreadyFits() {
@@ -45,11 +47,12 @@ final class ImageDisplayGeometryTests: XCTestCase {
         XCTAssertEqual(constrained.height, 0, accuracy: 0.001)
     }
 
-    func testPanIsAllowedWhenImageIsZoomedIn() {
+    func testPanIsAllowedWhenImageExceedsViewportAfterZoom() {
         let geometry = ImageDisplayGeometry(
             imageSize: CGSize(width: 400, height: 300),
             viewportSize: CGSize(width: 1200, height: 600),
-            zoomScale: 2,
+            // 在“基准不放大小图”的前提下，将缩放提高到 4x，使图像两轴都超过视口
+            zoomScale: 4,
             panOffset: .zero
         )
 
@@ -73,6 +76,7 @@ final class ImageDisplayGeometryTests: XCTestCase {
 
         let withSlack = geometry.constrainedPan(CGSize(width: 80, height: 40), allowSlackWhenFitted: true)
         XCTAssertEqual(withSlack.width, 80, accuracy: 0.001)
-        XCTAssertEqual(withSlack.height, 0, accuracy: 0.001)
+        // 小图不放大时，允许在两个维度上各自一半空隙范围内的轻微位移
+        XCTAssertEqual(withSlack.height, 40, accuracy: 0.001)
     }
 }

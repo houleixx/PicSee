@@ -26,14 +26,22 @@ struct ImageViewerView: View {
                     }
                 )
                 .overlay(alignment: .topLeading) {
-                    Text(viewModel.zoomPercentageText)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
-                        .padding(.top, hudPadding)
-                        .padding(.leading, hudPadding)
+                    HStack(spacing: 8) {
+                        Text(viewModel.zoomPercentageText)
+                            .font(.system(size: 13, weight: .semibold))
+
+                        if let imagePixelSizeText = viewModel.imagePixelSizeText {
+                            Text(imagePixelSizeText)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.76))
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+                    .padding(.top, hudPadding)
+                    .padding(.leading, hudPadding)
                 }
                 .overlay(alignment: .topTrailing) {
                     Button(action: { NSApp.terminate(nil) }) {

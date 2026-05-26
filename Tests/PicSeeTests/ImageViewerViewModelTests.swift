@@ -61,19 +61,40 @@ final class ImageViewerViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.image)
     }
 
-    private func writePNG(named name: String, color: NSColor) throws -> URL {
-        let url = temporaryDirectory.appendingPathComponent(name)
-        let image = NSImage(size: NSSize(width: 8, height: 8))
-        image.lockFocus()
-        color.setFill()
-        NSRect(x: 0, y: 0, width: 8, height: 8).fill()
-        image.unlockFocus()
+    @MainActor
+    func testImagePixelSizeTextUsesLoadedImageDimensions() throws {
+        let imageURL = try writePNG(named: "001.png", color: .red, size: NSSize(width: 12, height: 34))
 
-        guard
-            let tiff = image.tiffRepresentation,
-            let bitmap = NSBitmapImageRep(data: tiff),
-            let data = bitmap.representation(using: .png, properties: [:])
-        else {
+        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+
+        XCTAssertEqual(viewModel.imagePixelSizeText, "12 x 34 px")
+    }
+
+    private func writePNG(named name: String, color: NSColor, size: NSSize = NSSize(width: 8, height: 8)) throws -> URL {
+        let url = temporaryDirectory.appendingPathComponent(name)
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width),
+            pixelsHigh: Int(size.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
+            XCTFail("Failed to create bitmap fixture")
+            return url
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+        color.setFill()
+        NSRect(origin: .zero, size: size).fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        guard let data = bitmap.representation(using: .png, properties: [:]) else {
             XCTFail("Failed to create PNG fixture")
             return url
         }

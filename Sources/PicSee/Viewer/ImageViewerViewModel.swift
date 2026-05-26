@@ -26,6 +26,11 @@ final class ImageViewerViewModel: ObservableObject {
         "\(Int((displayScale * 100).rounded()))%"
     }
 
+    var imagePixelSizeText: String? {
+        guard let image, let pixelSize = image.pixelSize else { return nil }
+        return "\(pixelSize.width) x \(pixelSize.height) px"
+    }
+
     var previousURL: URL? {
         navigator?.previousURL()
     }
@@ -72,5 +77,23 @@ final class ImageViewerViewModel: ObservableObject {
 
         image = loadedImage
         errorMessage = nil
+    }
+}
+
+private extension NSImage {
+    var pixelSize: (width: Int, height: Int)? {
+        let bitmapRepresentations = representations.compactMap { representation -> (width: Int, height: Int)? in
+            guard representation.pixelsWide > 0, representation.pixelsHigh > 0 else { return nil }
+            return (representation.pixelsWide, representation.pixelsHigh)
+        }
+
+        if let largestRepresentation = bitmapRepresentations.max(by: { lhs, rhs in
+            lhs.width * lhs.height < rhs.width * rhs.height
+        }) {
+            return largestRepresentation
+        }
+
+        guard size.width > 0, size.height > 0 else { return nil }
+        return (Int(size.width.rounded()), Int(size.height.rounded()))
     }
 }

@@ -22,7 +22,8 @@ final class WindowManager {
         guard currentWindow == nil else { return }
 
         let viewModel = ImageViewerViewModel(imageURL: url)
-        let rootView = ImageViewerView(viewModel: viewModel)
+        let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
+        let rootView = ImageViewerView(viewModel: viewModel, updateChecker: updateChecker)
         let hostingController = NSHostingController(rootView: rootView)
 
         let initialFrame = initialWindowFrame(for: viewModel.image)

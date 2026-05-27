@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ImageViewerView: View {
     @ObservedObject var viewModel: ImageViewerViewModel
+    let updateChecker: UpdateChecker?
     private let hudPadding: CGFloat = 9.6
 
     var body: some View {
@@ -56,6 +57,13 @@ struct ImageViewerView: View {
                     .padding(.top, hudPadding)
                     .padding(.trailing, hudPadding)
                 }
+                .overlay(alignment: .bottomLeading) {
+                    if let updateChecker {
+                        UpdatePromptView(updateChecker: updateChecker)
+                            .padding(.leading, hudPadding)
+                            .padding(.bottom, hudPadding)
+                    }
+                }
             } else {
                 VStack(spacing: 12) {
                     Text("Cannot Open Image")
@@ -72,5 +80,76 @@ struct ImageViewerView: View {
             }
         }
         .frame(minWidth: 480, minHeight: 320)
+        .task {
+            if let updateChecker {
+                await updateChecker.checkForUpdates()
+            }
+        }
+    }
+}
+
+private struct UpdatePromptView: View {
+    @ObservedObject var updateChecker: UpdateChecker
+
+    var body: some View {
+        if let update = updateChecker.availableUpdate, updateChecker.status != .downloaded {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(message(for: update))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white)
+
+                    Button(action: {
+                        Task { await updateChecker.downloadAvailableUpdate() }
+                    }) {
+                        Text(updateButtonTitle)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
+                    .disabled(updateChecker.status == .downloading)
+
+                    Button(action: updateChecker.ignoreAvailableUpdate) {
+                        Text("忽略")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.78))
+                    .disabled(updateChecker.status == .downloading)
+                }
+
+                if updateChecker.status == .downloading {
+                    ProgressView(value: updateChecker.downloadProgress ?? 0)
+                        .progressViewStyle(.linear)
+                        .controlSize(.mini)
+                        .tint(Color(red: 0.18, green: 0.48, blue: 0.95))
+                        .frame(width: 180)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private var updateButtonTitle: String {
+        switch updateChecker.status {
+        case .downloading:
+            return "下载中..."
+        case .failed:
+            return "重试"
+        default:
+            return "更新"
+        }
+    }
+
+    private func message(for update: GitHubRelease) -> String {
+        if updateChecker.status == .failed {
+            return "下载失败"
+        }
+        return "发现新版本 \(update.version.displayString)"
     }
 }

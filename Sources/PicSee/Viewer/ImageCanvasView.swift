@@ -99,6 +99,61 @@ private final class SelectionOverlayView: NSView {
     }
 }
 
+private final class ImageMinimapView: NSView {
+    var image: NSImage? {
+        didSet { needsDisplay = true }
+    }
+
+    var minimapGeometry: MinimapGeometry? {
+        didSet { needsDisplay = true }
+    }
+
+    var onNavigate: ((CGPoint) -> Void)?
+
+    override var isOpaque: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let image, let minimapGeometry else { return }
+
+        NSGraphicsContext.current?.saveGraphicsState()
+        let backgroundPath = NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6)
+        backgroundPath.addClip()
+        NSColor.black.withAlphaComponent(0.28).setFill()
+        bounds.fill()
+        image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        NSGraphicsContext.current?.restoreGraphicsState()
+
+        let visiblePath = NSBezierPath(rect: minimapGeometry.visibleRect)
+        NSColor.white.withAlphaComponent(0.16).setFill()
+        visiblePath.fill()
+        NSColor.white.withAlphaComponent(0.9).setStroke()
+        visiblePath.lineWidth = 2
+        visiblePath.stroke()
+
+        NSColor.white.withAlphaComponent(0.55).setStroke()
+        backgroundPath.lineWidth = 1
+        backgroundPath.stroke()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        navigate(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        navigate(with: event)
+    }
+
+    private func navigate(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        onNavigate?(
+            CGPoint(
+                x: min(max(point.x, 0), bounds.width),
+                y: min(max(point.y, 0), bounds.height)
+            )
+        )
+    }
+}
+
 enum TextRecognitionBackend {
     case liveText
     case vision
@@ -116,8 +171,12 @@ enum TextRecognitionBackend {
 }
 
 final class CanvasNSView: NSView {
+    private static let minimapEnabledDefaultsKey = "PicSee.MinimapEnabled"
+
     private let imageView = NSImageView(frame: .zero)
+    private let minimapView = ImageMinimapView(frame: .zero)
     private let backend: TextRecognitionBackend
+    private let defaults: UserDefaults
 
     // Live Text path
     private let liveTextOverlay = ImageAnalysisOverlayView()
@@ -200,14 +259,19 @@ final class CanvasNSView: NSView {
     private var trackingArea: NSTrackingArea?
     private var analysisTask: Task<Void, Never>?
     private var analysisToken = 0
+    private var minimapEnabled: Bool
 
     private let topDragRegionHeight: CGFloat = 36
+    private let minimapMaxSize = CGSize(width: 140, height: 100)
+    private let minimapPadding: CGFloat = 12
 
     override var acceptsFirstResponder: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    init(frame frameRect: NSRect, backend: TextRecognitionBackend) {
+    init(frame frameRect: NSRect, backend: TextRecognitionBackend, defaults: UserDefaults = .standard) {
         self.backend = backend
+        self.defaults = defaults
+        self.minimapEnabled = Self.defaultMinimapEnabled(in: defaults)
         super.init(frame: frameRect)
         configureSubviews()
     }
@@ -218,8 +282,14 @@ final class CanvasNSView: NSView {
 
     required init?(coder: NSCoder) {
         self.backend = .preferred
+        self.defaults = .standard
+        self.minimapEnabled = Self.defaultMinimapEnabled(in: .standard)
         super.init(coder: coder)
         configureSubviews()
+    }
+
+    private static func defaultMinimapEnabled(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: minimapEnabledDefaultsKey) as? Bool ?? true
     }
 
     deinit {
@@ -253,6 +323,7 @@ final class CanvasNSView: NSView {
             selectionOverlayView.frame = bounds
             updateSelectionOverlay()
         }
+        updateMinimap(geometry: geometry)
         reportDisplayScaleIfNeeded(geometry.displayScale)
     }
 
@@ -278,6 +349,7 @@ final class CanvasNSView: NSView {
         let delta = event.scrollingDeltaY == 0 ? -event.scrollingDeltaX : event.scrollingDeltaY
         guard delta != 0 else { return }
 
+        let previousGeometry = currentGeometry()
         let step: CGFloat = event.hasPreciseScrollingDeltas ? 0.0018 : 0.018
         let multiplier = exp(abs(delta) * step)
         let applied = delta > 0 ? multiplier : 1 / multiplier
@@ -289,6 +361,12 @@ final class CanvasNSView: NSView {
         if !panImageMode(geometry) {
             panOffset = .zero
             onPanChanged?(.zero)
+        } else {
+            panOffset = previousGeometry.constrainedPan(
+                preservingViewportCenterWhenZoomingTo: nextZoom,
+                allowSlackWhenFitted: panImageMode(geometry)
+            )
+            onPanChanged?(panOffset)
         }
         if backend == .vision {
             updateSelectionOverlay()
@@ -423,11 +501,27 @@ final class CanvasNSView: NSView {
         pasteboard.setString(path, forType: .string)
     }
 
+    @objc func toggleMinimapForMenu(_ sender: Any?) {
+        minimapEnabled.toggle()
+        defaults.set(minimapEnabled, forKey: Self.minimapEnabledDefaultsKey)
+        needsLayout = true
+    }
+
     @objc private func copySelectedText() {
         _ = copySelectedTextToPasteboard()
     }
 
     private func appendPicSeeContextMenuItems(to menu: NSMenu) {
+        if menu.items.first(where: { $0.action == #selector(toggleMinimapForMenu(_:)) }) == nil {
+            if !menu.items.isEmpty {
+                menu.addItem(.separator())
+            }
+            let minimapItem = NSMenuItem(title: "显示缩略图", action: #selector(toggleMinimapForMenu(_:)), keyEquivalent: "")
+            minimapItem.target = self
+            minimapItem.state = minimapEnabled ? .on : .off
+            menu.addItem(minimapItem)
+        }
+
         if menu.items.first(where: { $0.action == #selector(copyImagePathForMenu(_:)) }) == nil {
             if !menu.items.isEmpty {
                 menu.addItem(.separator())
@@ -459,6 +553,12 @@ final class CanvasNSView: NSView {
             selectionOverlayView.autoresizingMask = [.width, .height]
             addSubview(selectionOverlayView)
         }
+
+        minimapView.isHidden = true
+        minimapView.onNavigate = { [weak self] point in
+            self?.navigateWithMinimap(to: point)
+        }
+        addSubview(minimapView)
     }
 
     private func resetTextSelectionState() {
@@ -621,6 +721,41 @@ final class CanvasNSView: NSView {
 
     private func constrainPan(_ proposed: CGSize, geometry: ImageDisplayGeometry) -> CGSize {
         geometry.constrainedPan(proposed, allowSlackWhenFitted: panImageMode(geometry))
+    }
+
+    private func updateMinimap(geometry: ImageDisplayGeometry) {
+        guard minimapEnabled, geometry.shouldShowMinimap, let image else {
+            minimapView.isHidden = true
+            minimapView.image = nil
+            minimapView.minimapGeometry = nil
+            return
+        }
+
+        let minimapGeometry = geometry.minimapGeometry(maxSize: minimapMaxSize)
+        guard minimapGeometry.size.width > 0, minimapGeometry.size.height > 0 else {
+            minimapView.isHidden = true
+            return
+        }
+
+        minimapView.isHidden = false
+        minimapView.image = image
+        minimapView.minimapGeometry = minimapGeometry
+        minimapView.frame = CGRect(
+            x: bounds.width - minimapGeometry.size.width - minimapPadding,
+            y: minimapPadding,
+            width: minimapGeometry.size.width,
+            height: minimapGeometry.size.height
+        )
+    }
+
+    private func navigateWithMinimap(to point: CGPoint) {
+        let geometry = currentGeometry()
+        guard geometry.shouldShowMinimap else { return }
+
+        let minimapGeometry = geometry.minimapGeometry(maxSize: minimapMaxSize)
+        panOffset = geometry.constrainedPan(centeredAtMinimapPoint: point, minimap: minimapGeometry)
+        onPanChanged?(panOffset)
+        needsLayout = true
     }
 
     private func isInTopDragRegion(_ point: CGPoint) -> Bool {
@@ -843,6 +978,8 @@ extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
 #if DEBUG
 extension CanvasNSView {
     var debugBackend: TextRecognitionBackend { backend }
+
+    var debugMinimapEnabled: Bool { minimapEnabled }
 
     var debugLiveTextAnalysis: ImageAnalysis? {
         liveTextOverlay.analysis

@@ -40,11 +40,48 @@ final class AppMenuTests: XCTestCase {
         let menu = view.menu(for: rightClickEvent())
 
         XCTAssertNotNil(menu?.items.first { $0.title == "复制图片路径" })
+        XCTAssertNotNil(menu?.items.first { $0.title == "显示缩略图" })
         XCTAssertNotNil(menu?.items.first { $0.title == "关于 PicSee" })
         XCTAssertEqual(
             menu?.items.first { $0.title == "关于 PicSee" }?.action,
             #selector(AppDelegate.showAboutPanel(_:))
         )
+    }
+
+    func testImageContextMenuTogglesMinimapVisibilityPreference() {
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+
+        var menu = view.menu(for: rightClickEvent())
+        let firstItem = menu?.items.first { $0.title == "显示缩略图" }
+        XCTAssertEqual(firstItem?.state, .on)
+        XCTAssertTrue(view.debugMinimapEnabled)
+
+        view.toggleMinimapForMenu(firstItem)
+
+        menu = view.menu(for: rightClickEvent())
+        let secondItem = menu?.items.first { $0.title == "显示缩略图" }
+        XCTAssertEqual(secondItem?.state, .off)
+        XCTAssertFalse(view.debugMinimapEnabled)
+
+        view.toggleMinimapForMenu(secondItem)
+
+        XCTAssertTrue(view.debugMinimapEnabled)
+    }
+
+    func testImageContextMenuPersistsMinimapVisibilityPreference() {
+        let suiteName = "PicSee.AppMenuTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let firstView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        XCTAssertTrue(firstView.debugMinimapEnabled)
+
+        firstView.toggleMinimapForMenu(nil as Any?)
+        XCTAssertFalse(firstView.debugMinimapEnabled)
+
+        let secondView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        XCTAssertFalse(secondView.debugMinimapEnabled)
+        XCTAssertEqual(secondView.menu(for: rightClickEvent())?.items.first { $0.title == "显示缩略图" }?.state, .off)
     }
 
     func testAppendsPicSeeItemsToExistingLiveTextMenu() {
@@ -59,6 +96,7 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(pathItem)
         XCTAssertTrue(pathItem?.isEnabled ?? false)
         XCTAssertEqual(pathItem?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
+        XCTAssertNotNil(menu.items.first { $0.title == "显示缩略图" })
         XCTAssertNotNil(menu.items.first { $0.title == "关于 PicSee" })
     }
 

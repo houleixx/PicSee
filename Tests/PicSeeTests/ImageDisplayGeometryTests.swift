@@ -79,4 +79,89 @@ final class ImageDisplayGeometryTests: XCTestCase {
         // 小图不放大时，允许在两个维度上各自一半空隙范围内的轻微位移
         XCTAssertEqual(withSlack.height, 40, accuracy: 0.001)
     }
+
+    func testMinimapIsVisibleOnlyWhenDisplayedImageExceedsViewport() {
+        let fitted = ImageDisplayGeometry(
+            imageSize: CGSize(width: 400, height: 300),
+            viewportSize: CGSize(width: 1200, height: 600),
+            zoomScale: 1,
+            panOffset: .zero
+        )
+        let zoomed = ImageDisplayGeometry(
+            imageSize: CGSize(width: 400, height: 300),
+            viewportSize: CGSize(width: 1200, height: 600),
+            zoomScale: 4,
+            panOffset: .zero
+        )
+
+        XCTAssertFalse(fitted.shouldShowMinimap)
+        XCTAssertTrue(zoomed.shouldShowMinimap)
+    }
+
+    func testMinimapSizePreservesImageAspectRatioWithinMaximumSize() {
+        let geometry = ImageDisplayGeometry(
+            imageSize: CGSize(width: 1000, height: 500),
+            viewportSize: CGSize(width: 400, height: 300),
+            zoomScale: 2,
+            panOffset: .zero
+        )
+
+        let minimap = geometry.minimapGeometry(maxSize: CGSize(width: 140, height: 100))
+
+        XCTAssertEqual(minimap.size.width, 140, accuracy: 0.001)
+        XCTAssertEqual(minimap.size.height, 70, accuracy: 0.001)
+    }
+
+    func testMinimapVisibleRectMapsViewportIntoImageCoordinates() {
+        let geometry = ImageDisplayGeometry(
+            imageSize: CGSize(width: 1000, height: 500),
+            viewportSize: CGSize(width: 400, height: 300),
+            zoomScale: 2,
+            panOffset: .zero
+        )
+
+        let minimap = geometry.minimapGeometry(maxSize: CGSize(width: 140, height: 100))
+
+        XCTAssertEqual(minimap.visibleRect.minX, 35, accuracy: 0.001)
+        XCTAssertEqual(minimap.visibleRect.minY, 8.75, accuracy: 0.001)
+        XCTAssertEqual(minimap.visibleRect.width, 70, accuracy: 0.001)
+        XCTAssertEqual(minimap.visibleRect.height, 52.5, accuracy: 0.001)
+    }
+
+    func testMinimapPointConvertsToConstrainedPanOffset() {
+        let geometry = ImageDisplayGeometry(
+            imageSize: CGSize(width: 1000, height: 500),
+            viewportSize: CGSize(width: 400, height: 300),
+            zoomScale: 2,
+            panOffset: .zero
+        )
+
+        let minimap = geometry.minimapGeometry(maxSize: CGSize(width: 140, height: 100))
+        let pan = geometry.constrainedPan(centeredAtMinimapPoint: CGPoint(x: 105, y: 35), minimap: minimap)
+
+        XCTAssertEqual(pan.width, -200, accuracy: 0.001)
+        XCTAssertEqual(pan.height, 0, accuracy: 0.001)
+    }
+
+    func testZoomingAfterMinimapNavigationPreservesViewportCenter() {
+        let initial = ImageDisplayGeometry(
+            imageSize: CGSize(width: 1000, height: 500),
+            viewportSize: CGSize(width: 400, height: 300),
+            zoomScale: 2,
+            panOffset: .zero
+        )
+        let minimap = initial.minimapGeometry(maxSize: CGSize(width: 140, height: 100))
+        let navigatedPan = initial.constrainedPan(centeredAtMinimapPoint: CGPoint(x: 105, y: 35), minimap: minimap)
+        let navigated = ImageDisplayGeometry(
+            imageSize: initial.imageSize,
+            viewportSize: initial.viewportSize,
+            zoomScale: initial.zoomScale,
+            panOffset: navigatedPan
+        )
+
+        let nextPan = navigated.constrainedPan(preservingViewportCenterWhenZoomingTo: 3)
+
+        XCTAssertEqual(nextPan.width, -300, accuracy: 0.001)
+        XCTAssertEqual(nextPan.height, 0, accuracy: 0.001)
+    }
 }

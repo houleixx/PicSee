@@ -1,5 +1,10 @@
 import CoreGraphics
 
+struct MinimapGeometry {
+    let size: CGSize
+    let visibleRect: CGRect
+}
+
 struct ImageDisplayGeometry {
     let imageSize: CGSize
     let viewportSize: CGSize
@@ -54,5 +59,81 @@ struct ImageDisplayGeometry {
 
     var canPan: Bool {
         displaySize.width > viewportSize.width || displaySize.height > viewportSize.height
+    }
+
+    var shouldShowMinimap: Bool {
+        canPan
+    }
+
+    func minimapGeometry(maxSize: CGSize) -> MinimapGeometry {
+        guard imageSize.width > 0, imageSize.height > 0, maxSize.width > 0, maxSize.height > 0 else {
+            return MinimapGeometry(size: .zero, visibleRect: .zero)
+        }
+
+        let scale = min(maxSize.width / imageSize.width, maxSize.height / imageSize.height)
+        let minimapSize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        let imageBounds = CGRect(origin: .zero, size: imageSize)
+        let visibleImageRect = imageBounds.intersection(
+            CGRect(
+                x: -imageRect.minX / displayScale,
+                y: -imageRect.minY / displayScale,
+                width: viewportSize.width / displayScale,
+                height: viewportSize.height / displayScale
+            )
+        )
+
+        return MinimapGeometry(
+            size: minimapSize,
+            visibleRect: CGRect(
+                x: visibleImageRect.minX * scale,
+                y: visibleImageRect.minY * scale,
+                width: visibleImageRect.width * scale,
+                height: visibleImageRect.height * scale
+            )
+        )
+    }
+
+    func constrainedPan(centeredAtMinimapPoint point: CGPoint, minimap: MinimapGeometry) -> CGSize {
+        guard minimap.size.width > 0, minimap.size.height > 0 else {
+            return constrainedPan(panOffset)
+        }
+
+        let imagePoint = CGPoint(
+            x: min(max(point.x / minimap.size.width, 0), 1) * imageSize.width,
+            y: min(max(point.y / minimap.size.height, 0), 1) * imageSize.height
+        )
+        let proposed = CGSize(
+            width: displaySize.width / 2 - imagePoint.x * displayScale,
+            height: displaySize.height / 2 - imagePoint.y * displayScale
+        )
+
+        return constrainedPan(proposed)
+    }
+
+    func constrainedPan(
+        preservingViewportCenterWhenZoomingTo nextZoomScale: CGFloat,
+        allowSlackWhenFitted: Bool = false
+    ) -> CGSize {
+        guard displayScale > 0 else {
+            return panOffset
+        }
+
+        let viewportCenter = CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+        let centeredImagePoint = CGPoint(
+            x: (viewportCenter.x - imageRect.minX) / displayScale,
+            y: (viewportCenter.y - imageRect.minY) / displayScale
+        )
+        let nextGeometry = ImageDisplayGeometry(
+            imageSize: imageSize,
+            viewportSize: viewportSize,
+            zoomScale: nextZoomScale,
+            panOffset: panOffset
+        )
+        let proposed = CGSize(
+            width: nextGeometry.displaySize.width / 2 - centeredImagePoint.x * nextGeometry.displayScale,
+            height: nextGeometry.displaySize.height / 2 - centeredImagePoint.y * nextGeometry.displayScale
+        )
+
+        return nextGeometry.constrainedPan(proposed, allowSlackWhenFitted: allowSlackWhenFitted)
     }
 }

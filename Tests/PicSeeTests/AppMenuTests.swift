@@ -41,11 +41,75 @@ final class AppMenuTests: XCTestCase {
 
         XCTAssertNotNil(menu?.items.first { $0.title == "复制图片路径" })
         XCTAssertNotNil(menu?.items.first { $0.title == "显示缩略图" })
+        XCTAssertNotNil(menu?.items.first { $0.title == "显示标题栏" })
+        XCTAssertNotNil(menu?.items.first { $0.title == "显示文件信息" })
         XCTAssertNotNil(menu?.items.first { $0.title == "关于 PicSee" })
         XCTAssertEqual(
             menu?.items.first { $0.title == "关于 PicSee" }?.action,
             #selector(AppDelegate.showAboutPanel(_:))
         )
+    }
+
+    func testImageContextMenuShowsTitleBarItemAboveMinimapItem() {
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+        let menu = view.menu(for: rightClickEvent())
+
+        guard
+            let titleBarIndex = menu?.items.firstIndex(where: { $0.title == "显示标题栏" }),
+            let minimapIndex = menu?.items.firstIndex(where: { $0.title == "显示缩略图" })
+        else {
+            return XCTFail("Expected title bar and minimap menu items")
+        }
+
+        XCTAssertLessThan(titleBarIndex, minimapIndex)
+    }
+
+    func testImageContextMenuGroupsTitleBarMinimapAndFileInfoItemsTogether() {
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+        let menu = view.menu(for: rightClickEvent())
+
+        guard
+            let items = menu?.items,
+            let titleBarIndex = items.firstIndex(where: { $0.title == "显示标题栏" }),
+            titleBarIndex + 1 < items.count
+        else {
+            return XCTFail("Expected title bar menu item")
+        }
+
+        XCTAssertEqual(items[titleBarIndex + 1].title, "显示缩略图")
+        XCTAssertEqual(items[titleBarIndex + 2].title, "显示文件信息")
+        XCTAssertFalse(items[titleBarIndex + 1].isSeparatorItem)
+        XCTAssertFalse(items[titleBarIndex + 2].isSeparatorItem)
+    }
+
+    func testAppendsPicSeeItemsWithoutSeparatingTitleBarMinimapAndFileInfoItems() {
+        let view = CanvasNSView(frame: .zero, backend: .liveText)
+        let menu = NSMenu(title: "Live Text")
+        menu.addItem(NSMenuItem(title: "复制", action: nil, keyEquivalent: ""))
+
+        view.debugAppendPicSeeContextMenuItems(to: menu)
+
+        guard
+            let titleBarIndex = menu.items.firstIndex(where: { $0.title == "显示标题栏" }),
+            titleBarIndex + 1 < menu.items.count
+        else {
+            return XCTFail("Expected title bar menu item")
+        }
+
+        XCTAssertEqual(menu.items[titleBarIndex + 1].title, "显示缩略图")
+        XCTAssertEqual(menu.items[titleBarIndex + 2].title, "显示文件信息")
+        XCTAssertFalse(menu.items[titleBarIndex + 1].isSeparatorItem)
+        XCTAssertFalse(menu.items[titleBarIndex + 2].isSeparatorItem)
+    }
+
+    func testTopDragRegionIsDisabledWhenTitleBarIsVisible() {
+        let view = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
+
+        XCTAssertTrue(view.debugCanDragWindow(at: CGPoint(x: 200, y: 292)))
+
+        view.titleBarVisible = true
+
+        XCTAssertFalse(view.debugCanDragWindow(at: CGPoint(x: 200, y: 292)))
     }
 
     func testImageContextMenuTogglesMinimapVisibilityPreference() {
@@ -84,6 +148,58 @@ final class AppMenuTests: XCTestCase {
         XCTAssertEqual(secondView.menu(for: rightClickEvent())?.items.first { $0.title == "显示缩略图" }?.state, .off)
     }
 
+    func testImageContextMenuTogglesFileInfoVisibilityPreference() {
+        let suiteName = "PicSee.AppMenuFileInfoTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let firstView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        var observedValues: [Bool] = []
+        firstView.onFileInfoVisibilityChanged = { observedValues.append($0) }
+
+        var menu = firstView.menu(for: rightClickEvent())
+        let firstItem = menu?.items.first { $0.title == "显示文件信息" }
+        XCTAssertEqual(firstItem?.state, .on)
+        XCTAssertTrue(firstView.debugFileInfoVisible)
+
+        firstView.toggleFileInfoForMenu(firstItem)
+
+        menu = firstView.menu(for: rightClickEvent())
+        let secondItem = menu?.items.first { $0.title == "显示文件信息" }
+        XCTAssertEqual(secondItem?.state, .off)
+        XCTAssertFalse(firstView.debugFileInfoVisible)
+        XCTAssertEqual(observedValues, [false])
+
+        let secondView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        XCTAssertFalse(secondView.debugFileInfoVisible)
+    }
+
+    func testImageContextMenuTogglesTitleBarVisibilityPreference() {
+        let suiteName = "PicSee.AppMenuTitleBarTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let view = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        var observedValues: [Bool] = []
+        view.onTitleBarVisibilityChanged = { observedValues.append($0) }
+
+        var menu = view.menu(for: rightClickEvent())
+        let firstItem = menu?.items.first { $0.title == "显示标题栏" }
+        XCTAssertEqual(firstItem?.state, .off)
+        XCTAssertFalse(view.debugTitleBarVisible)
+
+        view.toggleTitleBarForMenu(firstItem)
+
+        menu = view.menu(for: rightClickEvent())
+        let secondItem = menu?.items.first { $0.title == "显示标题栏" }
+        XCTAssertEqual(secondItem?.state, .on)
+        XCTAssertTrue(view.debugTitleBarVisible)
+        XCTAssertEqual(observedValues, [true])
+
+        let secondView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        XCTAssertTrue(secondView.debugTitleBarVisible)
+    }
+
     func testAppendsPicSeeItemsToExistingLiveTextMenu() {
         let view = CanvasNSView(frame: .zero, backend: .liveText)
         view.imageURL = URL(fileURLWithPath: "/tmp/example.png")
@@ -97,6 +213,8 @@ final class AppMenuTests: XCTestCase {
         XCTAssertTrue(pathItem?.isEnabled ?? false)
         XCTAssertEqual(pathItem?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
         XCTAssertNotNil(menu.items.first { $0.title == "显示缩略图" })
+        XCTAssertNotNil(menu.items.first { $0.title == "显示标题栏" })
+        XCTAssertNotNil(menu.items.first { $0.title == "显示文件信息" })
         XCTAssertNotNil(menu.items.first { $0.title == "关于 PicSee" })
     }
 

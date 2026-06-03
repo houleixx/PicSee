@@ -4,6 +4,9 @@ import SwiftUI
 struct ImageViewerView: View {
     @ObservedObject var viewModel: ImageViewerViewModel
     let updateChecker: UpdateChecker?
+    let onTitleBarVisibilityChanged: (Bool) -> Void
+    @State private var titleBarVisible = ViewerTitleBarPreference.isVisible()
+    @State private var fileInfoVisible = UserDefaults.standard.object(forKey: "PicSee.FileInfoVisible") as? Bool ?? true
     private let hudPadding: CGFloat = 9.6
 
     var body: some View {
@@ -24,38 +27,59 @@ struct ImageViewerView: View {
                         if abs(viewModel.displayScale - $0) > 0.0001 {
                             viewModel.displayScale = $0
                         }
+                    },
+                    titleBarVisible: titleBarVisible,
+                    fileInfoVisible: fileInfoVisible,
+                    onTitleBarVisibilityChanged: { visible in
+                        titleBarVisible = visible
+                        onTitleBarVisibilityChanged(visible)
+                    },
+                    onFileInfoVisibilityChanged: { visible in
+                        fileInfoVisible = visible
                     }
                 )
                 .overlay(alignment: .topLeading) {
-                    HStack(spacing: 8) {
-                        Text(viewModel.zoomPercentageText)
-                            .font(.system(size: 13, weight: .semibold))
+                    if !titleBarVisible {
+                        HStack(spacing: 8) {
+                            Text(viewModel.zoomPercentageText)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
 
-                        if let imagePixelSizeText = viewModel.imagePixelSizeText {
-                            Text(imagePixelSizeText)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.76))
+                            if fileInfoVisible, let imageMetadataText = viewModel.imageMetadataText {
+                                Text(imageMetadataText)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.82))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .frame(maxWidth: 520, alignment: .leading)
+                                    .background(.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 8))
+                            }
                         }
+                        .padding(.top, hudPadding)
+                        .padding(.leading, hudPadding)
+                        .padding(.trailing, 56)
+                        .allowsHitTesting(false)
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
-                    .padding(.top, hudPadding)
-                    .padding(.leading, hudPadding)
                 }
                 .overlay(alignment: .topTrailing) {
-                    Button(action: { NSApp.terminate(nil) }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
-                            .background(.black.opacity(0.45), in: Circle())
-                            .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                    if !titleBarVisible {
+                        Button(action: { NSApp.terminate(nil) }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(.black.opacity(0.45), in: Circle())
+                                .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, hudPadding)
+                        .padding(.trailing, hudPadding)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, hudPadding)
-                    .padding(.trailing, hudPadding)
                 }
                 .overlay(alignment: .bottomLeading) {
                     if let updateChecker {

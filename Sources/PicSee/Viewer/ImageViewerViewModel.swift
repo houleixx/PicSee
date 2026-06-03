@@ -28,7 +28,24 @@ final class ImageViewerViewModel: ObservableObject {
 
     var imagePixelSizeText: String? {
         guard let image, let pixelSize = image.pixelSize else { return nil }
-        return "\(pixelSize.width) x \(pixelSize.height) px"
+        return "\(pixelSize.width) × \(pixelSize.height) px"
+    }
+
+    var fileSizeText: String? {
+        guard let byteCount = currentURL.fileByteCount else { return nil }
+        return ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+    }
+
+    var imageMetadataText: String? {
+        [currentFilename, fileSizeText, imagePixelSizeText]
+            .compactMap { $0 }
+            .joined(separator: " - ")
+    }
+
+    var titleBarText: String {
+        [imageMetadataText, zoomPercentageText]
+            .compactMap { $0 }
+            .joined(separator: " - ")
     }
 
     var previousURL: URL? {
@@ -77,6 +94,13 @@ final class ImageViewerViewModel: ObservableObject {
 
         image = loadedImage
         errorMessage = nil
+    }
+}
+
+private extension URL {
+    var fileByteCount: Int64? {
+        guard let value = try? resourceValues(forKeys: [.fileSizeKey]).fileSize else { return nil }
+        return Int64(value)
     }
 }
 

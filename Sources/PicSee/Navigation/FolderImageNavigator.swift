@@ -2,7 +2,10 @@ import Foundation
 
 struct FolderImageNavigator {
     static let supportedExtensions: Set<String> = [
-        "jpg", "jpeg", "png", "gif", "heic", "tif", "tiff", "bmp", "webp"
+        "jpg", "jpeg", "png", "gif", "heic", "tif", "tiff", "bmp", "webp",
+        "raw", "dng", "cr2", "cr3", "nef", "nrw", "arw", "srf", "sr2",
+        "raf", "orf", "rw2", "rwl", "pef", "3fr", "fff", "iiq", "mos",
+        "mrw", "x3f", "erf", "kdc", "dcr"
     ]
 
     let images: [URL]

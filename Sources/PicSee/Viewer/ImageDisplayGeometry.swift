@@ -5,6 +5,44 @@ struct MinimapGeometry {
     let visibleRect: CGRect
 }
 
+struct ImageZoomAdjustment {
+    static let minimumZoomScale: CGFloat = 0.05
+    static let maximumZoomScale: CGFloat = 20
+
+    let zoomScale: CGFloat
+    let panOffset: CGSize
+
+    static func clampedZoom(currentZoom: CGFloat, multiplier: CGFloat) -> CGFloat {
+        min(maximumZoomScale, max(minimumZoomScale, currentZoom * max(0.01, multiplier)))
+    }
+
+    static func adjustment(
+        from geometry: ImageDisplayGeometry,
+        multiplier: CGFloat
+    ) -> ImageZoomAdjustment {
+        let nextZoom = clampedZoom(currentZoom: geometry.zoomScale, multiplier: multiplier)
+        let nextGeometry = ImageDisplayGeometry(
+            imageSize: geometry.imageSize,
+            viewportSize: geometry.viewportSize,
+            zoomScale: nextZoom,
+            panOffset: geometry.panOffset
+        )
+        let allowsPanAfterZoom = abs(nextGeometry.zoomScale - 1) > 0.001 || nextGeometry.canPan
+
+        guard allowsPanAfterZoom else {
+            return ImageZoomAdjustment(zoomScale: nextZoom, panOffset: .zero)
+        }
+
+        return ImageZoomAdjustment(
+            zoomScale: nextZoom,
+            panOffset: geometry.constrainedPan(
+                preservingViewportCenterWhenZoomingTo: nextZoom,
+                allowSlackWhenFitted: true
+            )
+        )
+    }
+}
+
 struct ImageDisplayGeometry {
     let imageSize: CGSize
     let viewportSize: CGSize

@@ -24,6 +24,15 @@ final class FolderImageNavigatorTests: XCTestCase {
         XCTAssertFalse(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/no-extension")))
     }
 
+    func testCameraRawExtensionsAreSupportedCaseInsensitively() {
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.DNG")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.cr3")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.NEF")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.arw")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.RAF")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.rw2")))
+    }
+
     func testScansOnlySupportedImagesInLocalizedFilenameOrder() throws {
         let b = try createFile(named: "b.png")
         let a = try createFile(named: "a.jpg")

@@ -16,6 +16,18 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(script.contains("<key>LSUIElement</key>\n    <true/>"))
     }
 
+    func testBuildScriptRegistersCameraRawDocumentTypes() throws {
+        let script = try repositoryFile("Scripts/build-app.sh")
+
+        XCTAssertTrue(script.contains("<string>public.camera-raw-image</string>"))
+        XCTAssertTrue(script.contains("<string>dng</string>"))
+        XCTAssertTrue(script.contains("<string>cr3</string>"))
+        XCTAssertTrue(script.contains("<string>nef</string>"))
+        XCTAssertTrue(script.contains("<string>arw</string>"))
+        XCTAssertTrue(script.contains("<string>raf</string>"))
+        XCTAssertTrue(script.contains("<string>rw2</string>"))
+    }
+
     func testReadmeDeclaresMacOS14Minimum() throws {
         let readme = try repositoryFile("README.md")
         XCTAssertTrue(readme.contains("macOS 14 及以上"))

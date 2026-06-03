@@ -164,4 +164,50 @@ final class ImageDisplayGeometryTests: XCTestCase {
         XCTAssertEqual(nextPan.width, -300, accuracy: 0.001)
         XCTAssertEqual(nextPan.height, 0, accuracy: 0.001)
     }
+
+    func testZoomAdjustmentAppliesMagnificationMultiplierAndClampsBounds() {
+        let zoomIn = ImageZoomAdjustment.clampedZoom(currentZoom: 2, multiplier: 1.25)
+        XCTAssertEqual(zoomIn, 2.5, accuracy: 0.001)
+
+        let tooSmall = ImageZoomAdjustment.clampedZoom(currentZoom: 0.1, multiplier: 0.01)
+        XCTAssertEqual(tooSmall, 0.05, accuracy: 0.001)
+
+        let tooLarge = ImageZoomAdjustment.clampedZoom(currentZoom: 10, multiplier: 4)
+        XCTAssertEqual(tooLarge, 20, accuracy: 0.001)
+    }
+
+    func testZoomAdjustmentPreservesViewportCenterPanWhenZooming() {
+        let geometry = ImageDisplayGeometry(
+            imageSize: CGSize(width: 1000, height: 500),
+            viewportSize: CGSize(width: 400, height: 300),
+            zoomScale: 2,
+            panOffset: CGSize(width: -100, height: 0)
+        )
+
+        let adjustment = ImageZoomAdjustment.adjustment(
+            from: geometry,
+            multiplier: 1.5
+        )
+
+        XCTAssertEqual(adjustment.zoomScale, 3, accuracy: 0.001)
+        XCTAssertEqual(adjustment.panOffset.width, -150, accuracy: 0.001)
+        XCTAssertEqual(adjustment.panOffset.height, 0, accuracy: 0.001)
+    }
+
+    func testZoomAdjustmentResetsPanWhenReturningToFittedBaseZoom() {
+        let geometry = ImageDisplayGeometry(
+            imageSize: CGSize(width: 400, height: 300),
+            viewportSize: CGSize(width: 1200, height: 600),
+            zoomScale: 2,
+            panOffset: CGSize(width: 120, height: 80)
+        )
+
+        let adjustment = ImageZoomAdjustment.adjustment(
+            from: geometry,
+            multiplier: 0.5
+        )
+
+        XCTAssertEqual(adjustment.zoomScale, 1, accuracy: 0.001)
+        XCTAssertEqual(adjustment.panOffset, CGSize.zero)
+    }
 }

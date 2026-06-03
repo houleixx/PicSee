@@ -13,7 +13,7 @@ ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 cd "$ROOT_DIR"
 ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
 X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
-APP_VERSION="${PICSEE_VERSION:-0.2.13}"
+APP_VERSION="${PICSEE_VERSION:-0.2.14}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
 SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
 
@@ -100,6 +100,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
                 <string>public.tiff</string>
                 <string>com.microsoft.bmp</string>
                 <string>org.webmproject.webp</string>
+                <string>public.camera-raw-image</string>
             </array>
             <key>CFBundleTypeExtensions</key>
             <array>
@@ -112,6 +113,29 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
                 <string>tiff</string>
                 <string>bmp</string>
                 <string>webp</string>
+                <string>raw</string>
+                <string>dng</string>
+                <string>cr2</string>
+                <string>cr3</string>
+                <string>nef</string>
+                <string>nrw</string>
+                <string>arw</string>
+                <string>srf</string>
+                <string>sr2</string>
+                <string>raf</string>
+                <string>orf</string>
+                <string>rw2</string>
+                <string>rwl</string>
+                <string>pef</string>
+                <string>3fr</string>
+                <string>fff</string>
+                <string>iiq</string>
+                <string>mos</string>
+                <string>mrw</string>
+                <string>x3f</string>
+                <string>erf</string>
+                <string>kdc</string>
+                <string>dcr</string>
             </array>
         </dict>
     </array>

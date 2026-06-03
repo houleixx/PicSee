@@ -14,11 +14,17 @@ struct ImageCanvasView: NSViewRepresentable {
     let onReset: () -> Void
     let onClose: () -> Void
     let onDisplayScaleChanged: (CGFloat) -> Void
+    let titleBarVisible: Bool
+    let fileInfoVisible: Bool
+    let onTitleBarVisibilityChanged: (Bool) -> Void
+    let onFileInfoVisibilityChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> CanvasNSView {
         let view = CanvasNSView()
         view.imageURL = imageURL
         view.image = image
+        view.titleBarVisible = titleBarVisible
+        view.fileInfoVisible = fileInfoVisible
         view.onPrevious = onPrevious
         view.onNext = onNext
         view.onReset = onReset
@@ -26,6 +32,8 @@ struct ImageCanvasView: NSViewRepresentable {
         view.onDisplayScaleChanged = onDisplayScaleChanged
         view.onZoomChanged = { zoomScale = $0 }
         view.onPanChanged = { panOffset = $0 }
+        view.onTitleBarVisibilityChanged = onTitleBarVisibilityChanged
+        view.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
         return view
     }
 
@@ -39,6 +47,10 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onReset = onReset
         nsView.onClose = onClose
         nsView.onDisplayScaleChanged = onDisplayScaleChanged
+        nsView.titleBarVisible = titleBarVisible
+        nsView.fileInfoVisible = fileInfoVisible
+        nsView.onTitleBarVisibilityChanged = onTitleBarVisibilityChanged
+        nsView.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
         nsView.needsDisplay = true
     }
 }
@@ -172,6 +184,7 @@ enum TextRecognitionBackend {
 
 final class CanvasNSView: NSView {
     private static let minimapEnabledDefaultsKey = "PicSee.MinimapEnabled"
+    private static let fileInfoVisibleDefaultsKey = "PicSee.FileInfoVisible"
 
     private let imageView = NSImageView(frame: .zero)
     private let minimapView = ImageMinimapView(frame: .zero)
@@ -244,6 +257,8 @@ final class CanvasNSView: NSView {
     var onReset: (() -> Void)?
     var onClose: (() -> Void)?
     var onDisplayScaleChanged: ((CGFloat) -> Void)?
+    var onTitleBarVisibilityChanged: ((Bool) -> Void)?
+    var onFileInfoVisibilityChanged: ((Bool) -> Void)?
 
     private enum DragType {
         case none
@@ -260,6 +275,8 @@ final class CanvasNSView: NSView {
     private var analysisTask: Task<Void, Never>?
     private var analysisToken = 0
     private var minimapEnabled: Bool
+    var titleBarVisible: Bool
+    var fileInfoVisible: Bool
 
     private let topDragRegionHeight: CGFloat = 36
     private let minimapMaxSize = CGSize(width: 140, height: 100)
@@ -272,6 +289,8 @@ final class CanvasNSView: NSView {
         self.backend = backend
         self.defaults = defaults
         self.minimapEnabled = Self.defaultMinimapEnabled(in: defaults)
+        self.titleBarVisible = ViewerTitleBarPreference.isVisible(in: defaults)
+        self.fileInfoVisible = Self.defaultFileInfoVisible(in: defaults)
         super.init(frame: frameRect)
         configureSubviews()
     }
@@ -284,12 +303,18 @@ final class CanvasNSView: NSView {
         self.backend = .preferred
         self.defaults = .standard
         self.minimapEnabled = Self.defaultMinimapEnabled(in: .standard)
+        self.titleBarVisible = ViewerTitleBarPreference.isVisible(in: .standard)
+        self.fileInfoVisible = Self.defaultFileInfoVisible(in: .standard)
         super.init(coder: coder)
         configureSubviews()
     }
 
     private static func defaultMinimapEnabled(in defaults: UserDefaults) -> Bool {
         defaults.object(forKey: minimapEnabledDefaultsKey) as? Bool ?? true
+    }
+
+    private static func defaultFileInfoVisible(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: fileInfoVisibleDefaultsKey) as? Bool ?? true
     }
 
     deinit {
@@ -349,25 +374,26 @@ final class CanvasNSView: NSView {
         let delta = event.scrollingDeltaY == 0 ? -event.scrollingDeltaX : event.scrollingDeltaY
         guard delta != 0 else { return }
 
-        let previousGeometry = currentGeometry()
         let step: CGFloat = event.hasPreciseScrollingDeltas ? 0.0018 : 0.018
         let multiplier = exp(abs(delta) * step)
-        let applied = delta > 0 ? multiplier : 1 / multiplier
-        let nextZoom = min(20, max(0.05, zoomScale * applied))
-        zoomScale = nextZoom
-        onZoomChanged?(nextZoom)
+        applyZoom(multiplier: delta > 0 ? multiplier : 1 / multiplier)
+    }
 
+    override func magnify(with event: NSEvent) {
+        guard event.magnification != 0 else { return }
+        applyZoom(multiplier: 1 + event.magnification)
+    }
+
+    private func applyZoom(multiplier: CGFloat) {
         let geometry = currentGeometry()
-        if !panImageMode(geometry) {
-            panOffset = .zero
-            onPanChanged?(.zero)
-        } else {
-            panOffset = previousGeometry.constrainedPan(
-                preservingViewportCenterWhenZoomingTo: nextZoom,
-                allowSlackWhenFitted: panImageMode(geometry)
-            )
-            onPanChanged?(panOffset)
-        }
+        let adjustment = ImageZoomAdjustment.adjustment(
+            from: geometry,
+            multiplier: multiplier
+        )
+        zoomScale = adjustment.zoomScale
+        panOffset = adjustment.panOffset
+        onZoomChanged?(adjustment.zoomScale)
+        onPanChanged?(adjustment.panOffset)
         if backend == .vision {
             updateSelectionOverlay()
         }
@@ -507,19 +533,52 @@ final class CanvasNSView: NSView {
         needsLayout = true
     }
 
+    @objc func toggleTitleBarForMenu(_ sender: Any?) {
+        titleBarVisible.toggle()
+        ViewerTitleBarPreference.setVisible(titleBarVisible, in: defaults)
+        onTitleBarVisibilityChanged?(titleBarVisible)
+    }
+
+    @objc func toggleFileInfoForMenu(_ sender: Any?) {
+        fileInfoVisible.toggle()
+        defaults.set(fileInfoVisible, forKey: Self.fileInfoVisibleDefaultsKey)
+        onFileInfoVisibilityChanged?(fileInfoVisible)
+    }
+
     @objc private func copySelectedText() {
         _ = copySelectedTextToPasteboard()
     }
 
     private func appendPicSeeContextMenuItems(to menu: NSMenu) {
-        if menu.items.first(where: { $0.action == #selector(toggleMinimapForMenu(_:)) }) == nil {
+        let shouldAddTitleBarItem = menu.items.first(where: { $0.action == #selector(toggleTitleBarForMenu(_:)) }) == nil
+        let shouldAddMinimapItem = menu.items.first(where: { $0.action == #selector(toggleMinimapForMenu(_:)) }) == nil
+        let shouldAddFileInfoItem = menu.items.first(where: { $0.action == #selector(toggleFileInfoForMenu(_:)) }) == nil
+
+        if shouldAddTitleBarItem || shouldAddMinimapItem || shouldAddFileInfoItem {
             if !menu.items.isEmpty {
                 menu.addItem(.separator())
             }
+        }
+
+        if shouldAddTitleBarItem {
+            let titleBarItem = NSMenuItem(title: "显示标题栏", action: #selector(toggleTitleBarForMenu(_:)), keyEquivalent: "")
+            titleBarItem.target = self
+            titleBarItem.state = titleBarVisible ? .on : .off
+            menu.addItem(titleBarItem)
+        }
+
+        if shouldAddMinimapItem {
             let minimapItem = NSMenuItem(title: "显示缩略图", action: #selector(toggleMinimapForMenu(_:)), keyEquivalent: "")
             minimapItem.target = self
             minimapItem.state = minimapEnabled ? .on : .off
             menu.addItem(minimapItem)
+        }
+
+        if shouldAddFileInfoItem {
+            let fileInfoItem = NSMenuItem(title: "显示文件信息", action: #selector(toggleFileInfoForMenu(_:)), keyEquivalent: "")
+            fileInfoItem.target = self
+            fileInfoItem.state = fileInfoVisible ? .on : .off
+            menu.addItem(fileInfoItem)
         }
 
         if menu.items.first(where: { $0.action == #selector(copyImagePathForMenu(_:)) }) == nil {
@@ -759,7 +818,7 @@ final class CanvasNSView: NSView {
     }
 
     private func isInTopDragRegion(_ point: CGPoint) -> Bool {
-        point.y >= bounds.height - topDragRegionHeight
+        !titleBarVisible && point.y >= bounds.height - topDragRegionHeight
     }
 
     private func lineRectInView(_ line: RecognizedTextLine, geometry: ImageDisplayGeometry) -> CGRect {
@@ -980,6 +1039,14 @@ extension CanvasNSView {
     var debugBackend: TextRecognitionBackend { backend }
 
     var debugMinimapEnabled: Bool { minimapEnabled }
+
+    var debugTitleBarVisible: Bool { titleBarVisible }
+
+    var debugFileInfoVisible: Bool { fileInfoVisible }
+
+    func debugCanDragWindow(at point: CGPoint) -> Bool {
+        isInTopDragRegion(point)
+    }
 
     var debugLiveTextAnalysis: ImageAnalysis? {
         liveTextOverlay.analysis

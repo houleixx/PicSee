@@ -23,33 +23,51 @@ final class WindowManager {
 
         let viewModel = ImageViewerViewModel(imageURL: url)
         let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
-        let rootView = ImageViewerView(viewModel: viewModel, updateChecker: updateChecker)
-        let hostingController = NSHostingController(rootView: rootView)
-
+        let titleBarVisible = ViewerTitleBarPreference.isVisible()
         let initialFrame = initialWindowFrame(for: viewModel.image)
         let window = ViewerWindow(
             contentRect: initialFrame,
-            styleMask: [.borderless, .resizable, .fullSizeContentView],
+            styleMask: ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible),
             backing: .buffered,
             defer: false
         )
+        let rootView = ImageViewerView(
+            viewModel: viewModel,
+            updateChecker: updateChecker,
+            onTitleBarVisibilityChanged: { [weak self, weak window, weak viewModel] visible in
+                guard let self, let window else { return }
+                self.applyTitleBarVisibility(visible, to: window)
+                if let viewModel {
+                    window.title = visible ? viewModel.titleBarText : viewModel.currentFilename
+                }
+            }
+        )
+        let hostingController = NSHostingController(rootView: rootView)
 
         currentWindow = window
         titleObserver = viewModel.$currentURL
-            .sink { [weak window] url in
-                window?.title = url.lastPathComponent
+            .combineLatest(viewModel.$displayScale, viewModel.$image)
+            .sink { [weak window, weak viewModel] _, _, _ in
+                guard let window, let viewModel else { return }
+                window.title = ViewerTitleBarPreference.isVisible() ? viewModel.titleBarText : viewModel.currentFilename
             }
 
-        window.title = viewModel.currentFilename
+        window.title = titleBarVisible ? viewModel.titleBarText : viewModel.currentFilename
         window.isMovableByWindowBackground = false
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
         window.hasShadow = true
         window.contentViewController = hostingController
-        window.setFrame(initialFrame, display: false)
+        window.setFrame(
+            ViewerTitleBarPreference.windowFrame(
+                forContentFrame: initialFrame,
+                titleBarVisible: titleBarVisible
+            ),
+            display: false
+        )
         window.makeKeyAndOrderFront(nil)
         window.makeKey()
-        applyRoundedCorners(to: window)
+        applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         installKeyboardMonitor(for: viewModel)
 
         let delegate = WindowDelegate(onClose: { [weak self] in
@@ -81,6 +99,28 @@ final class WindowManager {
         frameView.wantsLayer = true
         frameView.layer?.cornerRadius = 14
         frameView.layer?.masksToBounds = true
+    }
+
+    private func applyTitleBarVisibility(_ visible: Bool, to window: NSWindow) {
+        let frame = window.frame
+        window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: visible)
+        window.setFrame(frame, display: true)
+        applyWindowShape(to: window, titleBarVisible: visible)
+    }
+
+    private func applyWindowShape(to window: NSWindow, titleBarVisible: Bool) {
+        if titleBarVisible {
+            window.titleVisibility = .visible
+            window.titlebarAppearsTransparent = false
+            if let frameView = window.contentView?.superview {
+                frameView.layer?.cornerRadius = 0
+                frameView.layer?.masksToBounds = false
+            }
+        } else {
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            applyRoundedCorners(to: window)
+        }
     }
 
     private func installKeyboardMonitor(for viewModel: ImageViewerViewModel) {

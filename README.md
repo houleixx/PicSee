@@ -40,8 +40,8 @@ Scripts/build-app.sh
 
 构建完成后会得到：
 
-- App Bundle: `/Users/holly/code/Demo/PicSee/build/PicSee.app`
-- 本地安装副本: `/Users/holly/Applications/PicSee.app`
+- App Bundle: `build/PicSee.app`
+- 本地安装副本: `~/Applications/PicSee.app`
 
 如果只想构建，不自动安装到本机应用目录：
 
@@ -65,7 +65,7 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `/Users/holly/code/Demo/PicSee/build/dmg/PicSee-0.2.16.dmg`
+- DMG: `build/dmg/PicSee-0.2.16.dmg`
 
 同样可以指定版本号：
 

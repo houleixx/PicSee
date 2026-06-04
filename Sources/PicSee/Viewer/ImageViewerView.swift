@@ -43,6 +43,11 @@ struct ImageViewerView: View {
                     onFixedWindowChanged: { fixed in
                         fixedWindowEnabled = fixed
                         onFixedWindowChanged(fixed)
+                    },
+                    onCheckForUpdates: {
+                        Task {
+                            await updateChecker?.checkForUpdatesManually()
+                        }
                     }
                 )
                 .overlay(alignment: .topLeading) {

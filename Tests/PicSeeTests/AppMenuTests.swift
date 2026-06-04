@@ -45,6 +45,7 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(menu?.items.first { $0.title == "显示文件信息" })
         XCTAssertNotNil(menu?.items.first { $0.title == "固定窗口大小和位置" })
         XCTAssertNotNil(menu?.items.first { $0.title == "图片另存为..." })
+        XCTAssertNotNil(menu?.items.first { $0.title == "检查更新" })
         XCTAssertNotNil(menu?.items.first { $0.title == "关于 PicSee" })
         XCTAssertEqual(
             menu?.items.first { $0.title == "关于 PicSee" }?.action,
@@ -106,6 +107,38 @@ final class AppMenuTests: XCTestCase {
         XCTAssertFalse(menu.items[titleBarIndex + 1].isSeparatorItem)
         XCTAssertFalse(menu.items[titleBarIndex + 2].isSeparatorItem)
         XCTAssertFalse(menu.items[titleBarIndex + 3].isSeparatorItem)
+    }
+
+    func testImageContextMenuShowsCheckForUpdatesAboveAboutItem() {
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+        view.onCheckForUpdates = {}
+
+        let menu = view.menu(for: rightClickEvent())
+
+        guard
+            let items = menu?.items,
+            let updateIndex = items.firstIndex(where: { $0.title == "检查更新" }),
+            let aboutIndex = items.firstIndex(where: { $0.title == "关于 PicSee" })
+        else {
+            return XCTFail("Expected update and about menu items")
+        }
+
+        XCTAssertEqual(updateIndex + 1, aboutIndex)
+        XCTAssertFalse(items[aboutIndex].isSeparatorItem)
+        XCTAssertTrue(items[updateIndex].isEnabled)
+    }
+
+    func testImageContextMenuCheckForUpdatesTriggersCallback() {
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+        var didCheck = false
+        view.onCheckForUpdates = { didCheck = true }
+
+        let menu = view.menu(for: rightClickEvent())
+        let updateItem = menu?.items.first { $0.title == "检查更新" }
+
+        view.checkForUpdatesForMenu(updateItem)
+
+        XCTAssertTrue(didCheck)
     }
 
     func testTopDragRegionIsDisabledWhenTitleBarIsVisible() {
@@ -281,6 +314,7 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(menu.items.first { $0.title == "显示标题栏" })
         XCTAssertNotNil(menu.items.first { $0.title == "显示文件信息" })
         XCTAssertNotNil(menu.items.first { $0.title == "固定窗口大小和位置" })
+        XCTAssertNotNil(menu.items.first { $0.title == "检查更新" })
         XCTAssertNotNil(menu.items.first { $0.title == "关于 PicSee" })
     }
 

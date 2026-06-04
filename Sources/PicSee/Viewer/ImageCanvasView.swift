@@ -21,6 +21,7 @@ struct ImageCanvasView: NSViewRepresentable {
     let onFileInfoVisibilityChanged: (Bool) -> Void
     let fixedWindowEnabled: Bool
     let onFixedWindowChanged: (Bool) -> Void
+    let onCheckForUpdates: (() -> Void)?
 
     func makeNSView(context: Context) -> CanvasNSView {
         let view = CanvasNSView()
@@ -39,6 +40,7 @@ struct ImageCanvasView: NSViewRepresentable {
         view.onTitleBarVisibilityChanged = onTitleBarVisibilityChanged
         view.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
         view.onFixedWindowChanged = onFixedWindowChanged
+        view.onCheckForUpdates = onCheckForUpdates
         return view
     }
 
@@ -58,6 +60,7 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onTitleBarVisibilityChanged = onTitleBarVisibilityChanged
         nsView.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
         nsView.onFixedWindowChanged = onFixedWindowChanged
+        nsView.onCheckForUpdates = onCheckForUpdates
         nsView.needsDisplay = true
     }
 }
@@ -512,6 +515,7 @@ final class CanvasNSView: NSView {
     var onTitleBarVisibilityChanged: ((Bool) -> Void)?
     var onFileInfoVisibilityChanged: ((Bool) -> Void)?
     var onFixedWindowChanged: ((Bool) -> Void)?
+    var onCheckForUpdates: (() -> Void)?
 
     private enum DragType {
         case none
@@ -906,6 +910,10 @@ final class CanvasNSView: NSView {
         window?.invalidateCursorRects(for: self)
     }
 
+    @objc func checkForUpdatesForMenu(_ sender: Any?) {
+        onCheckForUpdates?()
+    }
+
     @objc private func copySelectedText() {
         _ = copySelectedTextToPasteboard()
     }
@@ -967,7 +975,17 @@ final class CanvasNSView: NSView {
             menu.addItem(exportItem)
         }
 
-        AppMenu.appendAboutItem(to: menu)
+        if menu.items.first(where: { $0.action == #selector(checkForUpdatesForMenu(_:)) }) == nil {
+            if !menu.items.isEmpty {
+                menu.addItem(.separator())
+            }
+            let updateItem = NSMenuItem(title: "检查更新", action: #selector(checkForUpdatesForMenu(_:)), keyEquivalent: "")
+            updateItem.target = self
+            updateItem.isEnabled = onCheckForUpdates != nil
+            menu.addItem(updateItem)
+        }
+
+        AppMenu.appendAboutItem(to: menu, includeSeparator: false)
     }
 
     private func defaultExportFilename() -> String {

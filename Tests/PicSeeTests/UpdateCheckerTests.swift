@@ -67,6 +67,23 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: UpdateChecker.ignoredVersionDefaultsKey), "0.2.13")
     }
 
+    func testManualCheckBypassesIgnoredReleaseVersion() async throws {
+        defaults.set("0.2.13", forKey: UpdateChecker.ignoredVersionDefaultsKey)
+        let current = try XCTUnwrap(AppVersion("0.2.11"))
+        let latest = release("0.2.13")
+        let checker = UpdateChecker(
+            currentVersion: current,
+            defaults: defaults,
+            fetchLatestRelease: { latest },
+            downloadAndOpen: { _, _ in }
+        )
+
+        await checker.checkForUpdatesManually()
+
+        XCTAssertEqual(checker.availableUpdate?.version, latest.version)
+        XCTAssertEqual(checker.status, .available)
+    }
+
     func testNewerReleaseOverridesIgnoredOlderRelease() async throws {
         defaults.set("0.2.13", forKey: UpdateChecker.ignoredVersionDefaultsKey)
         let current = try XCTUnwrap(AppVersion("0.2.11"))
@@ -104,6 +121,28 @@ final class UpdateCheckerTests: XCTestCase {
         await checker.checkForUpdatesIfNeeded()
         now = date("2026-06-05T09:00:00Z")
         await checker.checkForUpdatesIfNeeded()
+
+        XCTAssertEqual(fetchCount, 2)
+        XCTAssertEqual(checker.availableUpdate?.version, latest.version)
+    }
+
+    func testManualCheckBypassesDailyThrottle() async throws {
+        let current = try XCTUnwrap(AppVersion("0.2.11"))
+        let latest = release("0.2.14")
+        var fetchCount = 0
+        let checker = UpdateChecker(
+            currentVersion: current,
+            defaults: defaults,
+            fetchLatestRelease: {
+                fetchCount += 1
+                return latest
+            },
+            downloadAndOpen: { _, _ in },
+            now: { self.date("2026-06-04T09:00:00Z") }
+        )
+
+        await checker.checkForUpdatesIfNeeded()
+        await checker.checkForUpdatesManually()
 
         XCTAssertEqual(fetchCount, 2)
         XCTAssertEqual(checker.availableUpdate?.version, latest.version)

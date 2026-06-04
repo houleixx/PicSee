@@ -82,14 +82,18 @@ final class UpdateChecker: ObservableObject {
         _ = await performUpdateCheck()
     }
 
+    func checkForUpdatesManually() async {
+        _ = await performUpdateCheck(ignoresSkippedVersion: true)
+    }
+
     @discardableResult
-    private func performUpdateCheck() async -> Bool {
+    private func performUpdateCheck(ignoresSkippedVersion: Bool = false) async -> Bool {
         status = .checking
         downloadProgress = nil
 
         do {
             let release = try await fetchLatestRelease()
-            guard shouldShow(release: release) else {
+            guard shouldShow(release: release, ignoresSkippedVersion: ignoresSkippedVersion) else {
                 availableUpdate = nil
                 status = .idle
                 return true
@@ -131,8 +135,9 @@ final class UpdateChecker: ObservableObject {
         }
     }
 
-    private func shouldShow(release: GitHubRelease) -> Bool {
+    private func shouldShow(release: GitHubRelease, ignoresSkippedVersion: Bool) -> Bool {
         guard release.version > currentVersion else { return false }
+        guard !ignoresSkippedVersion else { return true }
         return defaults.string(forKey: Self.ignoredVersionDefaultsKey) != release.version.displayString
     }
 

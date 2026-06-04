@@ -33,12 +33,12 @@ enum AppMenu {
         )
     }
 
-    static func appendAboutItem(to menu: NSMenu, appName: String = "PicSee") {
+    static func appendAboutItem(to menu: NSMenu, appName: String = "PicSee", includeSeparator: Bool = true) {
         guard menu.items.first(where: { $0.action == #selector(AppDelegate.showAboutPanel(_:)) }) == nil else {
             return
         }
 
-        if !menu.items.isEmpty {
+        if includeSeparator, !menu.items.isEmpty {
             menu.addItem(.separator())
         }
         let aboutItem = buildAboutMenuItem(appName: appName)

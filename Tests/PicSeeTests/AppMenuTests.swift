@@ -43,6 +43,8 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(menu?.items.first { $0.title == "显示缩略图" })
         XCTAssertNotNil(menu?.items.first { $0.title == "显示标题栏" })
         XCTAssertNotNil(menu?.items.first { $0.title == "显示文件信息" })
+        XCTAssertNotNil(menu?.items.first { $0.title == "固定窗口大小和位置" })
+        XCTAssertNotNil(menu?.items.first { $0.title == "图片另存为..." })
         XCTAssertNotNil(menu?.items.first { $0.title == "关于 PicSee" })
         XCTAssertEqual(
             menu?.items.first { $0.title == "关于 PicSee" }?.action,
@@ -78,8 +80,10 @@ final class AppMenuTests: XCTestCase {
 
         XCTAssertEqual(items[titleBarIndex + 1].title, "显示缩略图")
         XCTAssertEqual(items[titleBarIndex + 2].title, "显示文件信息")
+        XCTAssertEqual(items[titleBarIndex + 3].title, "固定窗口大小和位置")
         XCTAssertFalse(items[titleBarIndex + 1].isSeparatorItem)
         XCTAssertFalse(items[titleBarIndex + 2].isSeparatorItem)
+        XCTAssertFalse(items[titleBarIndex + 3].isSeparatorItem)
     }
 
     func testAppendsPicSeeItemsWithoutSeparatingTitleBarMinimapAndFileInfoItems() {
@@ -98,8 +102,10 @@ final class AppMenuTests: XCTestCase {
 
         XCTAssertEqual(menu.items[titleBarIndex + 1].title, "显示缩略图")
         XCTAssertEqual(menu.items[titleBarIndex + 2].title, "显示文件信息")
+        XCTAssertEqual(menu.items[titleBarIndex + 3].title, "固定窗口大小和位置")
         XCTAssertFalse(menu.items[titleBarIndex + 1].isSeparatorItem)
         XCTAssertFalse(menu.items[titleBarIndex + 2].isSeparatorItem)
+        XCTAssertFalse(menu.items[titleBarIndex + 3].isSeparatorItem)
     }
 
     func testTopDragRegionIsDisabledWhenTitleBarIsVisible() {
@@ -110,6 +116,34 @@ final class AppMenuTests: XCTestCase {
         view.titleBarVisible = true
 
         XCTAssertFalse(view.debugCanDragWindow(at: CGPoint(x: 200, y: 292)))
+    }
+
+    func testBottomRightResizeAnchorUsesInsetHitAreaForRoundedWindowCorner() {
+        let view = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
+
+        XCTAssertEqual(view.debugResizeAnchor(at: CGPoint(x: 340, y: 20)), .bottomRight)
+        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 332, y: 72)))
+
+        view.titleBarVisible = true
+
+        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 340, y: 20)))
+    }
+
+    func testResizeAnchorIsDisabledWhenWindowSizeIsFixed() {
+        let view = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
+
+        XCTAssertEqual(view.debugResizeAnchor(at: CGPoint(x: 340, y: 20)), .bottomRight)
+
+        view.fixedWindowEnabled = true
+
+        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 340, y: 20)))
+    }
+
+    func testDefaultExportFilenameUsesCopySuffix() {
+        let url = URL(fileURLWithPath: "/tmp/sample.image.png")
+
+        XCTAssertEqual(CanvasNSView.debugDefaultExportFilename(for: url), "sample.image_副本.jpg")
+        XCTAssertEqual(CanvasNSView.debugDefaultExportFilename(for: nil), "PicSee Export_副本.jpg")
     }
 
     func testImageContextMenuTogglesMinimapVisibilityPreference() {
@@ -200,6 +234,36 @@ final class AppMenuTests: XCTestCase {
         XCTAssertTrue(secondView.debugTitleBarVisible)
     }
 
+    func testImageContextMenuTogglesFixedWindowPreference() {
+        let suiteName = "PicSee.AppMenuFixedWindowTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let view = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        var observedValues: [Bool] = []
+        view.onFixedWindowChanged = { observedValues.append($0) }
+
+        var menu = view.menu(for: rightClickEvent())
+        let firstItem = menu?.items.first { $0.title == "固定窗口大小和位置" }
+        XCTAssertEqual(firstItem?.state, .off)
+        XCTAssertFalse(view.debugFixedWindowEnabled)
+
+        view.toggleFixedWindowForMenu(firstItem)
+
+        menu = view.menu(for: rightClickEvent())
+        let secondItem = menu?.items.first { $0.title == "固定窗口大小和位置" }
+        XCTAssertEqual(secondItem?.state, .on)
+        XCTAssertTrue(view.debugFixedWindowEnabled)
+        XCTAssertTrue(WindowFramePreference.isFixedEnabled(in: defaults))
+        XCTAssertEqual(observedValues, [true])
+
+        view.toggleFixedWindowForMenu(secondItem)
+
+        XCTAssertFalse(view.debugFixedWindowEnabled)
+        XCTAssertFalse(WindowFramePreference.isFixedEnabled(in: defaults))
+        XCTAssertEqual(observedValues, [true, false])
+    }
+
     func testAppendsPicSeeItemsToExistingLiveTextMenu() {
         let view = CanvasNSView(frame: .zero, backend: .liveText)
         view.imageURL = URL(fileURLWithPath: "/tmp/example.png")
@@ -212,9 +276,11 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(pathItem)
         XCTAssertTrue(pathItem?.isEnabled ?? false)
         XCTAssertEqual(pathItem?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
+        XCTAssertNotNil(menu.items.first { $0.title == "图片另存为..." })
         XCTAssertNotNil(menu.items.first { $0.title == "显示缩略图" })
         XCTAssertNotNil(menu.items.first { $0.title == "显示标题栏" })
         XCTAssertNotNil(menu.items.first { $0.title == "显示文件信息" })
+        XCTAssertNotNil(menu.items.first { $0.title == "固定窗口大小和位置" })
         XCTAssertNotNil(menu.items.first { $0.title == "关于 PicSee" })
     }
 

@@ -5,8 +5,10 @@ struct ImageViewerView: View {
     @ObservedObject var viewModel: ImageViewerViewModel
     let updateChecker: UpdateChecker?
     let onTitleBarVisibilityChanged: (Bool) -> Void
+    let onFixedWindowChanged: (Bool) -> Void
     @State private var titleBarVisible = ViewerTitleBarPreference.isVisible()
     @State private var fileInfoVisible = UserDefaults.standard.object(forKey: "PicSee.FileInfoVisible") as? Bool ?? true
+    @State private var fixedWindowEnabled = WindowFramePreference.isFixedEnabled()
     private let hudPadding: CGFloat = 9.6
 
     var body: some View {
@@ -36,6 +38,11 @@ struct ImageViewerView: View {
                     },
                     onFileInfoVisibilityChanged: { visible in
                         fileInfoVisible = visible
+                    },
+                    fixedWindowEnabled: fixedWindowEnabled,
+                    onFixedWindowChanged: { fixed in
+                        fixedWindowEnabled = fixed
+                        onFixedWindowChanged(fixed)
                     }
                 )
                 .overlay(alignment: .topLeading) {

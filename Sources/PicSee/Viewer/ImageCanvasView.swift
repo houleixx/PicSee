@@ -1,6 +1,7 @@
 import AppKit
 import ImageIO
 import SwiftUI
+import UniformTypeIdentifiers
 import Vision
 @preconcurrency import VisionKit
 
@@ -18,6 +19,8 @@ struct ImageCanvasView: NSViewRepresentable {
     let fileInfoVisible: Bool
     let onTitleBarVisibilityChanged: (Bool) -> Void
     let onFileInfoVisibilityChanged: (Bool) -> Void
+    let fixedWindowEnabled: Bool
+    let onFixedWindowChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> CanvasNSView {
         let view = CanvasNSView()
@@ -25,6 +28,7 @@ struct ImageCanvasView: NSViewRepresentable {
         view.image = image
         view.titleBarVisible = titleBarVisible
         view.fileInfoVisible = fileInfoVisible
+        view.fixedWindowEnabled = fixedWindowEnabled
         view.onPrevious = onPrevious
         view.onNext = onNext
         view.onReset = onReset
@@ -34,6 +38,7 @@ struct ImageCanvasView: NSViewRepresentable {
         view.onPanChanged = { panOffset = $0 }
         view.onTitleBarVisibilityChanged = onTitleBarVisibilityChanged
         view.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
+        view.onFixedWindowChanged = onFixedWindowChanged
         return view
     }
 
@@ -49,8 +54,10 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onDisplayScaleChanged = onDisplayScaleChanged
         nsView.titleBarVisible = titleBarVisible
         nsView.fileInfoVisible = fileInfoVisible
+        nsView.fixedWindowEnabled = fixedWindowEnabled
         nsView.onTitleBarVisibilityChanged = onTitleBarVisibilityChanged
         nsView.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
+        nsView.onFixedWindowChanged = onFixedWindowChanged
         nsView.needsDisplay = true
     }
 }
@@ -166,6 +173,251 @@ private final class ImageMinimapView: NSView {
     }
 }
 
+final class ImageExportAccessoryView: NSView {
+    private static let labelColumnWidth: CGFloat = 72
+    private static let sizeFieldWidth: CGFloat = 190
+
+    private enum ResizeMode: Int {
+        case fixed
+        case proportionalWidth
+        case proportionalHeight
+    }
+
+    private let formatPopup = NSPopUpButton()
+    private let resizeModePopup = NSPopUpButton()
+    private let widthField = NSTextField()
+    private let heightField = NSTextField()
+    private let qualitySlider = NSSlider(value: 0.9, minValue: 0.4, maxValue: 1.0, target: nil, action: nil)
+    private let defaultPixelSize: CGSize?
+    private var qualityLabel: NSTextField?
+    var onFormatChanged: ((ImageExportFormat) -> Void)?
+
+    init(defaultPixelSize: CGSize?) {
+        self.defaultPixelSize = defaultPixelSize
+        super.init(frame: NSRect(x: 0, y: 0, width: 420, height: 168))
+        formatPopup.addItems(withTitles: ["JPEG", "PNG"])
+        formatPopup.target = self
+        formatPopup.action = #selector(formatChanged(_:))
+        resizeModePopup.addItems(withTitles: ["固定尺寸", "按宽等比", "按高等比"])
+        resizeModePopup.target = self
+        resizeModePopup.action = #selector(resizeModeChanged(_:))
+
+        widthField.placeholderString = "宽"
+        heightField.placeholderString = "高"
+        widthField.target = self
+        widthField.action = #selector(sizeFieldChanged(_:))
+        heightField.target = self
+        heightField.action = #selector(sizeFieldChanged(_:))
+        widthField.delegate = self
+        heightField.delegate = self
+        if let defaultPixelSize {
+            widthField.stringValue = "\(Int(defaultPixelSize.width.rounded()))"
+            heightField.stringValue = "\(Int(defaultPixelSize.height.rounded()))"
+        }
+
+        let labels = ["格式", "尺寸模式", "宽度", "高度", "JPEG 质量"].map(Self.label)
+        let widthInput = Self.pixelInput(field: widthField)
+        let heightInput = Self.pixelInput(field: heightField)
+        let grid = NSGridView(views: [
+            [labels[0], formatPopup],
+            [labels[1], resizeModePopup],
+            [labels[2], widthInput],
+            [labels[3], heightInput],
+            [labels[4], qualitySlider]
+        ])
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        grid.rowSpacing = 8
+        grid.columnSpacing = 12
+        grid.column(at: 0).xPlacement = .trailing
+        grid.column(at: 1).xPlacement = .leading
+        qualityLabel = labels[4]
+        addSubview(grid)
+
+        NSLayoutConstraint.activate([
+            grid.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
+            grid.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+            grid.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            grid.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -12),
+            resizeModePopup.widthAnchor.constraint(equalToConstant: 120),
+            widthField.widthAnchor.constraint(equalToConstant: Self.sizeFieldWidth),
+            heightField.widthAnchor.constraint(equalTo: widthField.widthAnchor)
+        ] + labels.map { $0.widthAnchor.constraint(equalToConstant: Self.labelColumnWidth) })
+        updateFormatControls()
+        updateResizeControls()
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    var exportOptions: ImageExportOptions {
+        ImageExportOptions(format: selectedFormat, pixelSize: selectedPixelSize)
+    }
+
+    var selectedFormat: ImageExportFormat {
+        formatPopup.indexOfSelectedItem == 1 ? .png : .jpeg(quality: CGFloat(qualitySlider.doubleValue))
+    }
+
+    @objc private func formatChanged(_ sender: Any?) {
+        updateFormatControls()
+        onFormatChanged?(selectedFormat)
+    }
+
+    @objc private func resizeModeChanged(_ sender: Any?) {
+        updateResizeControls()
+        updateProportionalSize(changedField: nil)
+    }
+
+    @objc private func sizeFieldChanged(_ sender: Any?) {
+        updateProportionalSize(changedField: sender as? NSTextField)
+    }
+
+    private func updateFormatControls() {
+        let showQualityControls: Bool
+        if case .png = selectedFormat {
+            showQualityControls = false
+        } else {
+            showQualityControls = true
+        }
+
+        qualityLabel?.alphaValue = showQualityControls ? 1 : 0
+        qualitySlider.alphaValue = showQualityControls ? 1 : 0
+        qualitySlider.isEnabled = showQualityControls
+    }
+
+    private func updateResizeControls() {
+        switch selectedResizeMode {
+        case .fixed:
+            widthField.isEnabled = true
+            heightField.isEnabled = true
+        case .proportionalWidth:
+            widthField.isEnabled = true
+            heightField.isEnabled = false
+        case .proportionalHeight:
+            widthField.isEnabled = false
+            heightField.isEnabled = true
+        }
+    }
+
+    private func updateProportionalSize(changedField: NSTextField?) {
+        guard let defaultPixelSize, defaultPixelSize.width > 0, defaultPixelSize.height > 0 else { return }
+
+        switch selectedResizeMode {
+        case .fixed:
+            return
+        case .proportionalWidth:
+            guard changedField == nil || changedField === widthField else { return }
+            guard let width = positiveInteger(from: widthField.stringValue) else { return }
+            let height = max(1, Int((CGFloat(width) * defaultPixelSize.height / defaultPixelSize.width).rounded()))
+            heightField.stringValue = "\(height)"
+        case .proportionalHeight:
+            guard changedField == nil || changedField === heightField else { return }
+            guard let height = positiveInteger(from: heightField.stringValue) else { return }
+            let width = max(1, Int((CGFloat(height) * defaultPixelSize.width / defaultPixelSize.height).rounded()))
+            widthField.stringValue = "\(width)"
+        }
+    }
+
+    private var selectedResizeMode: ResizeMode {
+        ResizeMode(rawValue: resizeModePopup.indexOfSelectedItem) ?? .fixed
+    }
+
+    private var selectedPixelSize: CGSize? {
+        updateProportionalSize(changedField: nil)
+        let width = positiveInteger(from: widthField.stringValue)
+        let height = positiveInteger(from: heightField.stringValue)
+        guard let width, let height, width > 0, height > 0 else { return nil }
+        return CGSize(width: width, height: height)
+    }
+
+    private func positiveInteger(from string: String) -> Int? {
+        let value = Int(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard let value, value > 0 else { return nil }
+        return value
+    }
+
+    private static func label(_ text: String) -> NSTextField {
+        let field = NSTextField(labelWithString: text)
+        field.alignment = .right
+        return field
+    }
+
+    private static func pixelInput(field: NSTextField) -> NSStackView {
+        let unitLabel = NSTextField(labelWithString: "px")
+        unitLabel.textColor = .secondaryLabelColor
+        unitLabel.alignment = .left
+
+        let stackView = NSStackView(views: [field, unitLabel])
+        stackView.orientation = .horizontal
+        stackView.alignment = .centerY
+        stackView.spacing = 6
+        return stackView
+    }
+
+    #if DEBUG
+    var debugQualityControlsVisible: Bool {
+        qualityLabel?.alphaValue == 1 && qualitySlider.alphaValue == 1 && qualitySlider.isEnabled
+    }
+
+    static var debugLabelColumnWidth: CGFloat {
+        labelColumnWidth
+    }
+
+    static var debugSizeFieldWidth: CGFloat {
+        sizeFieldWidth
+    }
+
+    func debugSelectPNG() {
+        formatPopup.selectItem(at: 1)
+        formatChanged(nil)
+    }
+
+    func debugSelectJPEG() {
+        formatPopup.selectItem(at: 0)
+        formatChanged(nil)
+    }
+
+    func debugSelectFixedSizeMode() {
+        resizeModePopup.selectItem(at: ResizeMode.fixed.rawValue)
+        resizeModeChanged(nil)
+    }
+
+    func debugSelectProportionalWidthMode() {
+        resizeModePopup.selectItem(at: ResizeMode.proportionalWidth.rawValue)
+        resizeModeChanged(nil)
+    }
+
+    func debugSelectProportionalHeightMode() {
+        resizeModePopup.selectItem(at: ResizeMode.proportionalHeight.rawValue)
+        resizeModeChanged(nil)
+    }
+
+    func debugSetWidth(_ value: Int) {
+        widthField.stringValue = "\(value)"
+        sizeFieldChanged(widthField)
+    }
+
+    func debugSetHeight(_ value: Int) {
+        heightField.stringValue = "\(value)"
+        sizeFieldChanged(heightField)
+    }
+
+    var debugWidthFieldEnabled: Bool {
+        widthField.isEnabled
+    }
+
+    var debugHeightFieldEnabled: Bool {
+        heightField.isEnabled
+    }
+    #endif
+}
+
+extension ImageExportAccessoryView: NSTextFieldDelegate {
+    func controlTextDidChange(_ notification: Notification) {
+        sizeFieldChanged(notification.object)
+    }
+}
+
 enum TextRecognitionBackend {
     case liveText
     case vision
@@ -259,26 +511,40 @@ final class CanvasNSView: NSView {
     var onDisplayScaleChanged: ((CGFloat) -> Void)?
     var onTitleBarVisibilityChanged: ((Bool) -> Void)?
     var onFileInfoVisibilityChanged: ((Bool) -> Void)?
+    var onFixedWindowChanged: ((Bool) -> Void)?
 
     private enum DragType {
         case none
         case window
         case pan
         case textSelection
+        case resize(WindowResizeAnchor)
     }
 
     private var dragType: DragType = .none
     private var dragStartPoint: NSPoint?
+    private var dragStartWindowFrame: NSRect?
     private var dragStartOffset: CGSize = .zero
     private var lastReportedDisplayScale: CGFloat = -1
     private var trackingArea: NSTrackingArea?
     private var analysisTask: Task<Void, Never>?
     private var analysisToken = 0
     private var minimapEnabled: Bool
-    var titleBarVisible: Bool
+    var titleBarVisible: Bool {
+        didSet {
+            guard oldValue != titleBarVisible else { return }
+            needsLayout = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     var fileInfoVisible: Bool
+    var fixedWindowEnabled: Bool
 
     private let topDragRegionHeight: CGFloat = 36
+    private let topLeftResizeRegionSize: CGFloat = 44
+    private let bottomRightResizeRegionSize: CGFloat = 64
+    private let resizeAvoidancePadding: CGFloat = 8
+    private let minimumWindowSize = NSSize(width: 320, height: 220)
     private let minimapMaxSize = CGSize(width: 140, height: 100)
     private let minimapPadding: CGFloat = 12
 
@@ -291,6 +557,7 @@ final class CanvasNSView: NSView {
         self.minimapEnabled = Self.defaultMinimapEnabled(in: defaults)
         self.titleBarVisible = ViewerTitleBarPreference.isVisible(in: defaults)
         self.fileInfoVisible = Self.defaultFileInfoVisible(in: defaults)
+        self.fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: defaults)
         super.init(frame: frameRect)
         configureSubviews()
     }
@@ -305,6 +572,7 @@ final class CanvasNSView: NSView {
         self.minimapEnabled = Self.defaultMinimapEnabled(in: .standard)
         self.titleBarVisible = ViewerTitleBarPreference.isVisible(in: .standard)
         self.fileInfoVisible = Self.defaultFileInfoVisible(in: .standard)
+        self.fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: .standard)
         super.init(coder: coder)
         configureSubviews()
     }
@@ -344,6 +612,7 @@ final class CanvasNSView: NSView {
         switch backend {
         case .liveText:
             liveTextOverlay.frame = imageView.bounds
+            repositionLiveTextControlsIfNeeded()
         case .vision:
             selectionOverlayView.frame = bounds
             updateSelectionOverlay()
@@ -359,7 +628,33 @@ final class CanvasNSView: NSView {
 
     override func resetCursorRects() {
         discardCursorRects()
-        addCursorRect(bounds, cursor: cursorForCurrentMouseLocation())
+        guard !titleBarVisible, !fixedWindowEnabled else { return }
+
+        addCursorRect(
+            NSRect(
+                x: max(bounds.width - bottomRightResizeRegionSize, 0),
+                y: 0,
+                width: min(bottomRightResizeRegionSize, bounds.width),
+                height: min(bottomRightResizeRegionSize, bounds.height)
+            ),
+            cursor: .resizeLeftRight
+        )
+        addCursorRect(
+            NSRect(
+                x: 0,
+                y: max(bounds.height - topLeftResizeRegionSize, 0),
+                width: min(topLeftResizeRegionSize, bounds.width),
+                height: min(topLeftResizeRegionSize, bounds.height)
+            ),
+            cursor: .resizeLeftRight
+        )
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if resizeAnchor(at: point) != nil {
+            return self
+        }
+        return super.hitTest(point)
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -405,9 +700,17 @@ final class CanvasNSView: NSView {
 
         dragType = .none
         dragStartPoint = nil
+        dragStartWindowFrame = nil
         dragStartOffset = .zero
         selectionAnchorLocation = nil
         selectionFocusLocation = nil
+
+        if let resizeAnchor = resizeAnchor(at: point), let window {
+            dragType = .resize(resizeAnchor)
+            dragStartPoint = window.convertPoint(toScreen: event.locationInWindow)
+            dragStartWindowFrame = window.frame
+            return
+        }
 
         let hitText = backend == .vision ? hitTextLocation(at: point, geometry: geometry) : nil
 
@@ -466,15 +769,35 @@ final class CanvasNSView: NSView {
             let target = nearestTextLocation(to: point, geometry: geometry) ?? anchor
             selectionFocusLocation = target
             updateSelectedTextRange()
+        case .resize(let anchor):
+            guard
+                let window,
+                let dragStartPoint,
+                let dragStartWindowFrame
+            else { return }
+            let currentPoint = window.convertPoint(toScreen: event.locationInWindow)
+            let delta = CGSize(
+                width: currentPoint.x - dragStartPoint.x,
+                height: currentPoint.y - dragStartPoint.y
+            )
+            let nextFrame = WindowResizeGeometry.frame(
+                from: dragStartWindowFrame,
+                anchor: anchor,
+                delta: delta,
+                minimumSize: minimumWindowSize
+            )
+            window.setFrame(nextFrame, display: true)
+            WindowFramePreference.save(nextFrame)
         }
     }
 
     override func mouseUp(with event: NSEvent) {
-        if dragType == .pan {
+        if case .pan = dragType {
             cursorForPoint(convert(event.locationInWindow, from: nil)).set()
         }
         dragType = .none
         dragStartPoint = nil
+        dragStartWindowFrame = nil
         dragStartOffset = .zero
         selectionAnchorLocation = nil
         selectionFocusLocation = nil
@@ -527,6 +850,34 @@ final class CanvasNSView: NSView {
         pasteboard.setString(path, forType: .string)
     }
 
+    @objc func exportImageForMenu(_ sender: Any?) {
+        guard let image else { return }
+
+        let panel = NSSavePanel()
+        let accessoryView = ImageExportAccessoryView(defaultPixelSize: ImageExporter.pixelSize(of: image))
+        panel.title = "图片另存为"
+        panel.nameFieldStringValue = defaultExportFilename()
+        panel.allowedContentTypes = [.jpeg, .png]
+        panel.canCreateDirectories = true
+        panel.accessoryView = accessoryView
+        accessoryView.onFormatChanged = { [weak panel] format in
+            guard let panel else { return }
+            panel.allowedContentTypes = [format.contentType]
+            panel.nameFieldStringValue = Self.filename(panel.nameFieldStringValue, withExtension: format.pathExtension)
+        }
+
+        panel.begin { [weak self, weak accessoryView] response in
+            guard response == .OK, let url = panel.url, let accessoryView else { return }
+            let options = accessoryView.exportOptions
+            let destinationURL = Self.destinationURL(url, for: options.format)
+            do {
+                try ImageExporter.export(image, to: destinationURL, options: options)
+            } catch {
+                self?.presentExportError(error)
+            }
+        }
+    }
+
     @objc func toggleMinimapForMenu(_ sender: Any?) {
         minimapEnabled.toggle()
         defaults.set(minimapEnabled, forKey: Self.minimapEnabledDefaultsKey)
@@ -545,6 +896,16 @@ final class CanvasNSView: NSView {
         onFileInfoVisibilityChanged?(fileInfoVisible)
     }
 
+    @objc func toggleFixedWindowForMenu(_ sender: Any?) {
+        fixedWindowEnabled.toggle()
+        WindowFramePreference.setFixedEnabled(fixedWindowEnabled, in: defaults)
+        if fixedWindowEnabled, let window {
+            WindowFramePreference.saveFixedFrame(window.frame, in: defaults)
+        }
+        onFixedWindowChanged?(fixedWindowEnabled)
+        window?.invalidateCursorRects(for: self)
+    }
+
     @objc private func copySelectedText() {
         _ = copySelectedTextToPasteboard()
     }
@@ -553,8 +914,9 @@ final class CanvasNSView: NSView {
         let shouldAddTitleBarItem = menu.items.first(where: { $0.action == #selector(toggleTitleBarForMenu(_:)) }) == nil
         let shouldAddMinimapItem = menu.items.first(where: { $0.action == #selector(toggleMinimapForMenu(_:)) }) == nil
         let shouldAddFileInfoItem = menu.items.first(where: { $0.action == #selector(toggleFileInfoForMenu(_:)) }) == nil
+        let shouldAddFixedWindowItem = menu.items.first(where: { $0.action == #selector(toggleFixedWindowForMenu(_:)) }) == nil
 
-        if shouldAddTitleBarItem || shouldAddMinimapItem || shouldAddFileInfoItem {
+        if shouldAddTitleBarItem || shouldAddMinimapItem || shouldAddFileInfoItem || shouldAddFixedWindowItem {
             if !menu.items.isEmpty {
                 menu.addItem(.separator())
             }
@@ -581,6 +943,13 @@ final class CanvasNSView: NSView {
             menu.addItem(fileInfoItem)
         }
 
+        if shouldAddFixedWindowItem {
+            let fixedWindowItem = NSMenuItem(title: "固定窗口大小和位置", action: #selector(toggleFixedWindowForMenu(_:)), keyEquivalent: "")
+            fixedWindowItem.target = self
+            fixedWindowItem.state = fixedWindowEnabled ? .on : .off
+            menu.addItem(fixedWindowItem)
+        }
+
         if menu.items.first(where: { $0.action == #selector(copyImagePathForMenu(_:)) }) == nil {
             if !menu.items.isEmpty {
                 menu.addItem(.separator())
@@ -591,7 +960,40 @@ final class CanvasNSView: NSView {
             menu.addItem(pathItem)
         }
 
+        if menu.items.first(where: { $0.action == #selector(exportImageForMenu(_:)) }) == nil {
+            let exportItem = NSMenuItem(title: "图片另存为...", action: #selector(exportImageForMenu(_:)), keyEquivalent: "")
+            exportItem.target = self
+            exportItem.isEnabled = image != nil
+            menu.addItem(exportItem)
+        }
+
         AppMenu.appendAboutItem(to: menu)
+    }
+
+    private func defaultExportFilename() -> String {
+        Self.defaultExportFilename(for: imageURL)
+    }
+
+    private static func defaultExportFilename(for url: URL?) -> String {
+        let baseName = url?.deletingPathExtension().lastPathComponent ?? "PicSee Export"
+        return "\(baseName)_副本.jpg"
+    }
+
+    private static func destinationURL(_ url: URL, for format: ImageExportFormat) -> URL {
+        let expectedExtension = format.pathExtension.lowercased()
+        guard url.pathExtension.lowercased() != expectedExtension else { return url }
+        return url.deletingPathExtension().appendingPathExtension(expectedExtension)
+    }
+
+    private static func filename(_ filename: String, withExtension pathExtension: String) -> String {
+        let url = URL(fileURLWithPath: filename)
+        return url.deletingPathExtension().appendingPathExtension(pathExtension).lastPathComponent
+    }
+
+    private func presentExportError(_ error: Error) {
+        let alert = NSAlert(error: error)
+        alert.messageText = "保存图片失败"
+        alert.runModal()
     }
 
     private func configureSubviews() {
@@ -638,6 +1040,7 @@ final class CanvasNSView: NSView {
         switch backend {
         case .liveText:
             liveTextOverlay.analysis = nil
+            scheduleLiveTextControlReposition()
             analyzeWithLiveText(token: token)
         case .vision:
             recognizedLines = []
@@ -661,11 +1064,13 @@ final class CanvasNSView: NSView {
                 await MainActor.run { [weak self] in
                     guard let self, !Task.isCancelled, token == self.analysisToken else { return }
                     self.liveTextOverlay.analysis = analysis
+                    self.scheduleLiveTextControlReposition()
                 }
             } catch {
                 await MainActor.run { [weak self] in
                     guard let self, token == self.analysisToken else { return }
                     self.liveTextOverlay.analysis = nil
+                    self.scheduleLiveTextControlReposition()
                 }
             }
         }
@@ -782,6 +1187,45 @@ final class CanvasNSView: NSView {
         geometry.constrainedPan(proposed, allowSlackWhenFitted: panImageMode(geometry))
     }
 
+    private func scheduleLiveTextControlReposition() {
+        DispatchQueue.main.async { [weak self] in
+            self?.repositionLiveTextControlsIfNeeded()
+        }
+    }
+
+    private func repositionLiveTextControlsIfNeeded() {
+        guard backend == .liveText, !titleBarVisible else { return }
+
+        let reservedSize = bottomRightResizeRegionSize + resizeAvoidancePadding
+        let protectedRect = CGRect(
+            x: liveTextOverlay.bounds.maxX - reservedSize,
+            y: liveTextOverlay.bounds.minY,
+            width: reservedSize,
+            height: reservedSize
+        )
+
+        for subview in liveTextOverlay.subviews {
+            let frame = subview.frame
+            guard
+                frame.width <= 96,
+                frame.height <= 96,
+                frame.intersects(protectedRect)
+            else {
+                continue
+            }
+
+            var adjustedFrame = frame
+            adjustedFrame.origin.x = min(
+                adjustedFrame.origin.x,
+                liveTextOverlay.bounds.maxX - adjustedFrame.width - reservedSize
+            )
+            adjustedFrame.origin.y = max(adjustedFrame.origin.y, reservedSize)
+
+            guard adjustedFrame.minX.isFinite, adjustedFrame.minY.isFinite else { continue }
+            subview.setFrameOrigin(adjustedFrame.origin)
+        }
+    }
+
     private func updateMinimap(geometry: ImageDisplayGeometry) {
         guard minimapEnabled, geometry.shouldShowMinimap, let image else {
             minimapView.isHidden = true
@@ -799,9 +1243,10 @@ final class CanvasNSView: NSView {
         minimapView.isHidden = false
         minimapView.image = image
         minimapView.minimapGeometry = minimapGeometry
+        let bottomPadding = titleBarVisible ? minimapPadding : bottomRightResizeRegionSize + minimapPadding
         minimapView.frame = CGRect(
             x: bounds.width - minimapGeometry.size.width - minimapPadding,
-            y: minimapPadding,
+            y: bottomPadding,
             width: minimapGeometry.size.width,
             height: minimapGeometry.size.height
         )
@@ -820,6 +1265,23 @@ final class CanvasNSView: NSView {
     private func isInTopDragRegion(_ point: CGPoint) -> Bool {
         !titleBarVisible && point.y >= bounds.height - topDragRegionHeight
     }
+
+    private func resizeAnchor(at point: CGPoint) -> WindowResizeAnchor? {
+        guard !titleBarVisible, !fixedWindowEnabled else { return nil }
+        if point.x <= topLeftResizeRegionSize, point.y >= bounds.height - topLeftResizeRegionSize {
+            return .topLeft
+        }
+        if point.x >= bounds.width - bottomRightResizeRegionSize, point.y <= bottomRightResizeRegionSize {
+            return .bottomRight
+        }
+        return nil
+    }
+
+    #if DEBUG
+    func debugResizeAnchor(at point: CGPoint) -> WindowResizeAnchor? {
+        resizeAnchor(at: point)
+    }
+    #endif
 
     private func lineRectInView(_ line: RecognizedTextLine, geometry: ImageDisplayGeometry) -> CGRect {
         CGRect(
@@ -996,18 +1458,18 @@ final class CanvasNSView: NSView {
         onDisplayScaleChanged?(displayScale)
     }
 
-    private func cursorForCurrentMouseLocation() -> NSCursor {
-        guard let window else { return .arrow }
-        let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-        return cursorForPoint(point)
-    }
-
     private func cursorForPoint(_ point: CGPoint) -> NSCursor {
         let geometry = currentGeometry()
+        if resizeAnchor(at: point) != nil {
+            return .resizeLeftRight
+        }
         if backend == .vision, hitTextLocation(at: point, geometry: geometry) != nil {
             return .iBeam
         }
-        if dragType == .pan || (panImageMode(geometry) && geometry.imageRect.contains(point)) {
+        if case .pan = dragType {
+            return .openHand
+        }
+        if panImageMode(geometry), geometry.imageRect.contains(point) {
             return .openHand
         }
         return .arrow
@@ -1028,6 +1490,12 @@ final class CanvasNSView: NSView {
 }
 
 extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
+    func overlayView(_ overlayView: ImageAnalysisOverlayView, liveTextButtonDidChangeToVisible visible: Bool) {
+        if visible {
+            scheduleLiveTextControlReposition()
+        }
+    }
+
     func overlayView(_ overlayView: ImageAnalysisOverlayView, updatedMenuFor menu: NSMenu, for event: NSEvent, at point: CGPoint) -> NSMenu {
         appendPicSeeContextMenuItems(to: menu)
         return menu
@@ -1043,6 +1511,8 @@ extension CanvasNSView {
     var debugTitleBarVisible: Bool { titleBarVisible }
 
     var debugFileInfoVisible: Bool { fileInfoVisible }
+
+    var debugFixedWindowEnabled: Bool { fixedWindowEnabled }
 
     func debugCanDragWindow(at point: CGPoint) -> Bool {
         isInTopDragRegion(point)
@@ -1114,6 +1584,10 @@ extension CanvasNSView {
 
     func debugAppendPicSeeContextMenuItems(to menu: NSMenu) {
         appendPicSeeContextMenuItems(to: menu)
+    }
+
+    static func debugDefaultExportFilename(for url: URL?) -> String {
+        defaultExportFilename(for: url)
     }
 }
 #endif

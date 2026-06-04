@@ -80,7 +80,7 @@ final class ImageViewerViewModelTests: XCTestCase {
 
         let viewModel = ImageViewerViewModel(imageURL: imageURL)
 
-        XCTAssertEqual(viewModel.imageMetadataText, "sample image.png - \(expectedFileSize) - 12 × 34 px")
+        XCTAssertEqual(viewModel.imageMetadataText, "sample image.png | \(expectedFileSize) | 12 × 34 px")
     }
 
     @MainActor
@@ -93,7 +93,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let viewModel = ImageViewerViewModel(imageURL: imageURL)
         viewModel.displayScale = 1.25
 
-        XCTAssertEqual(viewModel.titleBarText, "sample image.png - \(expectedFileSize) - 12 × 34 px - 125%")
+        XCTAssertEqual(viewModel.titleBarText, "sample image.png | \(expectedFileSize) | 12 × 34 px | 125%")
     }
 
     private func writePNG(named name: String, color: NSColor, size: NSSize = NSSize(width: 8, height: 8)) throws -> URL {

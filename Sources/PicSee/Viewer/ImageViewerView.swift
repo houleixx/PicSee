@@ -64,6 +64,7 @@ struct ImageViewerView: View {
                                 Text(imageMetadataText)
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(.white.opacity(0.82))
+                                    .shadow(color: .black.opacity(0.95), radius: 3, x: 0, y: 1)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                                     .frame(maxWidth: 520, alignment: .leading)

@@ -13,7 +13,7 @@ ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 cd "$ROOT_DIR"
 ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
 X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
-APP_VERSION="${PICSEE_VERSION:-0.2.15}"
+APP_VERSION="${PICSEE_VERSION:-0.2.16}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
 SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
 
@@ -50,13 +50,23 @@ rm -f "$ICON_ICNS"
 iconutil -c icns "$ICONSET_DIR" -o "$ICON_ICNS"
 cp "$ICON_ICNS" "$RESOURCES_DIR/AppIcon.icns"
 
+for LOCALIZATION_DIR in "$ROOT_DIR"/Resources/*.lproj; do
+  if [ -d "$LOCALIZATION_DIR" ]; then
+    ditto "$LOCALIZATION_DIR" "$RESOURCES_DIR/$(basename "$LOCALIZATION_DIR")"
+  fi
+done
+
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
+    <string>zh-Hans</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>zh-Hans</string>
+    </array>
     <key>CFBundleExecutable</key>
     <string>PicSee</string>
     <key>CFBundleIdentifier</key>

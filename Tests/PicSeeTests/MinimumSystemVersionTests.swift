@@ -16,6 +16,17 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(script.contains("<key>LSUIElement</key>\n    <true/>"))
     }
 
+    func testBuildScriptDeclaresChineseLocalizationForSystemPanels() throws {
+        let script = try repositoryFile("Scripts/build-app.sh")
+        let localizedInfoPlist = try repositoryFile("Resources/zh-Hans.lproj/InfoPlist.strings")
+
+        XCTAssertTrue(script.contains("<key>CFBundleDevelopmentRegion</key>\n    <string>zh-Hans</string>"))
+        XCTAssertTrue(script.contains("<key>CFBundleLocalizations</key>"))
+        XCTAssertTrue(script.contains("<string>zh-Hans</string>"))
+        XCTAssertTrue(script.contains("Resources/*.lproj"))
+        XCTAssertTrue(localizedInfoPlist.contains("\"CFBundleDisplayName\" = \"PicSee\";"))
+    }
+
     func testBuildScriptRegistersCameraRawDocumentTypes() throws {
         let script = try repositoryFile("Scripts/build-app.sh")
 

@@ -39,13 +39,13 @@ final class ImageViewerViewModel: ObservableObject {
     var imageMetadataText: String? {
         [currentFilename, fileSizeText, imagePixelSizeText]
             .compactMap { $0 }
-            .joined(separator: " - ")
+            .joined(separator: " | ")
     }
 
     var titleBarText: String {
         [imageMetadataText, zoomPercentageText]
             .compactMap { $0 }
-            .joined(separator: " - ")
+            .joined(separator: " | ")
     }
 
     var previousURL: URL? {

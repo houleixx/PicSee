@@ -84,6 +84,58 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(checker.status, .available)
     }
 
+    func testChecksForUpdatesAtMostOncePerDay() async throws {
+        let current = try XCTUnwrap(AppVersion("0.2.11"))
+        let latest = release("0.2.14")
+        var fetchCount = 0
+        var now = date("2026-06-04T09:00:00Z")
+        let checker = UpdateChecker(
+            currentVersion: current,
+            defaults: defaults,
+            fetchLatestRelease: {
+                fetchCount += 1
+                return latest
+            },
+            downloadAndOpen: { _, _ in },
+            now: { now }
+        )
+
+        await checker.checkForUpdatesIfNeeded()
+        await checker.checkForUpdatesIfNeeded()
+        now = date("2026-06-05T09:00:00Z")
+        await checker.checkForUpdatesIfNeeded()
+
+        XCTAssertEqual(fetchCount, 2)
+        XCTAssertEqual(checker.availableUpdate?.version, latest.version)
+    }
+
+    func testFailedUpdateCheckDoesNotConsumeDailyCheck() async throws {
+        struct TestError: Error {}
+
+        let current = try XCTUnwrap(AppVersion("0.2.11"))
+        let latest = release("0.2.14")
+        var fetchCount = 0
+        let checker = UpdateChecker(
+            currentVersion: current,
+            defaults: defaults,
+            fetchLatestRelease: {
+                fetchCount += 1
+                if fetchCount == 1 {
+                    throw TestError()
+                }
+                return latest
+            },
+            downloadAndOpen: { _, _ in },
+            now: { self.date("2026-06-04T09:00:00Z") }
+        )
+
+        await checker.checkForUpdatesIfNeeded()
+        await checker.checkForUpdatesIfNeeded()
+
+        XCTAssertEqual(fetchCount, 2)
+        XCTAssertEqual(checker.availableUpdate?.version, latest.version)
+    }
+
     func testDownloadUsesAvailableReleaseURL() async throws {
         let current = try XCTUnwrap(AppVersion("0.2.11"))
         let latest = release("0.2.13")
@@ -144,5 +196,9 @@ final class UpdateCheckerTests: XCTestCase {
             version: version,
             dmgURL: GitHubReleaseClient.dmgDownloadURL(for: version)
         )
+    }
+
+    private func date(_ isoString: String) -> Date {
+        ISO8601DateFormatter().date(from: isoString)!
     }
 }

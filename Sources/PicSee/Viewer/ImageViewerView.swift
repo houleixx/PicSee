@@ -106,7 +106,7 @@ struct ImageViewerView: View {
         .frame(minWidth: 480, minHeight: 320)
         .task {
             if let updateChecker {
-                await updateChecker.checkForUpdates()
+                await updateChecker.checkForUpdatesIfNeeded()
             }
         }
     }

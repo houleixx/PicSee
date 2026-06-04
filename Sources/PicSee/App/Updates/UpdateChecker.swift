@@ -13,6 +13,7 @@ enum UpdateStatus: Equatable {
 @MainActor
 final class UpdateChecker: ObservableObject {
     static let ignoredVersionDefaultsKey = "PicSee.IgnoredUpdateVersion"
+    static let lastCheckDateDefaultsKey = "PicSee.LastUpdateCheckDate"
 
     @Published private(set) var availableUpdate: GitHubRelease?
     @Published private(set) var status: UpdateStatus = .idle
@@ -23,6 +24,8 @@ final class UpdateChecker: ObservableObject {
     private let fetchLatestRelease: () async throws -> GitHubRelease
     private let downloadAndOpen: (URL, @MainActor @Sendable @escaping (Double) -> Void) async throws -> Void
     private let prepareInstall: () -> Void
+    private let now: () -> Date
+    private let calendar: Calendar
 
     init?(
         bundleInfo: [String: Any],
@@ -41,6 +44,8 @@ final class UpdateChecker: ObservableObject {
         self.fetchLatestRelease = { try await releaseClient.fetchLatestRelease() }
         self.downloadAndOpen = { try await Self.downloadAndOpenDMG(from: $0, progress: $1) }
         self.prepareInstall = { NSApp.terminate(nil) }
+        self.now = Date.init
+        self.calendar = .current
     }
 
     init(
@@ -48,16 +53,37 @@ final class UpdateChecker: ObservableObject {
         defaults: UserDefaults,
         fetchLatestRelease: @escaping () async throws -> GitHubRelease,
         downloadAndOpen: @escaping (URL, @MainActor @Sendable @escaping (Double) -> Void) async throws -> Void,
-        prepareInstall: @escaping () -> Void = {}
+        prepareInstall: @escaping () -> Void = {},
+        now: @escaping () -> Date = Date.init,
+        calendar: Calendar = .current
     ) {
         self.currentVersion = currentVersion
         self.defaults = defaults
         self.fetchLatestRelease = fetchLatestRelease
         self.downloadAndOpen = downloadAndOpen
         self.prepareInstall = prepareInstall
+        self.now = now
+        self.calendar = calendar
+    }
+
+    func checkForUpdatesIfNeeded() async {
+        let currentDate = now()
+        if let lastCheckDate = defaults.object(forKey: Self.lastCheckDateDefaultsKey) as? Date,
+           calendar.isDate(lastCheckDate, inSameDayAs: currentDate) {
+            return
+        }
+
+        if await performUpdateCheck() {
+            defaults.set(currentDate, forKey: Self.lastCheckDateDefaultsKey)
+        }
     }
 
     func checkForUpdates() async {
+        _ = await performUpdateCheck()
+    }
+
+    @discardableResult
+    private func performUpdateCheck() async -> Bool {
         status = .checking
         downloadProgress = nil
 
@@ -66,14 +92,16 @@ final class UpdateChecker: ObservableObject {
             guard shouldShow(release: release) else {
                 availableUpdate = nil
                 status = .idle
-                return
+                return true
             }
 
             availableUpdate = release
             status = .available
+            return true
         } catch {
             availableUpdate = nil
             status = .idle
+            return false
         }
     }
 

@@ -66,10 +66,7 @@ struct ImageViewerView: View {
                                     .foregroundStyle(.white.opacity(0.82))
                                     .lineLimit(1)
                                     .truncationMode(.middle)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
                                     .frame(maxWidth: 520, alignment: .leading)
-                                    .background(.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 8))
                             }
                         }
                         .padding(.top, hudPadding)

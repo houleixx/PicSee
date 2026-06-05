@@ -196,6 +196,7 @@ final class ImageExportAccessoryView: NSView {
     private var labels: [NSTextField] = []
     private var qualityLabel: NSTextField?
     private var gridView: NSGridView?
+    private var gridLeadingConstraint: NSLayoutConstraint?
     private var pixelUnitLabels: [NSTextField] = []
     private var pixelInputStacks: [NSStackView] = []
     var onFormatChanged: ((ImageExportFormat) -> Void)?
@@ -238,15 +239,17 @@ final class ImageExportAccessoryView: NSView {
         ])
         grid.translatesAutoresizingMaskIntoConstraints = false
         grid.rowSpacing = 10
-        grid.columnSpacing = 0
+        grid.columnSpacing = 14
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).xPlacement = .leading
         gridView = grid
         qualityLabel = labels[4]
         addSubview(grid)
 
+        let gridLeadingConstraint = grid.leadingAnchor.constraint(equalTo: leadingAnchor, constant: -14)
+        self.gridLeadingConstraint = gridLeadingConstraint
         NSLayoutConstraint.activate([
-            grid.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
+            gridLeadingConstraint,
             grid.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
             grid.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             grid.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -12),
@@ -430,6 +433,10 @@ final class ImageExportAccessoryView: NSView {
 
     var debugGridColumnSpacing: CGFloat {
         gridView?.columnSpacing ?? -1
+    }
+
+    var debugGridLeadingInset: CGFloat {
+        gridLeadingConstraint?.constant ?? .nan
     }
 
     var debugPixelUnitSpacing: CGFloat {

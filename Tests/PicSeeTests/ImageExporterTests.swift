@@ -36,7 +36,7 @@ final class ImageExporterTests: XCTestCase {
         XCTAssertEqual(accessoryView.frame.size, CGSize(width: 460, height: 190))
         XCTAssertEqual(accessoryView.debugGridRowSpacing, 10)
         XCTAssertEqual(accessoryView.debugGridColumnSpacing, 12)
-        XCTAssertEqual(accessoryView.debugGridLeadingInset, 0)
+        XCTAssertEqual(accessoryView.debugGridLeadingInset, 12)
         XCTAssertEqual(accessoryView.debugPixelUnitSpacing, 8)
         XCTAssertEqual(accessoryView.debugPixelUnitTextColor, NSColor.tertiaryLabelColor)
     }

@@ -9,7 +9,7 @@ struct ImageViewerView: View {
     @State private var titleBarVisible = ViewerTitleBarPreference.isVisible()
     @State private var fileInfoVisible = UserDefaults.standard.object(forKey: "PicSee.FileInfoVisible") as? Bool ?? true
     @State private var fixedWindowEnabled = WindowFramePreference.isFixedEnabled()
-    private let hudPadding: CGFloat = 9.6
+    private let hudPadding: CGFloat = 12
 
     var body: some View {
         ZStack {
@@ -56,20 +56,24 @@ struct ImageViewerView: View {
                             Text(viewModel.zoomPercentageText)
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+                                .padding(.horizontal, 11)
+                                .padding(.vertical, 7)
+                                .background(.black.opacity(0.42), in: Capsule())
+                                .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
 
                             if fileInfoVisible, let imageMetadataText = viewModel.imageMetadataText {
                                 Text(imageMetadataText)
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.82))
-                                    .shadow(color: .black.opacity(0.95), radius: 3, x: 0, y: 1)
+                                    .foregroundStyle(.white.opacity(0.88))
                                     .lineLimit(1)
                                     .truncationMode(.middle)
-                                    .frame(maxWidth: 520, alignment: .leading)
+                                    .padding(.horizontal, 11)
+                                    .padding(.vertical, 7)
+                                    .background(.black.opacity(0.42), in: Capsule())
+                                    .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                             }
                         }
+                        .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 3)
                         .padding(.top, hudPadding)
                         .padding(.leading, hudPadding)
                         .padding(.trailing, 56)
@@ -82,11 +86,13 @@ struct ImageViewerView: View {
                             Image(systemName: "xmark")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(.white)
-                                .frame(width: 28, height: 28)
-                                .background(.black.opacity(0.45), in: Circle())
-                                .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                                .frame(width: 32, height: 32)
+                                .background(.black.opacity(0.42), in: Circle())
+                                .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
+                                .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 3)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("关闭图片")
                         .padding(.top, hudPadding)
                         .padding(.trailing, hudPadding)
                     }

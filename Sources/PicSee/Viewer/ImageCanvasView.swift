@@ -178,7 +178,8 @@ private final class ImageMinimapView: NSView {
 
 final class ImageExportAccessoryView: NSView {
     private static let labelColumnWidth: CGFloat = 72
-    private static let sizeFieldWidth: CGFloat = 190
+    private static let controlColumnWidth: CGFloat = 150
+    private static let sizeFieldWidth: CGFloat = controlColumnWidth
 
     private enum ResizeMode: Int {
         case fixed
@@ -192,6 +193,7 @@ final class ImageExportAccessoryView: NSView {
     private let heightField = NSTextField()
     private let qualitySlider = NSSlider(value: 0.9, minValue: 0.4, maxValue: 1.0, target: nil, action: nil)
     private let defaultPixelSize: CGSize?
+    private var labels: [NSTextField] = []
     private var qualityLabel: NSTextField?
     private var gridView: NSGridView?
     private var pixelUnitLabels: [NSTextField] = []
@@ -221,7 +223,8 @@ final class ImageExportAccessoryView: NSView {
             heightField.stringValue = "\(Int(defaultPixelSize.height.rounded()))"
         }
 
-        let labels = ["格式", "尺寸模式", "宽度", "高度", "JPEG 质量"].map(Self.label)
+        let labels = ["格式:", "尺寸模式:", "宽度:", "高度:", "JPEG 质量:"].map(Self.label)
+        self.labels = labels
         let widthInput = Self.pixelInput(field: widthField)
         let heightInput = Self.pixelInput(field: heightField)
         pixelInputStacks = [widthInput, heightInput]
@@ -247,7 +250,8 @@ final class ImageExportAccessoryView: NSView {
             grid.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
             grid.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             grid.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -12),
-            resizeModePopup.widthAnchor.constraint(equalToConstant: 120),
+            formatPopup.widthAnchor.constraint(equalToConstant: Self.controlColumnWidth),
+            resizeModePopup.widthAnchor.constraint(equalToConstant: Self.controlColumnWidth),
             widthField.widthAnchor.constraint(equalToConstant: Self.sizeFieldWidth),
             heightField.widthAnchor.constraint(equalTo: widthField.widthAnchor)
         ] + labels.map { $0.widthAnchor.constraint(equalToConstant: Self.labelColumnWidth) })
@@ -434,6 +438,18 @@ final class ImageExportAccessoryView: NSView {
 
     var debugPixelUnitTextColor: NSColor? {
         pixelUnitLabels.first?.textColor
+    }
+
+    var debugLabelTexts: [String] {
+        labels.map(\.stringValue)
+    }
+
+    var debugFormatPopupWidth: CGFloat {
+        formatPopup.constraints.first { $0.firstAttribute == .width }?.constant ?? -1
+    }
+
+    var debugResizeModePopupWidth: CGFloat {
+        resizeModePopup.constraints.first { $0.firstAttribute == .width }?.constant ?? -1
     }
     #endif
 }

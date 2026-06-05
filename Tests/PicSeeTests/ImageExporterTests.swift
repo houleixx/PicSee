@@ -26,7 +26,7 @@ final class ImageExporterTests: XCTestCase {
 
     @MainActor
     func testAccessoryViewUsesFixedSizeFieldWidthForPixelUnitLabels() {
-        XCTAssertEqual(ImageExportAccessoryView.debugSizeFieldWidth, 190)
+        XCTAssertEqual(ImageExportAccessoryView.debugSizeFieldWidth, 150)
     }
 
     @MainActor
@@ -38,6 +38,15 @@ final class ImageExporterTests: XCTestCase {
         XCTAssertEqual(accessoryView.debugGridColumnSpacing, 14)
         XCTAssertEqual(accessoryView.debugPixelUnitSpacing, 8)
         XCTAssertEqual(accessoryView.debugPixelUnitTextColor, NSColor.tertiaryLabelColor)
+    }
+
+    @MainActor
+    func testAccessoryViewMatchesSavePanelLabelAndControlRhythm() {
+        let accessoryView = ImageExportAccessoryView(defaultPixelSize: CGSize(width: 100, height: 80))
+
+        XCTAssertEqual(accessoryView.debugLabelTexts, ["格式:", "尺寸模式:", "宽度:", "高度:", "JPEG 质量:"])
+        XCTAssertEqual(accessoryView.debugFormatPopupWidth, 150)
+        XCTAssertEqual(accessoryView.debugResizeModePopupWidth, 150)
     }
 
     @MainActor

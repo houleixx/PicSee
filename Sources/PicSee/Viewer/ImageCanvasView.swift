@@ -193,11 +193,14 @@ final class ImageExportAccessoryView: NSView {
     private let qualitySlider = NSSlider(value: 0.9, minValue: 0.4, maxValue: 1.0, target: nil, action: nil)
     private let defaultPixelSize: CGSize?
     private var qualityLabel: NSTextField?
+    private var gridView: NSGridView?
+    private var pixelUnitLabels: [NSTextField] = []
+    private var pixelInputStacks: [NSStackView] = []
     var onFormatChanged: ((ImageExportFormat) -> Void)?
 
     init(defaultPixelSize: CGSize?) {
         self.defaultPixelSize = defaultPixelSize
-        super.init(frame: NSRect(x: 0, y: 0, width: 420, height: 168))
+        super.init(frame: NSRect(x: 0, y: 0, width: 460, height: 190))
         formatPopup.addItems(withTitles: ["JPEG", "PNG"])
         formatPopup.target = self
         formatPopup.action = #selector(formatChanged(_:))
@@ -221,6 +224,8 @@ final class ImageExportAccessoryView: NSView {
         let labels = ["格式", "尺寸模式", "宽度", "高度", "JPEG 质量"].map(Self.label)
         let widthInput = Self.pixelInput(field: widthField)
         let heightInput = Self.pixelInput(field: heightField)
+        pixelInputStacks = [widthInput, heightInput]
+        pixelUnitLabels = [widthInput, heightInput].compactMap { $0.views.last as? NSTextField }
         let grid = NSGridView(views: [
             [labels[0], formatPopup],
             [labels[1], resizeModePopup],
@@ -229,10 +234,11 @@ final class ImageExportAccessoryView: NSView {
             [labels[4], qualitySlider]
         ])
         grid.translatesAutoresizingMaskIntoConstraints = false
-        grid.rowSpacing = 8
-        grid.columnSpacing = 12
+        grid.rowSpacing = 10
+        grid.columnSpacing = 14
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).xPlacement = .leading
+        gridView = grid
         qualityLabel = labels[4]
         addSubview(grid)
 
@@ -342,18 +348,19 @@ final class ImageExportAccessoryView: NSView {
     private static func label(_ text: String) -> NSTextField {
         let field = NSTextField(labelWithString: text)
         field.alignment = .right
+        field.textColor = .secondaryLabelColor
         return field
     }
 
     private static func pixelInput(field: NSTextField) -> NSStackView {
         let unitLabel = NSTextField(labelWithString: "px")
-        unitLabel.textColor = .secondaryLabelColor
+        unitLabel.textColor = .tertiaryLabelColor
         unitLabel.alignment = .left
 
         let stackView = NSStackView(views: [field, unitLabel])
         stackView.orientation = .horizontal
         stackView.alignment = .centerY
-        stackView.spacing = 6
+        stackView.spacing = 8
         return stackView
     }
 
@@ -411,6 +418,22 @@ final class ImageExportAccessoryView: NSView {
 
     var debugHeightFieldEnabled: Bool {
         heightField.isEnabled
+    }
+
+    var debugGridRowSpacing: CGFloat {
+        gridView?.rowSpacing ?? -1
+    }
+
+    var debugGridColumnSpacing: CGFloat {
+        gridView?.columnSpacing ?? -1
+    }
+
+    var debugPixelUnitSpacing: CGFloat {
+        pixelInputStacks.first?.spacing ?? -1
+    }
+
+    var debugPixelUnitTextColor: NSColor? {
+        pixelUnitLabels.first?.textColor
     }
     #endif
 }

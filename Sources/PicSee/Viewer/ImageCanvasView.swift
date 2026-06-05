@@ -177,7 +177,7 @@ private final class ImageMinimapView: NSView {
 }
 
 final class ImageExportAccessoryView: NSView {
-    private static let labelColumnWidth: CGFloat = 72
+    private static let labelColumnWidth: CGFloat = 108
     private static let controlColumnWidth: CGFloat = 150
     private static let sizeFieldWidth: CGFloat = controlColumnWidth
 
@@ -238,7 +238,7 @@ final class ImageExportAccessoryView: NSView {
         ])
         grid.translatesAutoresizingMaskIntoConstraints = false
         grid.rowSpacing = 10
-        grid.columnSpacing = 14
+        grid.columnSpacing = 0
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).xPlacement = .leading
         gridView = grid

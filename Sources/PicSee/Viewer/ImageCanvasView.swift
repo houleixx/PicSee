@@ -246,7 +246,7 @@ final class ImageExportAccessoryView: NSView {
         qualityLabel = labels[4]
         addSubview(grid)
 
-        let gridLeadingConstraint = grid.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12)
+        let gridLeadingConstraint = grid.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 38)
         self.gridLeadingConstraint = gridLeadingConstraint
         NSLayoutConstraint.activate([
             gridLeadingConstraint,

@@ -80,23 +80,6 @@ struct ImageViewerView: View {
                         .allowsHitTesting(false)
                     }
                 }
-                .overlay(alignment: .topTrailing) {
-                    if !titleBarVisible {
-                        Button(action: { NSApp.terminate(nil) }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 32, height: 32)
-                                .background(.black.opacity(0.42), in: Circle())
-                                .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
-                                .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 3)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("关闭图片")
-                        .padding(.top, hudPadding)
-                        .padding(.trailing, hudPadding)
-                    }
-                }
                 .overlay(alignment: .bottomLeading) {
                     if let updateChecker {
                         UpdatePromptView(updateChecker: updateChecker)
@@ -108,15 +91,32 @@ struct ImageViewerView: View {
                 VStack(spacing: 12) {
                     Text("Cannot Open Image")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                     Text(viewModel.errorMessage ?? "PicSee could not open this file.")
                         .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.72))
+                        .foregroundStyle(.secondary)
                     Text(viewModel.currentFilename)
                         .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.tertiary)
                 }
                 .padding(32)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if !titleBarVisible {
+                Button(action: { NSApp.terminate(nil) }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(.black.opacity(0.42), in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭图片")
+                .padding(.top, hudPadding)
+                .padding(.trailing, hudPadding)
             }
         }
         .frame(minWidth: 480, minHeight: 320)

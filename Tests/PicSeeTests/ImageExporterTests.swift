@@ -21,7 +21,7 @@ final class ImageExporterTests: XCTestCase {
 
     @MainActor
     func testAccessoryViewUsesFixedLabelColumnWidth() {
-        XCTAssertEqual(ImageExportAccessoryView.debugLabelColumnWidth, 108)
+        XCTAssertEqual(ImageExportAccessoryView.debugLabelColumnWidth, 76)
     }
 
     @MainActor
@@ -35,8 +35,8 @@ final class ImageExporterTests: XCTestCase {
 
         XCTAssertEqual(accessoryView.frame.size, CGSize(width: 460, height: 190))
         XCTAssertEqual(accessoryView.debugGridRowSpacing, 10)
-        XCTAssertEqual(accessoryView.debugGridColumnSpacing, 14)
-        XCTAssertEqual(accessoryView.debugGridLeadingInset, -14)
+        XCTAssertEqual(accessoryView.debugGridColumnSpacing, 12)
+        XCTAssertEqual(accessoryView.debugGridLeadingInset, 0)
         XCTAssertEqual(accessoryView.debugPixelUnitSpacing, 8)
         XCTAssertEqual(accessoryView.debugPixelUnitTextColor, NSColor.tertiaryLabelColor)
     }

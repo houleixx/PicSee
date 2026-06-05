@@ -177,7 +177,7 @@ private final class ImageMinimapView: NSView {
 }
 
 final class ImageExportAccessoryView: NSView {
-    private static let labelColumnWidth: CGFloat = 72
+    private static let labelColumnWidth: CGFloat = 108
     private static let controlColumnWidth: CGFloat = 150
     private static let sizeFieldWidth: CGFloat = controlColumnWidth
 

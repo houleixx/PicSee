@@ -21,7 +21,7 @@ final class ImageExporterTests: XCTestCase {
 
     @MainActor
     func testAccessoryViewUsesFixedLabelColumnWidth() {
-        XCTAssertEqual(ImageExportAccessoryView.debugLabelColumnWidth, 72)
+        XCTAssertEqual(ImageExportAccessoryView.debugLabelColumnWidth, 108)
     }
 
     @MainActor

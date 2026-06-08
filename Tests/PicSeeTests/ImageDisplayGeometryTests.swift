@@ -33,6 +33,27 @@ final class ImageDisplayGeometryTests: XCTestCase {
         XCTAssertEqual(geometry.imageRect.minY, 300, accuracy: 0.001)
     }
 
+    func testNinetyDegreeRotationUsesSwappedDisplaySizeForFitting() {
+        let geometry = ImageDisplayGeometry(
+            imageSize: CGSize(width: 800, height: 400),
+            viewportSize: CGSize(width: 500, height: 700),
+            zoomScale: 1,
+            panOffset: .zero,
+            rotationDegrees: 90
+        )
+
+        XCTAssertEqual(geometry.rotatedImageSize.width, 400, accuracy: 0.001)
+        XCTAssertEqual(geometry.rotatedImageSize.height, 800, accuracy: 0.001)
+        XCTAssertEqual(geometry.displaySize.width, 350, accuracy: 0.001)
+        XCTAssertEqual(geometry.displaySize.height, 700, accuracy: 0.001)
+        XCTAssertEqual(geometry.imageRect.width, 350, accuracy: 0.001)
+        XCTAssertEqual(geometry.imageRect.height, 700, accuracy: 0.001)
+        XCTAssertEqual(geometry.imageRect.minX, 75, accuracy: 0.001)
+        XCTAssertEqual(geometry.imageRect.minY, 0, accuracy: 0.001)
+        XCTAssertEqual(geometry.unrotatedImageRect.width, 700, accuracy: 0.001)
+        XCTAssertEqual(geometry.unrotatedImageRect.height, 350, accuracy: 0.001)
+    }
+
     func testPanIsDisabledAtBaseZoomWhenImageAlreadyFits() {
         let geometry = ImageDisplayGeometry(
             imageSize: CGSize(width: 400, height: 300),

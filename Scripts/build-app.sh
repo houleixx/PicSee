@@ -13,10 +13,11 @@ ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 cd "$ROOT_DIR"
 ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
 X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
-APP_VERSION="${PICSEE_VERSION:-0.2.17}"
+APP_VERSION="${PICSEE_VERSION:-0.2.18}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
 SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
 
+rm -rf "$ARM64_BUILD_DIR" "$X64_BUILD_DIR"
 swift build -c release --arch arm64 --build-path "$ARM64_BUILD_DIR"
 swift build -c release --arch x86_64 --build-path "$X64_BUILD_DIR"
 
@@ -26,6 +27,11 @@ lipo -create \
   "$ARM64_BUILD_DIR/release/PicSee" \
   "$X64_BUILD_DIR/release/PicSee" \
   -output "$MACOS_DIR/PicSee"
+
+RESOURCE_BUNDLE="$ARM64_BUILD_DIR/release/PicSee_PicSee.bundle"
+if [ -d "$RESOURCE_BUNDLE" ]; then
+  ditto "$RESOURCE_BUNDLE" "$RESOURCES_DIR/PicSee_PicSee.bundle"
+fi
 
 if [ ! -f "$ICON_SOURCE" ]; then
   echo "Missing icon source: $ICON_SOURCE" >&2

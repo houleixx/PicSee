@@ -21,6 +21,7 @@ struct ImageViewerView: View {
                     imageURL: viewModel.currentURL,
                     zoomScale: $viewModel.zoomScale,
                     panOffset: $viewModel.panOffset,
+                    rotationDegrees: $viewModel.rotationDegrees,
                     onPrevious: viewModel.navigateToPrevious,
                     onNext: viewModel.navigateToNext,
                     onReset: viewModel.resetViewTransform,
@@ -87,6 +88,17 @@ struct ImageViewerView: View {
                             .padding(.bottom, hudPadding)
                     }
                 }
+                .overlay(alignment: .bottom) {
+                    ImageToolBar(
+                        onFitToWindow: viewModel.fitToWindow,
+                        onShowHundredPercent: viewModel.showActualSize,
+                        onZoomOut: viewModel.zoomOut,
+                        onZoomIn: viewModel.zoomIn,
+                        onRotateLeft: viewModel.rotateLeft,
+                        onRotateRight: viewModel.rotateRight
+                    )
+                    .padding(.bottom, hudPadding)
+                }
             } else {
                 VStack(spacing: 12) {
                     Text("Cannot Open Image")
@@ -125,6 +137,110 @@ struct ImageViewerView: View {
                 await updateChecker.checkForUpdatesIfNeeded()
             }
         }
+    }
+}
+
+private struct ImageToolBar: View {
+    let onFitToWindow: () -> Void
+    let onShowHundredPercent: () -> Void
+    let onZoomOut: () -> Void
+    let onZoomIn: () -> Void
+    let onRotateLeft: () -> Void
+    let onRotateRight: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            toolbarButton(iconName: "corners-out-bold", accessibilityLabel: "适合窗口显示图片", action: onFitToWindow)
+                .help("适合窗口显示图片")
+            toolbarButton(iconName: "number-square-one-bold", accessibilityLabel: "100% 显示图片", action: onShowHundredPercent)
+                .help("100% 显示图片（1:1）")
+            toolbarButton(iconName: "magnifying-glass-minus-bold", accessibilityLabel: "缩小图片", action: onZoomOut)
+                .help("缩小图片")
+            toolbarButton(iconName: "magnifying-glass-plus-bold", accessibilityLabel: "放大图片", action: onZoomIn)
+                .help("放大图片")
+            toolbarButton(iconName: "arrow-counter-clockwise-bold", accessibilityLabel: "向左旋转 90 度", action: onRotateLeft)
+                .help("向左旋转 90 度")
+            toolbarButton(iconName: "arrow-clockwise-bold", accessibilityLabel: "向右旋转 90 度", action: onRotateRight)
+                .help("向右旋转 90 度")
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.46), in: Capsule())
+        .overlay(Capsule().stroke(.white.opacity(0.24), lineWidth: 1))
+        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 8)
+    }
+
+    private func toolbarButton(iconName: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            PhosphorToolbarIcon(name: iconName)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 17, height: 17)
+                .foregroundStyle(.white.opacity(0.95))
+                .frame(width: 34, height: 28)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(ImageToolBarButtonStyle())
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct PhosphorToolbarIcon: View {
+    let name: String
+
+    var body: some View {
+        if let image = Self.image(named: name) {
+            Image(nsImage: image)
+                .resizable()
+                .renderingMode(.template)
+                .interpolation(.medium)
+        } else {
+            Image(systemName: "circle")
+                .resizable()
+                .renderingMode(.template)
+        }
+    }
+
+    private static func image(named name: String) -> NSImage? {
+        guard let url = PicSeeResourceBundle.url(
+            forResource: name,
+            withExtension: "svg",
+            subdirectory: "Phosphor.xcassets/\(name).imageset"
+        ) else {
+            return nil
+        }
+        return NSImage(contentsOf: url)
+    }
+}
+
+enum PicSeeResourceBundle {
+    static func url(forResource name: String, withExtension fileExtension: String, subdirectory: String) -> URL? {
+        candidateBundles.compactMap {
+            $0.url(forResource: name, withExtension: fileExtension, subdirectory: subdirectory)
+        }
+        .first
+    }
+
+    private static var candidateBundles: [Bundle] {
+        var bundles: [Bundle] = []
+        if let appResourcesURL = Bundle.main.resourceURL?
+            .appendingPathComponent("PicSee_PicSee.bundle"),
+           let bundle = Bundle(url: appResourcesURL) {
+            bundles.append(bundle)
+        }
+        bundles.append(.module)
+        bundles.append(.main)
+        return bundles
+    }
+}
+
+private struct ImageToolBarButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                (configuration.isPressed ? Color.white.opacity(0.20) : Color.white.opacity(0.08)),
+                in: Capsule()
+            )
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

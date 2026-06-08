@@ -48,14 +48,35 @@ struct ImageDisplayGeometry {
     let viewportSize: CGSize
     let zoomScale: CGFloat
     let panOffset: CGSize
+    let rotationDegrees: Int
+
+    init(
+        imageSize: CGSize,
+        viewportSize: CGSize,
+        zoomScale: CGFloat,
+        panOffset: CGSize,
+        rotationDegrees: Int = 0
+    ) {
+        self.imageSize = imageSize
+        self.viewportSize = viewportSize
+        self.zoomScale = zoomScale
+        self.panOffset = panOffset
+        self.rotationDegrees = ((rotationDegrees % 360) + 360) % 360
+    }
+
+    var rotatedImageSize: CGSize {
+        rotationDegrees == 90 || rotationDegrees == 270
+            ? CGSize(width: imageSize.height, height: imageSize.width)
+            : imageSize
+    }
 
     var fitScale: CGFloat {
-        guard imageSize.width > 0, imageSize.height > 0, viewportSize.width > 0, viewportSize.height > 0 else {
+        guard rotatedImageSize.width > 0, rotatedImageSize.height > 0, viewportSize.width > 0, viewportSize.height > 0 else {
             return 1
         }
         // 不对小图进行放大：当图像在两个维度上都小于视口时，基准缩放保持 1:1。
         // 仅当任一维度超出视口时，才按较小比例缩小以完整显示。
-        let scaleToFit = min(viewportSize.width / imageSize.width, viewportSize.height / imageSize.height)
+        let scaleToFit = min(viewportSize.width / rotatedImageSize.width, viewportSize.height / rotatedImageSize.height)
         return min(1, scaleToFit)
     }
 
@@ -64,6 +85,10 @@ struct ImageDisplayGeometry {
     }
 
     var displaySize: CGSize {
+        CGSize(width: rotatedImageSize.width * displayScale, height: rotatedImageSize.height * displayScale)
+    }
+
+    var unrotatedDisplaySize: CGSize {
         CGSize(width: imageSize.width * displayScale, height: imageSize.height * displayScale)
     }
 
@@ -73,6 +98,15 @@ struct ImageDisplayGeometry {
             y: viewportSize.height / 2 - displaySize.height / 2 + panOffset.height,
             width: displaySize.width,
             height: displaySize.height
+        )
+    }
+
+    var unrotatedImageRect: CGRect {
+        CGRect(
+            x: imageRect.midX - unrotatedDisplaySize.width / 2,
+            y: imageRect.midY - unrotatedDisplaySize.height / 2,
+            width: unrotatedDisplaySize.width,
+            height: unrotatedDisplaySize.height
         )
     }
 

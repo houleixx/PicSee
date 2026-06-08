@@ -10,6 +10,7 @@ final class ImageViewerViewModel: ObservableObject {
     @Published var zoomScale: CGFloat = 1
     @Published var panOffset: CGSize = .zero
     @Published var displayScale: CGFloat = 1
+    @Published var rotationDegrees: Int = 0
 
     private var navigator: FolderImageNavigator?
 
@@ -75,10 +76,44 @@ final class ImageViewerViewModel: ObservableObject {
         panOffset = .zero
     }
 
+    func fitToWindow() {
+        resetViewTransform()
+    }
+
+    func showActualSize() {
+        guard displayScale > 0 else {
+            resetViewTransform()
+            return
+        }
+        zoomScale = ImageZoomAdjustment.clampedZoom(currentZoom: zoomScale, multiplier: 1 / displayScale)
+        panOffset = .zero
+    }
+
+    func zoomIn() {
+        zoomScale = ImageZoomAdjustment.clampedZoom(currentZoom: zoomScale, multiplier: 1.25)
+        panOffset = .zero
+    }
+
+    func zoomOut() {
+        zoomScale = ImageZoomAdjustment.clampedZoom(currentZoom: zoomScale, multiplier: 0.8)
+        panOffset = .zero
+    }
+
+    func rotateLeft() {
+        rotationDegrees = (rotationDegrees + 90) % 360
+        panOffset = .zero
+    }
+
+    func rotateRight() {
+        rotationDegrees = (rotationDegrees + 270) % 360
+        panOffset = .zero
+    }
+
     private func load(imageURL: URL) {
         let standardizedURL = imageURL.standardizedFileURL
         currentURL = standardizedURL
         resetViewTransform()
+        rotationDegrees = 0
 
         do {
             navigator = try FolderImageNavigator(currentImageURL: standardizedURL)

@@ -12,7 +12,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "PicSee",
-            path: "Sources/PicSee"
+            path: "Sources/PicSee",
+            resources: [
+                .process("Resources/Phosphor.xcassets")
+            ]
         ),
         .testTarget(
             name: "PicSeeTests",

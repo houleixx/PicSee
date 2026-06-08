@@ -100,6 +100,36 @@ final class ImageCanvasOCRTests: XCTestCase {
         )
     }
 
+    func testChangingRotationSchedulesLayerAnimation() {
+        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
+        view.image = NSImage(size: NSSize(width: 100, height: 80))
+        view.layoutSubtreeIfNeeded()
+
+        view.rotationDegrees = 90
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(view.debugHasRotationAnimation)
+    }
+
+    func testPhosphorToolbarIconsAreBundled() {
+        for iconName in [
+            "corners-out-bold",
+            "number-square-one-bold",
+            "magnifying-glass-plus-bold",
+            "magnifying-glass-minus-bold",
+            "arrow-counter-clockwise-bold",
+            "arrow-clockwise-bold"
+        ] {
+            let url = PicSeeResourceBundle.url(
+                forResource: iconName,
+                withExtension: "svg",
+                subdirectory: "Phosphor.xcassets/\(iconName).imageset"
+            )
+            XCTAssertNotNil(url, "Missing bundled Phosphor icon: \(iconName)")
+            XCTAssertNotNil(url.flatMap(NSImage.init(contentsOf:)), "Cannot load Phosphor icon as NSImage: \(iconName)")
+        }
+    }
+
     private func loadFixtureImage() -> NSImage {
         guard let image = NSImage(contentsOf: fixtureURL) else {
             XCTFail("Missing OCR fixture at \(fixtureURL.path)")

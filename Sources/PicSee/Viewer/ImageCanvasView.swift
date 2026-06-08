@@ -10,6 +10,7 @@ struct ImageCanvasView: NSViewRepresentable {
     let imageURL: URL
     @Binding var zoomScale: CGFloat
     @Binding var panOffset: CGSize
+    @Binding var rotationDegrees: Int
     let onPrevious: () -> Void
     let onNext: () -> Void
     let onReset: () -> Void
@@ -30,6 +31,7 @@ struct ImageCanvasView: NSViewRepresentable {
         view.titleBarVisible = titleBarVisible
         view.fileInfoVisible = fileInfoVisible
         view.fixedWindowEnabled = fixedWindowEnabled
+        view.rotationDegrees = rotationDegrees
         view.onPrevious = onPrevious
         view.onNext = onNext
         view.onReset = onReset
@@ -49,6 +51,7 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.image = image
         nsView.zoomScale = zoomScale
         nsView.panOffset = panOffset
+        nsView.rotationDegrees = rotationDegrees
         nsView.onPrevious = onPrevious
         nsView.onNext = onNext
         nsView.onReset = onReset
@@ -122,6 +125,8 @@ private final class SelectionOverlayView: NSView {
 }
 
 private final class ImageMinimapView: NSView {
+    static let contentInset: CGFloat = 5
+
     var image: NSImage? {
         didSet { needsDisplay = true }
     }
@@ -137,24 +142,27 @@ private final class ImageMinimapView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let image, let minimapGeometry else { return }
 
+        let contentRect = bounds.insetBy(dx: Self.contentInset, dy: Self.contentInset)
+        let imagePath = NSBezierPath(roundedRect: contentRect, xRadius: 5, yRadius: 5)
+
         NSGraphicsContext.current?.saveGraphicsState()
-        let backgroundPath = NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6)
-        backgroundPath.addClip()
-        NSColor.black.withAlphaComponent(0.28).setFill()
-        bounds.fill()
-        image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        imagePath.addClip()
+        NSColor.white.withAlphaComponent(0.08).setFill()
+        contentRect.fill()
+        image.draw(in: contentRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         NSGraphicsContext.current?.restoreGraphicsState()
 
-        let visiblePath = NSBezierPath(rect: minimapGeometry.visibleRect)
-        NSColor.white.withAlphaComponent(0.16).setFill()
-        visiblePath.fill()
-        NSColor.white.withAlphaComponent(0.9).setStroke()
-        visiblePath.lineWidth = 2
-        visiblePath.stroke()
+        NSColor(calibratedWhite: 0.38, alpha: 0.95).setStroke()
+        imagePath.lineWidth = 1
+        imagePath.stroke()
 
-        NSColor.white.withAlphaComponent(0.55).setStroke()
-        backgroundPath.lineWidth = 1
-        backgroundPath.stroke()
+        let visibleRect = minimapGeometry.visibleRect.offsetBy(dx: Self.contentInset, dy: Self.contentInset)
+        let visiblePath = NSBezierPath(roundedRect: visibleRect, xRadius: 3, yRadius: 3)
+        NSColor.black.withAlphaComponent(0.12).setFill()
+        visiblePath.fill()
+        NSColor.white.withAlphaComponent(0.95).setStroke()
+        visiblePath.lineWidth = 1
+        visiblePath.stroke()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -167,10 +175,11 @@ private final class ImageMinimapView: NSView {
 
     private func navigate(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        let contentRect = bounds.insetBy(dx: Self.contentInset, dy: Self.contentInset)
         onNavigate?(
             CGPoint(
-                x: min(max(point.x, 0), bounds.width),
-                y: min(max(point.y, 0), bounds.height)
+                x: min(max(point.x - contentRect.minX, 0), contentRect.width),
+                y: min(max(point.y - contentRect.minY, 0), contentRect.height)
             )
         )
     }
@@ -486,6 +495,7 @@ enum TextRecognitionBackend {
 final class CanvasNSView: NSView {
     private static let minimapEnabledDefaultsKey = "PicSee.MinimapEnabled"
     private static let fileInfoVisibleDefaultsKey = "PicSee.FileInfoVisible"
+    private static let rotationAnimationKey = "PicSee.RotationAnimation"
 
     private let imageView = NSImageView(frame: .zero)
     private let minimapView = ImageMinimapView(frame: .zero)
@@ -551,6 +561,18 @@ final class CanvasNSView: NSView {
         }
     }
 
+    var rotationDegrees: Int = 0 {
+        didSet {
+            let oldRotation = Self.normalizedRotationDegrees(oldValue)
+            rotationDegrees = Self.normalizedRotationDegrees(rotationDegrees)
+            if oldRotation != rotationDegrees {
+                pendingRotationAnimation = (from: oldRotation, to: rotationDegrees)
+            }
+            needsLayout = true
+            needsDisplay = true
+        }
+    }
+
     var onZoomChanged: ((CGFloat) -> Void)?
     var onPanChanged: ((CGSize) -> Void)?
     var onPrevious: (() -> Void)?
@@ -579,6 +601,7 @@ final class CanvasNSView: NSView {
     private var trackingArea: NSTrackingArea?
     private var analysisTask: Task<Void, Never>?
     private var analysisToken = 0
+    private var pendingRotationAnimation: (from: Int, to: Int)?
     private var minimapEnabled: Bool
     var titleBarVisible: Bool {
         didSet {
@@ -635,6 +658,10 @@ final class CanvasNSView: NSView {
         defaults.object(forKey: fileInfoVisibleDefaultsKey) as? Bool ?? true
     }
 
+    private static func normalizedRotationDegrees(_ degrees: Int) -> Int {
+        ((degrees % 360) + 360) % 360
+    }
+
     deinit {
         analysisTask?.cancel()
     }
@@ -658,7 +685,10 @@ final class CanvasNSView: NSView {
     override func layout() {
         super.layout()
         let geometry = currentGeometry()
-        imageView.frame = geometry.imageRect
+        imageView.frame = geometry.unrotatedImageRect
+        imageView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        imageView.layer?.position = CGPoint(x: geometry.imageRect.midX, y: geometry.imageRect.midY)
+        applyImageRotation()
         switch backend {
         case .liveText:
             liveTextOverlay.frame = imageView.bounds
@@ -1238,7 +1268,8 @@ final class CanvasNSView: NSView {
             imageSize: image?.size ?? .zero,
             viewportSize: bounds.size,
             zoomScale: zoomScale,
-            panOffset: panOffset
+            panOffset: panOffset,
+            rotationDegrees: rotationDegrees
         )
     }
 
@@ -1249,6 +1280,44 @@ final class CanvasNSView: NSView {
 
     private func constrainPan(_ proposed: CGSize, geometry: ImageDisplayGeometry) -> CGSize {
         geometry.constrainedPan(proposed, allowSlackWhenFitted: panImageMode(geometry))
+    }
+
+    private func applyImageRotation() {
+        guard let layer = imageView.layer else { return }
+
+        let targetRadians = CGFloat(rotationDegrees) * .pi / 180
+        if let pendingRotationAnimation {
+            let fromRadians = targetRadians - Self.shortestRotationDeltaRadians(
+                from: pendingRotationAnimation.from,
+                to: pendingRotationAnimation.to
+            )
+            let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+            animation.fromValue = fromRadians
+            animation.toValue = targetRadians
+            animation.duration = 0.22
+            animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer.removeAnimation(forKey: Self.rotationAnimationKey)
+            layer.add(animation, forKey: Self.rotationAnimationKey)
+            self.pendingRotationAnimation = nil
+        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.setAffineTransform(CGAffineTransform(rotationAngle: targetRadians))
+        CATransaction.commit()
+    }
+
+    private static func shortestRotationDeltaRadians(from oldDegrees: Int, to newDegrees: Int) -> CGFloat {
+        let rawDelta = normalizedRotationDegrees(newDegrees) - normalizedRotationDegrees(oldDegrees)
+        let shortestDelta: Int
+        if rawDelta > 180 {
+            shortestDelta = rawDelta - 360
+        } else if rawDelta < -180 {
+            shortestDelta = rawDelta + 360
+        } else {
+            shortestDelta = rawDelta
+        }
+        return CGFloat(shortestDelta) * .pi / 180
     }
 
     private func scheduleLiveTextControlReposition() {
@@ -1308,11 +1377,16 @@ final class CanvasNSView: NSView {
         minimapView.image = image
         minimapView.minimapGeometry = minimapGeometry
         let bottomPadding = titleBarVisible ? minimapPadding : bottomRightResizeRegionSize + minimapPadding
+        let chromeInset = ImageMinimapView.contentInset * 2
+        let minimapFrameSize = CGSize(
+            width: minimapGeometry.size.width + chromeInset,
+            height: minimapGeometry.size.height + chromeInset
+        )
         minimapView.frame = CGRect(
-            x: bounds.width - minimapGeometry.size.width - minimapPadding,
+            x: bounds.width - minimapFrameSize.width - minimapPadding,
             y: bottomPadding,
-            width: minimapGeometry.size.width,
-            height: minimapGeometry.size.height
+            width: minimapFrameSize.width,
+            height: minimapFrameSize.height
         )
     }
 
@@ -1577,6 +1651,10 @@ extension CanvasNSView {
     var debugFileInfoVisible: Bool { fileInfoVisible }
 
     var debugFixedWindowEnabled: Bool { fixedWindowEnabled }
+
+    var debugHasRotationAnimation: Bool {
+        imageView.layer?.animation(forKey: Self.rotationAnimationKey) != nil
+    }
 
     func debugCanDragWindow(at point: CGPoint) -> Bool {
         isInTopDragRegion(point)

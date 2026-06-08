@@ -52,13 +52,76 @@ final class ImageViewerViewModelTests: XCTestCase {
         let viewModel = ImageViewerViewModel(imageURL: first)
         viewModel.zoomScale = 3
         viewModel.panOffset = CGSize(width: 40, height: 50)
+        viewModel.rotateRight()
 
         viewModel.navigate(to: second)
 
         XCTAssertEqual(viewModel.currentURL, second.standardizedFileURL)
         XCTAssertEqual(viewModel.zoomScale, 1)
         XCTAssertEqual(viewModel.panOffset, .zero)
+        XCTAssertEqual(viewModel.rotationDegrees, 0)
         XCTAssertNotNil(viewModel.image)
+    }
+
+    @MainActor
+    func testShowActualSizeAdjustsZoomToOneHundredPercentDisplayScale() throws {
+        let imageURL = try writePNG(named: "001.png", color: .red)
+        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        viewModel.zoomScale = 1
+        viewModel.displayScale = 0.5
+        viewModel.panOffset = CGSize(width: 20, height: 30)
+
+        viewModel.showActualSize()
+
+        XCTAssertEqual(viewModel.zoomScale, 2, accuracy: 0.001)
+        XCTAssertEqual(viewModel.panOffset, .zero)
+    }
+
+    @MainActor
+    func testFitToWindowResetsZoomAndPan() throws {
+        let imageURL = try writePNG(named: "001.png", color: .red)
+        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        viewModel.zoomScale = 2
+        viewModel.panOffset = CGSize(width: 20, height: 30)
+
+        viewModel.fitToWindow()
+
+        XCTAssertEqual(viewModel.zoomScale, 1)
+        XCTAssertEqual(viewModel.panOffset, .zero)
+    }
+
+    @MainActor
+    func testZoomButtonsAdjustZoomByFixedStepAndResetPan() throws {
+        let imageURL = try writePNG(named: "001.png", color: .red)
+        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        viewModel.zoomScale = 1
+        viewModel.panOffset = CGSize(width: 20, height: 30)
+
+        viewModel.zoomIn()
+        XCTAssertEqual(viewModel.zoomScale, 1.25, accuracy: 0.001)
+        XCTAssertEqual(viewModel.panOffset, .zero)
+
+        viewModel.panOffset = CGSize(width: 10, height: 10)
+        viewModel.zoomOut()
+        XCTAssertEqual(viewModel.zoomScale, 1, accuracy: 0.001)
+        XCTAssertEqual(viewModel.panOffset, .zero)
+    }
+
+    @MainActor
+    func testRotationWrapsInNinetyDegreeStepsAndResetsPan() throws {
+        let imageURL = try writePNG(named: "001.png", color: .red)
+        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        viewModel.panOffset = CGSize(width: 20, height: 30)
+
+        viewModel.rotateLeft()
+        XCTAssertEqual(viewModel.rotationDegrees, 90)
+        XCTAssertEqual(viewModel.panOffset, .zero)
+
+        viewModel.rotateRight()
+        XCTAssertEqual(viewModel.rotationDegrees, 0)
+
+        viewModel.rotateRight()
+        XCTAssertEqual(viewModel.rotationDegrees, 270)
     }
 
     @MainActor

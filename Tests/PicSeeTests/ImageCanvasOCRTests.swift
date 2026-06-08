@@ -111,6 +111,20 @@ final class ImageCanvasOCRTests: XCTestCase {
         XCTAssertTrue(view.debugHasRotationAnimation)
     }
 
+    func testToolbarZoomPreservesCurrentViewportCenter() {
+        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
+        view.image = NSImage(size: NSSize(width: 1000, height: 500))
+        view.zoomScale = 2
+        view.panOffset = CGSize(width: -100, height: 0)
+        view.layoutSubtreeIfNeeded()
+
+        view.debugApplyToolbarZoom(multiplier: 1.5)
+
+        XCTAssertEqual(view.zoomScale, 3, accuracy: 0.001)
+        XCTAssertEqual(view.panOffset.width, -150, accuracy: 0.001)
+        XCTAssertEqual(view.panOffset.height, 0, accuracy: 0.001)
+    }
+
     func testPhosphorToolbarIconsAreBundled() {
         for iconName in [
             "corners-out-bold",

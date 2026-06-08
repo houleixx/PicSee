@@ -22,10 +22,12 @@ struct ImageViewerView: View {
                     zoomScale: $viewModel.zoomScale,
                     panOffset: $viewModel.panOffset,
                     rotationDegrees: $viewModel.rotationDegrees,
+                    zoomRequest: $viewModel.zoomRequest,
                     onPrevious: viewModel.navigateToPrevious,
                     onNext: viewModel.navigateToNext,
                     onReset: viewModel.resetViewTransform,
                     onClose: { NSApp.terminate(nil) },
+                    onZoomRequestHandled: viewModel.clearZoomRequest,
                     onDisplayScaleChanged: {
                         if abs(viewModel.displayScale - $0) > 0.0001 {
                             viewModel.displayScale = $0

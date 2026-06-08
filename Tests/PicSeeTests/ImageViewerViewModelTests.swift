@@ -91,20 +91,21 @@ final class ImageViewerViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testZoomButtonsAdjustZoomByFixedStepAndResetPan() throws {
+    func testZoomButtonsCreateFixedStepZoomRequests() throws {
         let imageURL = try writePNG(named: "001.png", color: .red)
         let viewModel = ImageViewerViewModel(imageURL: imageURL)
-        viewModel.zoomScale = 1
-        viewModel.panOffset = CGSize(width: 20, height: 30)
 
         viewModel.zoomIn()
-        XCTAssertEqual(viewModel.zoomScale, 1.25, accuracy: 0.001)
-        XCTAssertEqual(viewModel.panOffset, .zero)
+        let zoomInRequest = try XCTUnwrap(viewModel.zoomRequest)
+        XCTAssertEqual(zoomInRequest.multiplier, 1.25, accuracy: 0.001)
 
-        viewModel.panOffset = CGSize(width: 10, height: 10)
         viewModel.zoomOut()
-        XCTAssertEqual(viewModel.zoomScale, 1, accuracy: 0.001)
-        XCTAssertEqual(viewModel.panOffset, .zero)
+        let zoomOutRequest = try XCTUnwrap(viewModel.zoomRequest)
+        XCTAssertEqual(zoomOutRequest.multiplier, 0.8, accuracy: 0.001)
+        XCTAssertNotEqual(zoomInRequest.id, zoomOutRequest.id)
+
+        viewModel.clearZoomRequest(id: zoomOutRequest.id)
+        XCTAssertNil(viewModel.zoomRequest)
     }
 
     @MainActor

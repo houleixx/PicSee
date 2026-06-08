@@ -2,6 +2,11 @@ import AppKit
 import Foundation
 import SwiftUI
 
+struct ImageZoomRequest: Equatable {
+    let id: Int
+    let multiplier: CGFloat
+}
+
 @MainActor
 final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var currentURL: URL
@@ -11,8 +16,10 @@ final class ImageViewerViewModel: ObservableObject {
     @Published var panOffset: CGSize = .zero
     @Published var displayScale: CGFloat = 1
     @Published var rotationDegrees: Int = 0
+    @Published var zoomRequest: ImageZoomRequest?
 
     private var navigator: FolderImageNavigator?
+    private var nextZoomRequestID = 0
 
     init(imageURL: URL) {
         self.currentURL = imageURL.standardizedFileURL
@@ -90,13 +97,17 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func zoomIn() {
-        zoomScale = ImageZoomAdjustment.clampedZoom(currentZoom: zoomScale, multiplier: 1.25)
-        panOffset = .zero
+        requestZoom(multiplier: 1.25)
     }
 
     func zoomOut() {
-        zoomScale = ImageZoomAdjustment.clampedZoom(currentZoom: zoomScale, multiplier: 0.8)
-        panOffset = .zero
+        requestZoom(multiplier: 0.8)
+    }
+
+    func clearZoomRequest(id: Int) {
+        if zoomRequest?.id == id {
+            zoomRequest = nil
+        }
     }
 
     func rotateLeft() {
@@ -114,6 +125,7 @@ final class ImageViewerViewModel: ObservableObject {
         currentURL = standardizedURL
         resetViewTransform()
         rotationDegrees = 0
+        zoomRequest = nil
 
         do {
             navigator = try FolderImageNavigator(currentImageURL: standardizedURL)
@@ -129,6 +141,11 @@ final class ImageViewerViewModel: ObservableObject {
 
         image = loadedImage
         errorMessage = nil
+    }
+
+    private func requestZoom(multiplier: CGFloat) {
+        nextZoomRequestID += 1
+        zoomRequest = ImageZoomRequest(id: nextZoomRequestID, multiplier: multiplier)
     }
 }
 

@@ -11,10 +11,12 @@ struct ImageCanvasView: NSViewRepresentable {
     @Binding var zoomScale: CGFloat
     @Binding var panOffset: CGSize
     @Binding var rotationDegrees: Int
+    @Binding var zoomRequest: ImageZoomRequest?
     let onPrevious: () -> Void
     let onNext: () -> Void
     let onReset: () -> Void
     let onClose: () -> Void
+    let onZoomRequestHandled: (Int) -> Void
     let onDisplayScaleChanged: (CGFloat) -> Void
     let titleBarVisible: Bool
     let fileInfoVisible: Bool
@@ -36,6 +38,7 @@ struct ImageCanvasView: NSViewRepresentable {
         view.onNext = onNext
         view.onReset = onReset
         view.onClose = onClose
+        view.onZoomRequestHandled = onZoomRequestHandled
         view.onDisplayScaleChanged = onDisplayScaleChanged
         view.onZoomChanged = { zoomScale = $0 }
         view.onPanChanged = { panOffset = $0 }
@@ -56,6 +59,7 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onNext = onNext
         nsView.onReset = onReset
         nsView.onClose = onClose
+        nsView.onZoomRequestHandled = onZoomRequestHandled
         nsView.onDisplayScaleChanged = onDisplayScaleChanged
         nsView.titleBarVisible = titleBarVisible
         nsView.fileInfoVisible = fileInfoVisible
@@ -64,6 +68,9 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
         nsView.onFixedWindowChanged = onFixedWindowChanged
         nsView.onCheckForUpdates = onCheckForUpdates
+        if let zoomRequest {
+            nsView.applyToolbarZoom(request: zoomRequest)
+        }
         nsView.needsDisplay = true
     }
 }
@@ -579,6 +586,7 @@ final class CanvasNSView: NSView {
     var onNext: (() -> Void)?
     var onReset: (() -> Void)?
     var onClose: (() -> Void)?
+    var onZoomRequestHandled: ((Int) -> Void)?
     var onDisplayScaleChanged: ((CGFloat) -> Void)?
     var onTitleBarVisibilityChanged: ((Bool) -> Void)?
     var onFileInfoVisibilityChanged: ((Bool) -> Void)?
@@ -602,6 +610,7 @@ final class CanvasNSView: NSView {
     private var analysisTask: Task<Void, Never>?
     private var analysisToken = 0
     private var pendingRotationAnimation: (from: Int, to: Int)?
+    private var handledZoomRequestID: Int?
     private var minimapEnabled: Bool
     var titleBarVisible: Bool {
         didSet {
@@ -757,6 +766,13 @@ final class CanvasNSView: NSView {
     override func magnify(with event: NSEvent) {
         guard event.magnification != 0 else { return }
         applyZoom(multiplier: 1 + event.magnification)
+    }
+
+    func applyToolbarZoom(request: ImageZoomRequest) {
+        guard handledZoomRequestID != request.id else { return }
+        handledZoomRequestID = request.id
+        applyZoom(multiplier: request.multiplier)
+        onZoomRequestHandled?(request.id)
     }
 
     private func applyZoom(multiplier: CGFloat) {
@@ -1654,6 +1670,10 @@ extension CanvasNSView {
 
     var debugHasRotationAnimation: Bool {
         imageView.layer?.animation(forKey: Self.rotationAnimationKey) != nil
+    }
+
+    func debugApplyToolbarZoom(multiplier: CGFloat) {
+        applyToolbarZoom(request: ImageZoomRequest(id: -1, multiplier: multiplier))
     }
 
     func debugCanDragWindow(at point: CGPoint) -> Bool {

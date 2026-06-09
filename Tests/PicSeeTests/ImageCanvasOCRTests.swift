@@ -125,6 +125,17 @@ final class ImageCanvasOCRTests: XCTestCase {
         XCTAssertEqual(view.panOffset.height, 0, accuracy: 0.001)
     }
 
+    func testLiveTextControlFrameIsMovedAwayFromBottomRightResizeArea() {
+        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), backend: .liveText)
+        let originalFrame = CGRect(x: 350, y: 8, width: 32, height: 32)
+
+        let adjustedFrame = view.debugAdjustedLiveTextControlFrame(for: originalFrame)
+
+        XCTAssertNotNil(adjustedFrame)
+        XCTAssertLessThanOrEqual(adjustedFrame!.maxX, 400 - 64 - 8)
+        XCTAssertGreaterThanOrEqual(adjustedFrame!.minY, 64 + 8)
+    }
+
     func testPhosphorToolbarIconsAreBundled() {
         for iconName in [
             "corners-out-bold",

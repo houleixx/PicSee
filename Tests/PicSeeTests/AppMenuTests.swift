@@ -63,6 +63,8 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(menu?.items.first { $0.title == "显示缩略图" })
         XCTAssertNotNil(menu?.items.first { $0.title == "显示标题栏" })
         XCTAssertNotNil(menu?.items.first { $0.title == "显示文件信息" })
+        XCTAssertNotNil(menu?.items.first { $0.title == "显示底部工具栏" })
+        XCTAssertNotNil(menu?.items.first { $0.title == "显示图片参数" })
         XCTAssertNotNil(menu?.items.first { $0.title == "固定窗口大小和位置" })
         XCTAssertNotNil(menu?.items.first { $0.title == "图片另存为..." })
         XCTAssertNotNil(menu?.items.first { $0.title == "检查更新" })
@@ -101,10 +103,14 @@ final class AppMenuTests: XCTestCase {
 
         XCTAssertEqual(items[titleBarIndex + 1].title, "显示缩略图")
         XCTAssertEqual(items[titleBarIndex + 2].title, "显示文件信息")
-        XCTAssertEqual(items[titleBarIndex + 3].title, "固定窗口大小和位置")
+        XCTAssertEqual(items[titleBarIndex + 3].title, "显示底部工具栏")
+        XCTAssertEqual(items[titleBarIndex + 4].title, "显示图片参数")
+        XCTAssertEqual(items[titleBarIndex + 5].title, "固定窗口大小和位置")
         XCTAssertFalse(items[titleBarIndex + 1].isSeparatorItem)
         XCTAssertFalse(items[titleBarIndex + 2].isSeparatorItem)
         XCTAssertFalse(items[titleBarIndex + 3].isSeparatorItem)
+        XCTAssertFalse(items[titleBarIndex + 4].isSeparatorItem)
+        XCTAssertFalse(items[titleBarIndex + 5].isSeparatorItem)
     }
 
     func testAppendsPicSeeItemsWithoutSeparatingTitleBarMinimapAndFileInfoItems() {
@@ -123,10 +129,14 @@ final class AppMenuTests: XCTestCase {
 
         XCTAssertEqual(menu.items[titleBarIndex + 1].title, "显示缩略图")
         XCTAssertEqual(menu.items[titleBarIndex + 2].title, "显示文件信息")
-        XCTAssertEqual(menu.items[titleBarIndex + 3].title, "固定窗口大小和位置")
+        XCTAssertEqual(menu.items[titleBarIndex + 3].title, "显示底部工具栏")
+        XCTAssertEqual(menu.items[titleBarIndex + 4].title, "显示图片参数")
+        XCTAssertEqual(menu.items[titleBarIndex + 5].title, "固定窗口大小和位置")
         XCTAssertFalse(menu.items[titleBarIndex + 1].isSeparatorItem)
         XCTAssertFalse(menu.items[titleBarIndex + 2].isSeparatorItem)
         XCTAssertFalse(menu.items[titleBarIndex + 3].isSeparatorItem)
+        XCTAssertFalse(menu.items[titleBarIndex + 4].isSeparatorItem)
+        XCTAssertFalse(menu.items[titleBarIndex + 5].isSeparatorItem)
     }
 
     func testImageContextMenuShowsCheckForUpdatesAboveAboutItem() {
@@ -261,6 +271,58 @@ final class AppMenuTests: XCTestCase {
         XCTAssertFalse(secondView.debugFileInfoVisible)
     }
 
+    func testImageContextMenuTogglesToolbarVisibilityPreference() {
+        let suiteName = "PicSee.AppMenuToolbarTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let firstView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        var observedValues: [Bool] = []
+        firstView.onToolbarVisibilityChanged = { observedValues.append($0) }
+
+        var menu = firstView.menu(for: rightClickEvent())
+        let firstItem = menu?.items.first { $0.title == "显示底部工具栏" }
+        XCTAssertEqual(firstItem?.state, .on)
+        XCTAssertTrue(firstView.debugToolbarVisible)
+
+        firstView.toggleToolbarForMenu(firstItem)
+
+        menu = firstView.menu(for: rightClickEvent())
+        let secondItem = menu?.items.first { $0.title == "显示底部工具栏" }
+        XCTAssertEqual(secondItem?.state, .off)
+        XCTAssertFalse(firstView.debugToolbarVisible)
+        XCTAssertEqual(observedValues, [false])
+
+        let secondView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        XCTAssertFalse(secondView.debugToolbarVisible)
+    }
+
+    func testImageContextMenuTogglesImageParametersVisibilityPreference() {
+        let suiteName = "PicSee.AppMenuImageParametersTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let firstView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        var observedValues: [Bool] = []
+        firstView.onImageParametersVisibilityChanged = { observedValues.append($0) }
+
+        var menu = firstView.menu(for: rightClickEvent())
+        let firstItem = menu?.items.first { $0.title == "显示图片参数" }
+        XCTAssertEqual(firstItem?.state, .off)
+        XCTAssertFalse(firstView.debugImageParametersVisible)
+
+        firstView.toggleImageParametersForMenu(firstItem)
+
+        menu = firstView.menu(for: rightClickEvent())
+        let secondItem = menu?.items.first { $0.title == "显示图片参数" }
+        XCTAssertEqual(secondItem?.state, .on)
+        XCTAssertTrue(firstView.debugImageParametersVisible)
+        XCTAssertEqual(observedValues, [true])
+
+        let secondView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        XCTAssertTrue(secondView.debugImageParametersVisible)
+    }
+
     func testImageContextMenuTogglesTitleBarVisibilityPreference() {
         let suiteName = "PicSee.AppMenuTitleBarTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -333,6 +395,8 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(menu.items.first { $0.title == "显示缩略图" })
         XCTAssertNotNil(menu.items.first { $0.title == "显示标题栏" })
         XCTAssertNotNil(menu.items.first { $0.title == "显示文件信息" })
+        XCTAssertNotNil(menu.items.first { $0.title == "显示底部工具栏" })
+        XCTAssertNotNil(menu.items.first { $0.title == "显示图片参数" })
         XCTAssertNotNil(menu.items.first { $0.title == "固定窗口大小和位置" })
         XCTAssertNotNil(menu.items.first { $0.title == "检查更新" })
         XCTAssertNotNil(menu.items.first { $0.title == "关于 PicSee" })

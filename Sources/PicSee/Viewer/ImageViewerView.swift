@@ -7,7 +7,9 @@ struct ImageViewerView: View {
     let onTitleBarVisibilityChanged: (Bool) -> Void
     let onFixedWindowChanged: (Bool) -> Void
     @State private var titleBarVisible = ViewerTitleBarPreference.isVisible()
-    @State private var fileInfoVisible = UserDefaults.standard.object(forKey: "PicSee.FileInfoVisible") as? Bool ?? true
+    @State private var fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible()
+    @State private var toolbarVisible = ViewerOverlayPreference.isToolbarVisible()
+    @State private var imageParametersVisible = ViewerOverlayPreference.isImageParametersVisible()
     @State private var fixedWindowEnabled = WindowFramePreference.isFixedEnabled()
     private let hudPadding: CGFloat = 12
 
@@ -35,12 +37,20 @@ struct ImageViewerView: View {
                     },
                     titleBarVisible: titleBarVisible,
                     fileInfoVisible: fileInfoVisible,
+                    toolbarVisible: toolbarVisible,
+                    imageParametersVisible: imageParametersVisible,
                     onTitleBarVisibilityChanged: { visible in
                         titleBarVisible = visible
                         onTitleBarVisibilityChanged(visible)
                     },
                     onFileInfoVisibilityChanged: { visible in
                         fileInfoVisible = visible
+                    },
+                    onToolbarVisibilityChanged: { visible in
+                        toolbarVisible = visible
+                    },
+                    onImageParametersVisibilityChanged: { visible in
+                        imageParametersVisible = visible
                     },
                     fixedWindowEnabled: fixedWindowEnabled,
                     onFixedWindowChanged: { fixed in
@@ -91,15 +101,29 @@ struct ImageViewerView: View {
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    ImageToolBar(
-                        onFitToWindow: viewModel.fitToWindow,
-                        onShowHundredPercent: viewModel.showActualSize,
-                        onZoomOut: viewModel.zoomOut,
-                        onZoomIn: viewModel.zoomIn,
-                        onRotateLeft: viewModel.rotateLeft,
-                        onRotateRight: viewModel.rotateRight
-                    )
-                    .padding(.bottom, hudPadding)
+                    if toolbarVisible {
+                        ImageToolBar(
+                            onFitToWindow: viewModel.fitToWindow,
+                            onShowHundredPercent: viewModel.showActualSize,
+                            onZoomOut: viewModel.zoomOut,
+                            onZoomIn: viewModel.zoomIn,
+                            onRotateLeft: viewModel.rotateLeft,
+                            onRotateRight: viewModel.rotateRight
+                        )
+                        .padding(.bottom, hudPadding)
+                    }
+                }
+                .overlay(alignment: .trailing) {
+                    if imageParametersVisible, let imageParametersText = viewModel.imageParametersText {
+                        ImageParametersPanel(
+                            text: imageParametersText,
+                            onClose: {
+                                imageParametersVisible = false
+                                ViewerOverlayPreference.setImageParametersVisible(false)
+                            }
+                        )
+                            .padding(.trailing, hudPadding)
+                    }
                 }
             } else {
                 VStack(spacing: 12) {
@@ -138,6 +162,10 @@ struct ImageViewerView: View {
             if let updateChecker {
                 await updateChecker.checkForUpdatesIfNeeded()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.toggleImageParametersNotification)) { _ in
+            imageParametersVisible.toggle()
+            ViewerOverlayPreference.setImageParametersVisible(imageParametersVisible)
         }
     }
 }
@@ -183,6 +211,42 @@ private struct ImageToolBar: View {
         }
         .buttonStyle(ImageToolBarButtonStyle())
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct ImageParametersPanel: View {
+    let text: String
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Text(text)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.9))
+                .lineSpacing(3)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 10)
+                .padding(.leading, 10)
+                .padding(.trailing, 26)
+                .padding(.bottom, 10)
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .frame(width: 18, height: 18)
+                    .background(.white.opacity(0.12), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .padding(.trailing, 4)
+            .accessibilityLabel("关闭图片参数")
+        }
+        .background(.black.opacity(0.46), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.22), lineWidth: 1))
+        .shadow(color: .black.opacity(0.3), radius: 14, x: 0, y: 6)
+        .frame(maxWidth: 260, alignment: .leading)
     }
 }
 

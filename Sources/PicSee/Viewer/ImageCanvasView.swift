@@ -20,8 +20,12 @@ struct ImageCanvasView: NSViewRepresentable {
     let onDisplayScaleChanged: (CGFloat) -> Void
     let titleBarVisible: Bool
     let fileInfoVisible: Bool
+    let toolbarVisible: Bool
+    let imageParametersVisible: Bool
     let onTitleBarVisibilityChanged: (Bool) -> Void
     let onFileInfoVisibilityChanged: (Bool) -> Void
+    let onToolbarVisibilityChanged: (Bool) -> Void
+    let onImageParametersVisibilityChanged: (Bool) -> Void
     let fixedWindowEnabled: Bool
     let onFixedWindowChanged: (Bool) -> Void
     let onCheckForUpdates: (() -> Void)?
@@ -32,6 +36,8 @@ struct ImageCanvasView: NSViewRepresentable {
         view.image = image
         view.titleBarVisible = titleBarVisible
         view.fileInfoVisible = fileInfoVisible
+        view.toolbarVisible = toolbarVisible
+        view.imageParametersVisible = imageParametersVisible
         view.fixedWindowEnabled = fixedWindowEnabled
         view.rotationDegrees = rotationDegrees
         view.onPrevious = onPrevious
@@ -44,6 +50,8 @@ struct ImageCanvasView: NSViewRepresentable {
         view.onPanChanged = { panOffset = $0 }
         view.onTitleBarVisibilityChanged = onTitleBarVisibilityChanged
         view.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
+        view.onToolbarVisibilityChanged = onToolbarVisibilityChanged
+        view.onImageParametersVisibilityChanged = onImageParametersVisibilityChanged
         view.onFixedWindowChanged = onFixedWindowChanged
         view.onCheckForUpdates = onCheckForUpdates
         return view
@@ -63,9 +71,13 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onDisplayScaleChanged = onDisplayScaleChanged
         nsView.titleBarVisible = titleBarVisible
         nsView.fileInfoVisible = fileInfoVisible
+        nsView.toolbarVisible = toolbarVisible
+        nsView.imageParametersVisible = imageParametersVisible
         nsView.fixedWindowEnabled = fixedWindowEnabled
         nsView.onTitleBarVisibilityChanged = onTitleBarVisibilityChanged
         nsView.onFileInfoVisibilityChanged = onFileInfoVisibilityChanged
+        nsView.onToolbarVisibilityChanged = onToolbarVisibilityChanged
+        nsView.onImageParametersVisibilityChanged = onImageParametersVisibilityChanged
         nsView.onFixedWindowChanged = onFixedWindowChanged
         nsView.onCheckForUpdates = onCheckForUpdates
         if let zoomRequest {
@@ -501,7 +513,6 @@ enum TextRecognitionBackend {
 
 final class CanvasNSView: NSView {
     private static let minimapEnabledDefaultsKey = "PicSee.MinimapEnabled"
-    private static let fileInfoVisibleDefaultsKey = "PicSee.FileInfoVisible"
     private static let rotationAnimationKey = "PicSee.RotationAnimation"
 
     private let imageView = NSImageView(frame: .zero)
@@ -590,6 +601,8 @@ final class CanvasNSView: NSView {
     var onDisplayScaleChanged: ((CGFloat) -> Void)?
     var onTitleBarVisibilityChanged: ((Bool) -> Void)?
     var onFileInfoVisibilityChanged: ((Bool) -> Void)?
+    var onToolbarVisibilityChanged: ((Bool) -> Void)?
+    var onImageParametersVisibilityChanged: ((Bool) -> Void)?
     var onFixedWindowChanged: ((Bool) -> Void)?
     var onCheckForUpdates: (() -> Void)?
 
@@ -620,6 +633,8 @@ final class CanvasNSView: NSView {
         }
     }
     var fileInfoVisible: Bool
+    var toolbarVisible: Bool
+    var imageParametersVisible: Bool
     var fixedWindowEnabled: Bool
 
     private let topDragRegionHeight: CGFloat = 36
@@ -638,7 +653,9 @@ final class CanvasNSView: NSView {
         self.defaults = defaults
         self.minimapEnabled = Self.defaultMinimapEnabled(in: defaults)
         self.titleBarVisible = ViewerTitleBarPreference.isVisible(in: defaults)
-        self.fileInfoVisible = Self.defaultFileInfoVisible(in: defaults)
+        self.fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible(in: defaults)
+        self.toolbarVisible = ViewerOverlayPreference.isToolbarVisible(in: defaults)
+        self.imageParametersVisible = ViewerOverlayPreference.isImageParametersVisible(in: defaults)
         self.fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: defaults)
         super.init(frame: frameRect)
         configureSubviews()
@@ -653,7 +670,9 @@ final class CanvasNSView: NSView {
         self.defaults = .standard
         self.minimapEnabled = Self.defaultMinimapEnabled(in: .standard)
         self.titleBarVisible = ViewerTitleBarPreference.isVisible(in: .standard)
-        self.fileInfoVisible = Self.defaultFileInfoVisible(in: .standard)
+        self.fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible(in: .standard)
+        self.toolbarVisible = ViewerOverlayPreference.isToolbarVisible(in: .standard)
+        self.imageParametersVisible = ViewerOverlayPreference.isImageParametersVisible(in: .standard)
         self.fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: .standard)
         super.init(coder: coder)
         configureSubviews()
@@ -661,10 +680,6 @@ final class CanvasNSView: NSView {
 
     private static func defaultMinimapEnabled(in defaults: UserDefaults) -> Bool {
         defaults.object(forKey: minimapEnabledDefaultsKey) as? Bool ?? true
-    }
-
-    private static func defaultFileInfoVisible(in defaults: UserDefaults) -> Bool {
-        defaults.object(forKey: fileInfoVisibleDefaultsKey) as? Bool ?? true
     }
 
     private static func normalizedRotationDegrees(_ degrees: Int) -> Int {
@@ -907,6 +922,8 @@ final class CanvasNSView: NSView {
             onNext?()
         case .quit:
             onClose?()
+        case .toggleImageParameters:
+            toggleImageParametersVisibility()
         case .none:
             super.keyDown(with: event)
         }
@@ -988,8 +1005,18 @@ final class CanvasNSView: NSView {
 
     @objc func toggleFileInfoForMenu(_ sender: Any?) {
         fileInfoVisible.toggle()
-        defaults.set(fileInfoVisible, forKey: Self.fileInfoVisibleDefaultsKey)
+        ViewerOverlayPreference.setFileInfoVisible(fileInfoVisible, in: defaults)
         onFileInfoVisibilityChanged?(fileInfoVisible)
+    }
+
+    @objc func toggleToolbarForMenu(_ sender: Any?) {
+        toolbarVisible.toggle()
+        ViewerOverlayPreference.setToolbarVisible(toolbarVisible, in: defaults)
+        onToolbarVisibilityChanged?(toolbarVisible)
+    }
+
+    @objc func toggleImageParametersForMenu(_ sender: Any?) {
+        toggleImageParametersVisibility()
     }
 
     @objc func toggleFixedWindowForMenu(_ sender: Any?) {
@@ -1006,6 +1033,12 @@ final class CanvasNSView: NSView {
         onCheckForUpdates?()
     }
 
+    private func toggleImageParametersVisibility() {
+        imageParametersVisible.toggle()
+        ViewerOverlayPreference.setImageParametersVisible(imageParametersVisible, in: defaults)
+        onImageParametersVisibilityChanged?(imageParametersVisible)
+    }
+
     @objc private func copySelectedText() {
         _ = copySelectedTextToPasteboard()
     }
@@ -1014,9 +1047,11 @@ final class CanvasNSView: NSView {
         let shouldAddTitleBarItem = menu.items.first(where: { $0.action == #selector(toggleTitleBarForMenu(_:)) }) == nil
         let shouldAddMinimapItem = menu.items.first(where: { $0.action == #selector(toggleMinimapForMenu(_:)) }) == nil
         let shouldAddFileInfoItem = menu.items.first(where: { $0.action == #selector(toggleFileInfoForMenu(_:)) }) == nil
+        let shouldAddToolbarItem = menu.items.first(where: { $0.action == #selector(toggleToolbarForMenu(_:)) }) == nil
+        let shouldAddImageParametersItem = menu.items.first(where: { $0.action == #selector(toggleImageParametersForMenu(_:)) }) == nil
         let shouldAddFixedWindowItem = menu.items.first(where: { $0.action == #selector(toggleFixedWindowForMenu(_:)) }) == nil
 
-        if shouldAddTitleBarItem || shouldAddMinimapItem || shouldAddFileInfoItem || shouldAddFixedWindowItem {
+        if shouldAddTitleBarItem || shouldAddMinimapItem || shouldAddFileInfoItem || shouldAddToolbarItem || shouldAddImageParametersItem || shouldAddFixedWindowItem {
             if !menu.items.isEmpty {
                 menu.addItem(.separator())
             }
@@ -1041,6 +1076,20 @@ final class CanvasNSView: NSView {
             fileInfoItem.target = self
             fileInfoItem.state = fileInfoVisible ? .on : .off
             menu.addItem(fileInfoItem)
+        }
+
+        if shouldAddToolbarItem {
+            let toolbarItem = NSMenuItem(title: "显示底部工具栏", action: #selector(toggleToolbarForMenu(_:)), keyEquivalent: "")
+            toolbarItem.target = self
+            toolbarItem.state = toolbarVisible ? .on : .off
+            menu.addItem(toolbarItem)
+        }
+
+        if shouldAddImageParametersItem {
+            let imageParametersItem = NSMenuItem(title: "显示图片参数", action: #selector(toggleImageParametersForMenu(_:)), keyEquivalent: "i")
+            imageParametersItem.target = self
+            imageParametersItem.state = imageParametersVisible ? .on : .off
+            menu.addItem(imageParametersItem)
         }
 
         if shouldAddFixedWindowItem {
@@ -1363,16 +1412,34 @@ final class CanvasNSView: NSView {
                 continue
             }
 
-            var adjustedFrame = frame
-            adjustedFrame.origin.x = min(
-                adjustedFrame.origin.x,
-                liveTextOverlay.bounds.maxX - adjustedFrame.width - reservedSize
+            let adjustedFrame = Self.adjustedLiveTextControlFrame(
+                for: frame,
+                in: liveTextOverlay.bounds,
+                reservedSize: reservedSize
             )
-            adjustedFrame.origin.y = max(adjustedFrame.origin.y, reservedSize)
 
             guard adjustedFrame.minX.isFinite, adjustedFrame.minY.isFinite else { continue }
             subview.setFrameOrigin(adjustedFrame.origin)
         }
+    }
+
+    private static func adjustedLiveTextControlFrame(
+        for frame: CGRect,
+        in bounds: CGRect,
+        reservedSize: CGFloat
+    ) -> CGRect {
+        let safeCornerInset = reservedSize + 10
+        let maxX = bounds.maxX - safeCornerInset - frame.width
+        let minY = bounds.minY + safeCornerInset
+
+        var adjustedFrame = frame
+        adjustedFrame.origin.x = min(frame.origin.x, maxX)
+        adjustedFrame.origin.y = max(frame.origin.y, minY)
+
+        let clampedX = max(bounds.minX + 8, min(adjustedFrame.origin.x, bounds.maxX - adjustedFrame.width - 8))
+        let clampedY = max(bounds.minY + 8, min(adjustedFrame.origin.y, bounds.maxY - adjustedFrame.height - 8))
+        adjustedFrame.origin = CGPoint(x: clampedX, y: clampedY)
+        return adjustedFrame
     }
 
     private func updateMinimap(geometry: ImageDisplayGeometry) {
@@ -1666,6 +1733,10 @@ extension CanvasNSView {
 
     var debugFileInfoVisible: Bool { fileInfoVisible }
 
+    var debugToolbarVisible: Bool { toolbarVisible }
+
+    var debugImageParametersVisible: Bool { imageParametersVisible }
+
     var debugFixedWindowEnabled: Bool { fixedWindowEnabled }
 
     var debugHasRotationAnimation: Bool {
@@ -1674,6 +1745,11 @@ extension CanvasNSView {
 
     func debugApplyToolbarZoom(multiplier: CGFloat) {
         applyToolbarZoom(request: ImageZoomRequest(id: -1, multiplier: multiplier))
+    }
+
+    func debugAdjustedLiveTextControlFrame(for frame: CGRect) -> CGRect? {
+        guard backend == .liveText else { return nil }
+        return Self.adjustedLiveTextControlFrame(for: frame, in: bounds, reservedSize: bottomRightResizeRegionSize + resizeAvoidancePadding)
     }
 
     func debugCanDragWindow(at point: CGPoint) -> Bool {

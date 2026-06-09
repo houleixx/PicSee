@@ -15,4 +15,12 @@ final class KeyboardNavigationTests: XCTestCase {
     func testEscapeMapsToQuit() {
         XCTAssertEqual(KeyboardNavigation.action(for: 53), .quit)
     }
+
+    func testSpaceMapsToQuit() {
+        XCTAssertEqual(KeyboardNavigation.action(for: 49), .quit)
+    }
+
+    func testIMapsToToggleImageParameters() {
+        XCTAssertEqual(KeyboardNavigation.action(for: 34), .toggleImageParameters)
+    }
 }

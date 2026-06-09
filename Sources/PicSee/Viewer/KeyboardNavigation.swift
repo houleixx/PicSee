@@ -3,6 +3,7 @@ enum KeyboardNavigation {
         case previous
         case next
         case quit
+        case toggleImageParameters
         case none
     }
 
@@ -12,8 +13,10 @@ enum KeyboardNavigation {
             return .previous
         case 124, 125:
             return .next
-        case 53:
+        case 49, 53:
             return .quit
+        case 34:
+            return .toggleImageParameters
         default:
             return .none
         }

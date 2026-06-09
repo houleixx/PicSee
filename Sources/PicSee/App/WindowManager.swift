@@ -75,8 +75,7 @@ final class WindowManager {
         window.contentViewController = hostingController
         window.setFrame(initialWindowFrame, display: false)
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
-        window.makeKeyAndOrderFront(nil)
-        window.makeKey()
+        bringViewerToFront(window)
         applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         installKeyboardMonitor(for: viewModel)
 
@@ -99,8 +98,6 @@ final class WindowManager {
         )
         window.delegate = delegate
         objc_setAssociatedObject(window, &Self.delegateAssociationKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func initialWindowContentFrame(for image: NSImage?) -> NSRect {
@@ -124,6 +121,21 @@ final class WindowManager {
     }
 
     private static var delegateAssociationKey: UInt8 = 0
+
+    private func bringViewerToFront(_ window: NSWindow) {
+        NSApp.setActivationPolicy(.regular)
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
+        window.orderFrontRegardless()
+        window.makeKey()
+
+        DispatchQueue.main.async { [weak window] in
+            guard let window else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            NSRunningApplication.current.activate(options: [.activateAllWindows])
+            window.orderFrontRegardless()
+            window.makeKey()
+        }
+    }
 
     private func applyRoundedCorners(to window: NSWindow) {
         guard let frameView = window.contentView?.superview else { return }

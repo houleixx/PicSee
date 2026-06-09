@@ -39,6 +39,23 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(script.contains("<string>rw2</string>"))
     }
 
+    func testResourceBundleLookupUsesPackagedAppBundleBeforeSwiftPMBundleModule() throws {
+        let source = try repositoryFile("Sources/PicSee/Viewer/ImageViewerView.swift")
+
+        let packagedBundleIndex = try XCTUnwrap(
+            source.range(of: "Bundle.main.resourceURL?")?.lowerBound
+        )
+        let earlyReturnIndex = try XCTUnwrap(
+            source.range(of: "if !bundles.isEmpty { return bundles }")?.lowerBound
+        )
+        let bundleModuleIndex = try XCTUnwrap(
+            source.range(of: "bundles.append(.module)")?.lowerBound
+        )
+
+        XCTAssertLessThan(packagedBundleIndex, earlyReturnIndex)
+        XCTAssertLessThan(earlyReturnIndex, bundleModuleIndex)
+    }
+
     func testReadmeDeclaresMacOS14Minimum() throws {
         let readme = try repositoryFile("README.md")
         XCTAssertTrue(readme.contains("macOS 14 及以上"))

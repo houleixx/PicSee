@@ -229,6 +229,7 @@ enum PicSeeResourceBundle {
            let bundle = Bundle(url: appResourcesURL) {
             bundles.append(bundle)
         }
+        if !bundles.isEmpty { return bundles }
         bundles.append(.module)
         bundles.append(.main)
         return bundles

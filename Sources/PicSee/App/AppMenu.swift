@@ -67,8 +67,8 @@ enum AppMenu {
 
     static func aboutPanelCredits(from info: [String: Any]) -> NSAttributedString {
         let releaseURL = releasePageURL(from: info)
-        let releaseLine = "下载地址：https://github.com/houleixx/PicSee/releases"
-        let thanksLine = "感谢“大脑袋范同学”提出的建议"
+        let releaseLine = "下载地址：https://github.com/houleixx/PicSee"
+        let thanksLine = "感谢“大脑袋范同学”提出的优化建议"
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
         paragraphStyle.lineSpacing = 4
@@ -83,7 +83,7 @@ enum AppMenu {
             ]
         )
 
-        let range = (credits.string as NSString).range(of: releaseURL.absoluteString)
+        let range = (credits.string as NSString).range(of: "https://github.com/houleixx/PicSee")
         if range.location != NSNotFound {
             credits.addAttribute(.link, value: releaseURL, range: range)
         }

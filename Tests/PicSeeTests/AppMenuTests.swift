@@ -35,6 +35,26 @@ final class AppMenuTests: XCTestCase {
         XCTAssertEqual(AppMenu.aboutPanelVersion(from: info), "0.2.5")
     }
 
+    func testAboutPanelCreditsIncludeReleaseLinkAndThanks() {
+        let info: [String: Any] = [:]
+
+        let credits = AppMenu.aboutPanelCredits(from: info)
+        let text = credits.string
+        let releaseURL = URL(string: "https://github.com/houleixx/PicSee/releases")!
+
+        XCTAssertTrue(text.contains("下载地址：https://github.com/houleixx/PicSee/releases"))
+        XCTAssertTrue(text.contains("感谢“大脑袋范同学”提出的建议"))
+        XCTAssertFalse(text.contains("https://github.com/houleixx/PicSee/releases/tag/"))
+
+        let urlRange = (text as NSString).range(of: releaseURL.absoluteString)
+        XCTAssertNotEqual(urlRange.location, NSNotFound)
+        XCTAssertEqual(credits.attribute(.link, at: urlRange.location, effectiveRange: nil) as? URL, releaseURL)
+    }
+
+    func testReleasePageURLUsesGitHubReleasesIndex() {
+        XCTAssertEqual(AppMenu.releasePageURL(from: [:]), URL(string: "https://github.com/houleixx/PicSee/releases"))
+    }
+
     func testImageContextMenuContainsAboutItem() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
         let menu = view.menu(for: rightClickEvent())

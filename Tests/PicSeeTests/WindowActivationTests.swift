@@ -4,12 +4,11 @@ final class WindowActivationTests: XCTestCase {
     func testViewerActivatesApplicationBeforeOrderingWindowFront() throws {
         let source = try repositoryFile("Sources/PicSee/App/WindowManager.swift")
 
-        let regularPolicyIndex = try XCTUnwrap(source.range(of: "NSApp.setActivationPolicy(.regular)")?.lowerBound)
         let activationIndex = try XCTUnwrap(source.range(of: "NSRunningApplication.current.activate")?.lowerBound)
         let orderFrontIndex = try XCTUnwrap(source.range(of: "window.orderFrontRegardless()")?.lowerBound)
 
-        XCTAssertLessThan(regularPolicyIndex, activationIndex)
         XCTAssertLessThan(activationIndex, orderFrontIndex)
+        XCTAssertFalse(source.contains("NSApp.setActivationPolicy(.regular)"))
     }
 
     func testViewerRetriesFrontOrderingAfterLaunchServicesActivationSettles() throws {

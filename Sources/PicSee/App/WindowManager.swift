@@ -123,7 +123,6 @@ final class WindowManager {
     private static var delegateAssociationKey: UInt8 = 0
 
     private func bringViewerToFront(_ window: NSWindow) {
-        NSApp.setActivationPolicy(.regular)
         NSRunningApplication.current.activate(options: [.activateAllWindows])
         window.orderFrontRegardless()
         window.makeKey()

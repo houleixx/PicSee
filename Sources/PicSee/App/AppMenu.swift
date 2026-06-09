@@ -65,6 +65,36 @@ enum AppMenu {
         stringValue(for: "CFBundleShortVersionString", in: info) ?? "未知"
     }
 
+    static func aboutPanelCredits(from info: [String: Any]) -> NSAttributedString {
+        let releaseURL = releasePageURL(from: info)
+        let releaseLine = "下载地址：https://github.com/houleixx/PicSee/releases"
+        let thanksLine = "感谢“大脑袋范同学”提出的建议"
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        paragraphStyle.lineSpacing = 4
+        paragraphStyle.paragraphSpacing = 6
+
+        let credits = NSMutableAttributedString(
+            string: "\(releaseLine)\n\(thanksLine)",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 12),
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraphStyle
+            ]
+        )
+
+        let range = (credits.string as NSString).range(of: releaseURL.absoluteString)
+        if range.location != NSNotFound {
+            credits.addAttribute(.link, value: releaseURL, range: range)
+        }
+
+        return credits
+    }
+
+    static func releasePageURL(from info: [String: Any]) -> URL {
+        URL(string: "https://github.com/houleixx/PicSee/releases")!
+    }
+
     private static func stringValue(for key: String, in info: [String: Any]) -> String? {
         guard let value = info[key] as? String, !value.isEmpty else { return nil }
         return value

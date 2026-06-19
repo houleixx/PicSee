@@ -184,16 +184,16 @@ final class WindowManager {
             NSEvent.removeMonitor(monitor)
             keyEventMonitor = nil
         }
-        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak viewModel] event in
             guard let self, let window = self.currentWindow, NSApp.keyWindow === window else {
                 return event
             }
             switch KeyboardNavigation.action(for: event.keyCode) {
             case .previous:
-                viewModel.navigateToPrevious()
+                viewModel?.navigateToPrevious()
                 return nil
             case .next:
-                viewModel.navigateToNext()
+                viewModel?.navigateToNext()
                 return nil
             case .quit:
                 NSApp.terminate(nil)

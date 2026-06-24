@@ -41,6 +41,8 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(workflow.contains("MACOS_CERTIFICATE_BASE64"))
         XCTAssertTrue(workflow.contains("PICSEE_CODESIGN_IDENTITY"))
         XCTAssertTrue(workflow.contains("xcrun notarytool submit"))
+        XCTAssertTrue(workflow.contains("::error::$name secret is empty"))
+        XCTAssertTrue(workflow.contains("--output-format json"))
         XCTAssertTrue(workflow.contains("xcrun stapler staple"))
     }
 

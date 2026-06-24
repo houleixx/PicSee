@@ -129,12 +129,17 @@ git push origin v0.2.24
 
 ## Release 说明
 
-当前工作流生成的是 **未签名 DMG**。  
-它适合内部使用或自有机器安装；如果要面向外部分发，建议后续补上：
+当前工作流会在 GitHub Actions 中使用 `Developer ID Application` 证书签名 app，
+并对 DMG 提交 Apple notarization 后 staple 公证票据。发布前需要配置这些
+repository secrets：
 
-- `Developer ID Application` 签名
-- `Developer ID Installer` / `notarization`
-- Staple notarization ticket
+- `MACOS_CERTIFICATE_BASE64`
+- `MACOS_CERTIFICATE_PASSWORD`
+- `KEYCHAIN_PASSWORD`
+- `APPLE_ID`
+- `APPLE_TEAM_ID`
+- `APPLE_APP_PASSWORD`
+- `PICSEE_CODESIGN_IDENTITY`
 
 ## 项目结构
 

@@ -27,6 +27,23 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(localizedInfoPlist.contains("\"CFBundleDisplayName\" = \"PicSee\";"))
     }
 
+    func testBuildScriptSupportsDeveloperIDSigningIdentityFromEnvironment() throws {
+        let script = try repositoryFile("Scripts/build-app.sh")
+
+        XCTAssertTrue(script.contains("CODESIGN_IDENTITY=\"${PICSEE_CODESIGN_IDENTITY:--}\""))
+        XCTAssertTrue(script.contains("codesign --force --deep --sign \"$CODESIGN_IDENTITY\""))
+        XCTAssertTrue(script.contains("CODESIGN_TIMESTAMP_ARGS=(--timestamp)"))
+    }
+
+    func testReleaseWorkflowImportsCertificateAndNotarizesDmg() throws {
+        let workflow = try repositoryFile(".github/workflows/release.yml")
+
+        XCTAssertTrue(workflow.contains("MACOS_CERTIFICATE_BASE64"))
+        XCTAssertTrue(workflow.contains("PICSEE_CODESIGN_IDENTITY"))
+        XCTAssertTrue(workflow.contains("xcrun notarytool submit"))
+        XCTAssertTrue(workflow.contains("xcrun stapler staple"))
+    }
+
     func testBuildScriptRegistersCameraRawDocumentTypes() throws {
         let script = try repositoryFile("Scripts/build-app.sh")
 

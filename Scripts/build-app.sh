@@ -16,6 +16,12 @@ X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
 APP_VERSION="${PICSEE_VERSION:-0.2.24}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
 SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
+CODESIGN_IDENTITY="${PICSEE_CODESIGN_IDENTITY:--}"
+CODESIGN_TIMESTAMP_ARGS=(--timestamp=none)
+
+if [ "$CODESIGN_IDENTITY" != "-" ]; then
+  CODESIGN_TIMESTAMP_ARGS=(--timestamp)
+fi
 
 rm -rf "$ARM64_BUILD_DIR" "$X64_BUILD_DIR"
 swift build -c release --arch arm64 --build-path "$ARM64_BUILD_DIR"
@@ -161,14 +167,17 @@ PLIST
 
 echo "Built $APP_DIR"
 
-# 用稳定标识符做 ad-hoc 重新签名，让 macOS 隐私子系统(TCC)把每次重建的 app 视为同一个，
-# 用户授予「桌面/下载」等文件夹访问权后不会每次重新打包都再问。
-codesign --force --deep --sign - \
+codesign --force --deep --sign "$CODESIGN_IDENTITY" \
   --identifier "local.picsee.viewer" \
   --options runtime \
-  --timestamp=none \
+  "${CODESIGN_TIMESTAMP_ARGS[@]}" \
   "$APP_DIR" >/dev/null
-echo "Signed $APP_DIR (ad-hoc, stable identifier)"
+
+if [ "$CODESIGN_IDENTITY" = "-" ]; then
+  echo "Signed $APP_DIR (ad-hoc, stable identifier)"
+else
+  echo "Signed $APP_DIR ($CODESIGN_IDENTITY)"
+fi
 
 if [ "$SKIP_LOCAL_INSTALL" != "1" ]; then
   # 同步到用户「应用程序」文件夹（与 ~/Applications 同一路径，例如 /Users/holly/Applications）

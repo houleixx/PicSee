@@ -40,14 +40,20 @@ jobs:
       - name: Make scripts executable
         run: chmod +x Scripts/build-app.sh Scripts/build-dmg.sh
 
-      - name: Import Developer ID certificate
-        id: cert
-        if: ${{ secrets.MACOS_CERTIFICATE_BASE64 != '' }}
+      - name: Configure signing identity
+        id: signing
         env:
           MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
+          if [ -z "$MACOS_CERTIFICATE_BASE64" ]; then
+            echo "No Developer ID certificate configured, falling back to ad-hoc signing"
+            echo "PICSEE_CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "has_certificate=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
 
@@ -69,12 +75,7 @@ jobs:
             exit 1
           fi
           echo "PICSEE_CODESIGN_IDENTITY=$CODESIGN_IDENTITY" >> "$GITHUB_ENV"
-
-      - name: Fallback to ad-hoc signing
-        if: ${{ steps.cert.outcome == 'skipped' }}
-        run: |
-          echo "No Developer ID certificate configured, falling back to ad-hoc signing"
-          echo "PICSEE_CODESIGN_IDENTITY=-" >> "$GITHUB_ENV"
+          echo "has_certificate=true" >> "$GITHUB_OUTPUT"
 
       - name: Build DMG
         run: |
@@ -85,7 +86,7 @@ jobs:
           Scripts/build-dmg.sh
 
       - name: Notarize DMG
-        if: ${{ steps.cert.outcome == 'success' }}
+        if: ${{ steps.signing.outputs.has_certificate == 'true' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

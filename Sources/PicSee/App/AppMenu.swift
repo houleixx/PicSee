@@ -13,6 +13,13 @@ enum AppMenu {
         appMenuItem.submenu = appMenu
 
         appMenu.addItem(buildAboutMenuItem(appName: appName))
+        appMenu.addItem(
+            NSMenuItem(
+                title: "设置默认图片打开方式...",
+                action: #selector(AppDelegate.showDefaultImageAppSettings(_:)),
+                keyEquivalent: ""
+            )
+        )
         appMenu.addItem(.separator())
         appMenu.addItem(
             NSMenuItem(

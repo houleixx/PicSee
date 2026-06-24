@@ -19,6 +19,11 @@ final class AppMenuTests: XCTestCase {
 
         XCTAssertEqual(submenu.items.first?.title, "关于 PicSee")
         XCTAssertEqual(submenu.items.first?.action, #selector(AppDelegate.showAboutPanel(_:)))
+        XCTAssertNotNil(submenu.items.first { $0.title == "设置默认图片打开方式..." })
+        XCTAssertEqual(
+            submenu.items.first { $0.title == "设置默认图片打开方式..." }?.action,
+            #selector(AppDelegate.showDefaultImageAppSettings(_:))
+        )
         XCTAssertEqual(submenu.items.last?.title, "退出 PicSee")
         XCTAssertEqual(submenu.items.last?.action, #selector(NSApplication.terminate(_:)))
     }

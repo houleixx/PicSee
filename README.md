@@ -129,9 +129,14 @@ git push origin v0.2.24
 
 ## Release 说明
 
-当前工作流会在 GitHub Actions 中使用 `Developer ID Application` 证书签名 app，
-并对 DMG 提交 Apple notarization 后 staple 公证票据。发布前需要配置这些
-repository secrets：
+工作流默认使用 Developer ID 证书签名并提交 Apple notarization；如果未配置
+证书 secrets，则自动回退到 **Ad-hoc 签名**（跳过 notarization），DMG 仍
+会正常上传和发布。
+
+### 配置证书（可选，用于正式发行）
+
+如需使用 Apple 公证签名（用户打开时不会出现 Gatekeeper 拦截），需要在仓库
+Settings → Secrets 中配置：
 
 - `MACOS_CERTIFICATE_BASE64`
 - `MACOS_CERTIFICATE_PASSWORD`

@@ -103,7 +103,7 @@ jobs:
             --output-format json | tee "$NOTARY_OUTPUT"
 
           xcrun stapler staple "$DMG_PATH"
-          spctl --assess --type open --verbose=4 "$DMG_PATH"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG_PATH"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

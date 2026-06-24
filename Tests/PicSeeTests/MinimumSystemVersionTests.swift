@@ -44,6 +44,7 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(workflow.contains("::error::$name secret is empty"))
         XCTAssertTrue(workflow.contains("--output-format json"))
         XCTAssertTrue(workflow.contains("xcrun stapler staple"))
+        XCTAssertTrue(workflow.contains("--context context:primary-signature"))
     }
 
     func testBuildScriptRegistersCameraRawDocumentTypes() throws {

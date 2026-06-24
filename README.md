@@ -139,7 +139,6 @@ repository secrets：
 - `APPLE_ID`
 - `APPLE_TEAM_ID`
 - `APPLE_APP_PASSWORD`
-- `PICSEE_CODESIGN_IDENTITY`
 
 ## 项目结构
 

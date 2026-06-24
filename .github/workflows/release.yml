@@ -58,12 +58,22 @@ jobs:
           security list-keychain -d user -s "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
+          CODESIGN_IDENTITY="$(
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+              | awk 'NR == 1 { print $2 }'
+          )"
+          if [ -z "$CODESIGN_IDENTITY" ]; then
+            echo "No valid codesigning identity found in imported keychain" >&2
+            exit 1
+          fi
+          echo "PICSEE_CODESIGN_IDENTITY=$CODESIGN_IDENTITY" >> "$GITHUB_ENV"
+
       - name: Build DMG
         run: |
           PICSEE_VERSION="${{ steps.version.outputs.version }}" \
           PICSEE_BUILD_NUMBER="${{ github.run_number }}" \
           PICSEE_SKIP_LOCAL_INSTALL=1 \
-          PICSEE_CODESIGN_IDENTITY="${{ secrets.PICSEE_CODESIGN_IDENTITY }}" \
+          PICSEE_CODESIGN_IDENTITY="$PICSEE_CODESIGN_IDENTITY" \
           Scripts/build-dmg.sh
 
       - name: Notarize DMG

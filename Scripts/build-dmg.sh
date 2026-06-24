@@ -9,6 +9,7 @@ DMG_DIR="$ROOT_DIR/build/dmg"
 LEGACY_PKG_ROOT_DIR="$ROOT_DIR/build/pkg-root"
 APP_VERSION="${PICSEE_VERSION:-0.2.24}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-${APP_VERSION##*.}}"
+CODESIGN_IDENTITY="${PICSEE_CODESIGN_IDENTITY:--}"
 DMG_NAME="PicSee-${APP_VERSION}.dmg"
 DMG_PATH="$DMG_DIR/$DMG_NAME"
 MODULE_CACHE_DIR="$ROOT_DIR/build/module-cache"
@@ -50,5 +51,10 @@ hdiutil create \
   -ov \
   -format UDZO \
   "$DMG_PATH" >/dev/null
+
+if [ "$CODESIGN_IDENTITY" != "-" ]; then
+  codesign --force --sign "$CODESIGN_IDENTITY" --timestamp "$DMG_PATH" >/dev/null
+  echo "Signed DMG $DMG_PATH ($CODESIGN_IDENTITY)"
+fi
 
 echo "Built DMG $DMG_PATH"

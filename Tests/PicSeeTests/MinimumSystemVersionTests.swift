@@ -47,6 +47,14 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(workflow.contains("--context context:primary-signature"))
     }
 
+    func testDmgBuildSignsDmgWhenDeveloperIDIdentityIsProvided() throws {
+        let script = try repositoryFile("Scripts/build-dmg.sh")
+
+        XCTAssertTrue(script.contains("CODESIGN_IDENTITY=\"${PICSEE_CODESIGN_IDENTITY:--}\""))
+        XCTAssertTrue(script.contains("codesign --force --sign \"$CODESIGN_IDENTITY\" --timestamp \"$DMG_PATH\""))
+        XCTAssertTrue(script.contains("if [ \"$CODESIGN_IDENTITY\" != \"-\" ]; then"))
+    }
+
     func testBuildScriptRegistersCameraRawDocumentTypes() throws {
         let script = try repositoryFile("Scripts/build-app.sh")
 

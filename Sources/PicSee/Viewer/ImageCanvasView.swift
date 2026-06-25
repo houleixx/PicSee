@@ -1116,6 +1116,19 @@ final class CanvasNSView: NSView {
             menu.addItem(exportItem)
         }
 
+        if menu.items.first(where: { $0.action == #selector(AppDelegate.showDefaultImageAppSettings(_:)) }) == nil {
+            if !menu.items.isEmpty {
+                menu.addItem(.separator())
+            }
+            let defaultSettingsItem = NSMenuItem(
+                title: "设置图片默认打开方式",
+                action: #selector(AppDelegate.showDefaultImageAppSettings(_:)),
+                keyEquivalent: ""
+            )
+            defaultSettingsItem.target = NSApplication.shared.delegate
+            menu.addItem(defaultSettingsItem)
+        }
+
         if menu.items.first(where: { $0.action == #selector(checkForUpdatesForMenu(_:)) }) == nil {
             if !menu.items.isEmpty {
                 menu.addItem(.separator())

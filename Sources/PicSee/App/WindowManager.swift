@@ -3,9 +3,78 @@ import Combine
 import ObjectiveC
 import SwiftUI
 
-private final class ViewerWindow: NSWindow {
+final class ViewerWindow: NSWindow {
+    private var restoreFrameAfterTemporaryDesktopFullScreen: NSRect?
+    var fallbackFrameForTemporaryDesktopFullScreen: NSRect?
+    var onWillEnterTemporaryDesktopFullScreen: ((NSRect) -> Void)?
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2, isTitleBarEvent(event) {
+            toggleTemporaryDesktopFullScreen()
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
+    func toggleTemporaryDesktopFullScreen() {
+        guard let visibleFrame = screen?.visibleFrame ?? NSScreen.main?.visibleFrame else { return }
+        let transition = Self.temporaryDesktopFullScreenTransition(
+            currentFrame: frame,
+            visibleFrame: visibleFrame,
+            restoreFrame: restoreFrameAfterTemporaryDesktopFullScreen,
+            fallbackFrame: fallbackFrameForTemporaryDesktopFullScreen
+        )
+        if transition.nextRestoreFrame != nil {
+            onWillEnterTemporaryDesktopFullScreen?(frame)
+        }
+        restoreFrameAfterTemporaryDesktopFullScreen = transition.nextRestoreFrame
+        setFrame(transition.nextFrame, display: true, animate: true)
+    }
+
+    static func temporaryDesktopFullScreenTransition(
+        currentFrame: NSRect,
+        visibleFrame: NSRect,
+        restoreFrame: NSRect?,
+        fallbackFrame: NSRect?
+    ) -> (nextFrame: NSRect, nextRestoreFrame: NSRect?) {
+        if let restoreFrame {
+            return (restoreFrame, nil)
+        }
+        if currentFrame.isApproximatelyEqual(to: visibleFrame), let fallbackFrame {
+            return (fallbackFrame, nil)
+        }
+        return (visibleFrame, currentFrame)
+    }
+
+    static func temporaryDesktopFullScreenFallbackFrame(
+        suitableFrame: NSRect,
+        fixedRestoreFrame: NSRect?
+    ) -> NSRect {
+        fixedRestoreFrame ?? suitableFrame
+    }
+
+    func isTitleBarPoint(_ point: NSPoint) -> Bool {
+        Self.isTitleBarPoint(
+            point,
+            contentLayoutRect: contentLayoutRect,
+            styleMask: styleMask
+        )
+    }
+
+    static func isTitleBarPoint(
+        _ point: NSPoint,
+        contentLayoutRect: NSRect,
+        styleMask: NSWindow.StyleMask
+    ) -> Bool {
+        styleMask.contains(.titled) && !contentLayoutRect.contains(point)
+    }
+
+    private func isTitleBarEvent(_ event: NSEvent) -> Bool {
+        isTitleBarPoint(event.locationInWindow)
+    }
 }
 
 @MainActor
@@ -27,10 +96,12 @@ final class WindowManager {
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
         let initialContentFrame = initialWindowContentFrame(for: viewModel.image)
         let styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
+        let suitableWindowFrame = NSWindow.frameRect(forContentRect: initialContentFrame, styleMask: styleMask)
         let initialWindowFrame = self.initialWindowFrame(
             contentFrame: initialContentFrame,
             styleMask: styleMask
         )
+        let fixedRestoreFrame = temporaryDesktopFullScreenRestoreFrame(fitting: initialWindowFrame)
         let initialContentRect = NSWindow.contentRect(forFrameRect: initialWindowFrame, styleMask: styleMask)
         let window = ViewerWindow(
             contentRect: initialContentRect,
@@ -70,6 +141,15 @@ final class WindowManager {
         window.isMovableByWindowBackground = false
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
+        window.fallbackFrameForTemporaryDesktopFullScreen = ViewerWindow.temporaryDesktopFullScreenFallbackFrame(
+            suitableFrame: suitableWindowFrame,
+            fixedRestoreFrame: fixedRestoreFrame
+        )
+        window.onWillEnterTemporaryDesktopFullScreen = { frame in
+            if WindowFramePreference.isFixedEnabled() {
+                WindowFramePreference.saveTemporaryDesktopFullScreenRestoreFrame(frame)
+            }
+        }
         window.hasShadow = true
         window.minSize = minimumWindowSize
         window.contentViewController = hostingController
@@ -118,6 +198,14 @@ final class WindowManager {
             return fixedFrame
         }
         return defaultFrame
+    }
+
+    private func temporaryDesktopFullScreenRestoreFrame(fitting fallbackScreenFrame: NSRect) -> NSRect? {
+        let screenFrame = NSScreen.main?.visibleFrame ?? fallbackScreenFrame
+        return WindowFramePreference.temporaryDesktopFullScreenRestoreFrame(
+            fitting: screenFrame,
+            minimumSize: minimumWindowSize
+        )
     }
 
     private static var delegateAssociationKey: UInt8 = 0
@@ -231,5 +319,14 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         onClose()
+    }
+}
+
+private extension NSRect {
+    func isApproximatelyEqual(to other: NSRect, tolerance: CGFloat = 1) -> Bool {
+        abs(minX - other.minX) <= tolerance
+            && abs(minY - other.minY) <= tolerance
+            && abs(width - other.width) <= tolerance
+            && abs(height - other.height) <= tolerance
     }
 }

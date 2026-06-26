@@ -825,6 +825,11 @@ final class CanvasNSView: NSView {
 
         let hitText = backend == .vision ? hitTextLocation(at: point, geometry: geometry) : nil
 
+        if shouldToggleDesktopFillOnMouseDown(clickCount: event.clickCount, at: point) {
+            (window as? ViewerWindow)?.toggleTemporaryDesktopFullScreen()
+            return
+        }
+
         if event.clickCount == 2, hitText == nil {
             zoomScale = 1
             panOffset = .zero
@@ -1500,6 +1505,10 @@ final class CanvasNSView: NSView {
         !titleBarVisible && point.y >= bounds.height - topDragRegionHeight
     }
 
+    private func shouldToggleDesktopFillOnMouseDown(clickCount: Int, at point: CGPoint) -> Bool {
+        clickCount == 2 && isInTopDragRegion(point)
+    }
+
     private func resizeAnchor(at point: CGPoint) -> WindowResizeAnchor? {
         guard !titleBarVisible, !fixedWindowEnabled else { return nil }
         if point.x <= topLeftResizeRegionSize, point.y >= bounds.height - topLeftResizeRegionSize {
@@ -1767,6 +1776,10 @@ extension CanvasNSView {
 
     func debugCanDragWindow(at point: CGPoint) -> Bool {
         isInTopDragRegion(point)
+    }
+
+    func debugShouldToggleDesktopFillOnMouseDown(clickCount: Int, at point: CGPoint) -> Bool {
+        shouldToggleDesktopFillOnMouseDown(clickCount: clickCount, at: point)
     }
 
     var debugLiveTextAnalysis: ImageAnalysis? {

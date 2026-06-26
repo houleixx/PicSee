@@ -65,6 +65,24 @@ final class WindowFramePreferenceTests: XCTestCase {
         )
     }
 
+    func testPersistsTemporaryDesktopFullScreenRestoreFrame() throws {
+        let suiteName = "PicSee.WindowFramePreferenceTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let frame = NSRect(x: 120, y: 80, width: 640, height: 420)
+
+        WindowFramePreference.saveTemporaryDesktopFullScreenRestoreFrame(frame, in: defaults)
+
+        XCTAssertEqual(
+            WindowFramePreference.temporaryDesktopFullScreenRestoreFrame(
+                in: defaults,
+                fitting: NSRect(x: 0, y: 0, width: 1200, height: 900),
+                minimumSize: NSSize(width: 320, height: 220)
+            ),
+            frame
+        )
+    }
+
     func testResizeAnchorsRespectMinimumSize() {
         let start = NSRect(x: 100, y: 100, width: 500, height: 360)
         let minimum = NSSize(width: 320, height: 220)

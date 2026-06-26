@@ -5,6 +5,7 @@ enum WindowFramePreference {
     static let defaultsKey = "PicSee.WindowFrame"
     private static let fixedDefaultsKey = "PicSee.FixedWindowFrame"
     private static let fixedEnabledDefaultsKey = "PicSee.FixedWindowFrameEnabled"
+    private static let temporaryDesktopFullScreenRestoreDefaultsKey = "PicSee.TemporaryDesktopFullScreenRestoreFrame"
 
     static func save(_ frame: NSRect, in defaults: UserDefaults = .standard) {
         defaults.set(NSStringFromRect(frame), forKey: defaultsKey)
@@ -47,6 +48,27 @@ enum WindowFramePreference {
         guard
             isFixedEnabled(in: defaults),
             let rawValue = defaults.string(forKey: fixedDefaultsKey),
+            !rawValue.isEmpty
+        else {
+            return nil
+        }
+
+        let frame = NSRectFromString(rawValue)
+        guard frame.width > 0, frame.height > 0 else { return nil }
+        return WindowResizeGeometry.clamped(frame, to: screenFrame, minimumSize: minimumSize)
+    }
+
+    static func saveTemporaryDesktopFullScreenRestoreFrame(_ frame: NSRect, in defaults: UserDefaults = .standard) {
+        defaults.set(NSStringFromRect(frame), forKey: temporaryDesktopFullScreenRestoreDefaultsKey)
+    }
+
+    static func temporaryDesktopFullScreenRestoreFrame(
+        in defaults: UserDefaults = .standard,
+        fitting screenFrame: NSRect,
+        minimumSize: NSSize
+    ) -> NSRect? {
+        guard
+            let rawValue = defaults.string(forKey: temporaryDesktopFullScreenRestoreDefaultsKey),
             !rawValue.isEmpty
         else {
             return nil

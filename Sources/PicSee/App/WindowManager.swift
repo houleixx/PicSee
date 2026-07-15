@@ -142,6 +142,9 @@ final class WindowManager {
         window.isMovableByWindowBackground = false
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
+        if let appearance = ViewerTheme.current().appearance {
+            window.appearance = appearance
+        }
         window.fallbackFrameForTemporaryDesktopFullScreen = ViewerWindow.temporaryDesktopFullScreenFallbackFrame(
             suitableFrame: suitableWindowFrame,
             fixedRestoreFrame: fixedRestoreFrame

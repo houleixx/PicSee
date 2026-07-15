@@ -21,11 +21,14 @@ final class ViewerWindow: NSWindow {
     }
 
     override func toggleFullScreen(_ sender: Any?) {
-        // borderless 窗口需要 .titled 才能进入全屏
-        if !styleMask.contains(.fullScreen), !styleMask.contains(.titled) {
-            fullScreenPreMask = styleMask
-            styleMask.insert(.titled)
+        guard !styleMask.contains(.fullScreen) else {
+            super.toggleFullScreen(sender)
+            return
         }
+        // borderless 窗口需要 .titled 才能进入全屏
+        // 同时移除 .borderless 和 .fullSizeContentView，避免全屏标题栏按钮不可点击
+        fullScreenPreMask = styleMask
+        styleMask = [.titled, .closable, .miniaturizable, .resizable]
         super.toggleFullScreen(sender)
     }
 
@@ -296,7 +299,18 @@ final class WindowManager {
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
         let frame = window.frame
         window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
-        window.setFrame(frame, display: true)
+        if !titleBarVisible {
+            // macOS 退出全屏时 frame 包含标题栏高度（28px），改 .borderless 后要补偿
+            let titleBarHeight = frame.height - window.contentRect(forFrameRect: frame).height
+            window.setFrame(NSRect(
+                x: frame.minX,
+                y: frame.minY + titleBarHeight,
+                width: frame.width,
+                height: frame.height - titleBarHeight
+            ), display: true)
+        } else {
+            window.setFrame(frame, display: true)
+        }
         applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
     }

@@ -5,6 +5,8 @@ enum ViewerOverlayPreference {
     static let toolbarVisibleDefaultsKey = "PicSee.ToolbarVisible"
     static let imageParametersVisibleDefaultsKey = "PicSee.ImageParametersVisible"
     static let toggleImageParametersNotification = Notification.Name("PicSee.ToggleImageParameters")
+    static let didEnterFullScreenNotification = Notification.Name("PicSee.DidEnterFullScreen")
+    static let didExitFullScreenNotification = Notification.Name("PicSee.DidExitFullScreen")
 
     static func isFileInfoVisible(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: fileInfoVisibleDefaultsKey) as? Bool ?? true

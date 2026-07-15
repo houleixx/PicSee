@@ -304,9 +304,6 @@ struct ImageViewerView: View {
         }
     }
 
-    private var toolbarHoverEdgeFraction: CGFloat {
-        isFullScreen ? toolbarEdgeFraction : 1.0
-    }
 }
 
 private struct ImageToolBar: View {

@@ -514,6 +514,7 @@ enum TextRecognitionBackend {
 final class CanvasNSView: NSView {
     private static let minimapEnabledDefaultsKey = "PicSee.MinimapEnabled"
     private static let rotationAnimationKey = "PicSee.RotationAnimation"
+    private static let themeMenuIdentifier = NSUserInterfaceItemIdentifier("PicSee.ThemeMenu")
 
     private let imageView = NSImageView(frame: .zero)
     private let minimapView = ImageMinimapView(frame: .zero)
@@ -1123,8 +1124,9 @@ final class CanvasNSView: NSView {
             menu.addItem(fixedWindowItem)
         }
 
-        if menu.items.first(where: { $0.action == #selector(selectTheme(_:)) }) == nil {
+        if menu.items.first(where: { $0.identifier == Self.themeMenuIdentifier }) == nil {
             let themeItem = NSMenuItem(title: "主题", action: nil, keyEquivalent: "")
+            themeItem.identifier = Self.themeMenuIdentifier
             let themeMenu = NSMenu(title: "主题")
             for theme in ViewerTheme.allCases {
                 let item = NSMenuItem(title: theme.displayName, action: #selector(selectTheme(_:)), keyEquivalent: "")

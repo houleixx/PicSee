@@ -149,6 +149,16 @@ final class AppMenuTests: XCTestCase {
         XCTAssertFalse(menu.items[titleBarIndex + 5].isSeparatorItem)
     }
 
+    func testAppendingPicSeeItemsTwiceAddsOnlyOneThemeMenu() {
+        let view = CanvasNSView(frame: .zero, backend: .liveText)
+        let menu = NSMenu(title: "Live Text")
+
+        view.debugAppendPicSeeContextMenuItems(to: menu)
+        view.debugAppendPicSeeContextMenuItems(to: menu)
+
+        XCTAssertEqual(menu.items.filter { $0.title == "主题" }.count, 1)
+    }
+
     func testImageContextMenuShowsCheckForUpdatesAboveAboutItem() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
         view.onCheckForUpdates = {}

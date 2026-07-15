@@ -33,6 +33,97 @@ final class ImageViewerViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testFinderOrderDeterminesPreviousAndNextImages() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let second = try writePNG(named: "002.png", color: .blue)
+        let third = try writePNG(named: "003.png", color: .green)
+        let provider = StubFinderOrderProvider(orderedURLs: [third, first, second])
+
+        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        try await waitUntil { viewModel.previousURL == third.standardizedFileURL }
+
+        XCTAssertEqual(viewModel.previousURL, third.standardizedFileURL)
+        XCTAssertEqual(viewModel.nextURL, second.standardizedFileURL)
+        XCTAssertEqual(provider.requestedFolders, [temporaryDirectory.standardizedFileURL])
+    }
+
+    @MainActor
+    func testInitializationDoesNotWaitForSlowFinderOrderLookup() throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let provider = SlowFinderOrderProvider(delay: 0.3)
+        let start = ContinuousClock.now
+
+        _ = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+
+        XCTAssertLessThan(start.duration(to: .now), .milliseconds(100))
+    }
+
+    @MainActor
+    func testNavigationRemainsUnavailableUntilFinderOrderLookupFinishes() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let second = try writePNG(named: "002.png", color: .blue)
+        let provider = SlowFinderOrderProvider(delay: 0.2)
+
+        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+
+        XCTAssertNil(viewModel.nextURL)
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertEqual(viewModel.nextURL, second.standardizedFileURL)
+    }
+
+    @MainActor
+    func testFinderOrderIsReadOnlyOnceAndRemainsStableForSession() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let second = try writePNG(named: "002.png", color: .blue)
+        let third = try writePNG(named: "003.png", color: .green)
+        let provider = StubFinderOrderProvider(orderedURLs: [first, third, second])
+        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        try await waitUntil { viewModel.nextURL == third.standardizedFileURL }
+
+        provider.orderedURLs = [first, second, third]
+        viewModel.navigateToNext()
+
+        XCTAssertEqual(viewModel.currentURL, third.standardizedFileURL)
+        XCTAssertEqual(viewModel.nextURL, second.standardizedFileURL)
+        XCTAssertEqual(provider.requestedFolders.count, 1)
+    }
+
+    @MainActor
+    func testNavigationSkipsImageDeletedAfterSnapshotWasCreated() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let deleted = try writePNG(named: "002.png", color: .blue)
+        let third = try writePNG(named: "003.png", color: .green)
+        let provider = StubFinderOrderProvider(orderedURLs: [first, deleted, third])
+        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        try await waitUntil { viewModel.nextURL == deleted.standardizedFileURL }
+        try FileManager.default.removeItem(at: deleted)
+
+        viewModel.navigateToNext()
+
+        XCTAssertEqual(viewModel.currentURL, third.standardizedFileURL)
+        XCTAssertNotNil(viewModel.image)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    @MainActor
+    func testExistingInvalidImageKeepsItsSnapshotPositionForFurtherNavigation() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let invalid = temporaryDirectory.appendingPathComponent("002.png")
+        try Data("not an image".utf8).write(to: invalid)
+        let third = try writePNG(named: "003.png", color: .green)
+        let provider = StubFinderOrderProvider(orderedURLs: [first, invalid, third])
+        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        try await waitUntil { viewModel.nextURL == invalid.standardizedFileURL }
+
+        viewModel.navigateToNext()
+
+        XCTAssertEqual(viewModel.currentURL, invalid.standardizedFileURL)
+        XCTAssertNil(viewModel.image)
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.nextURL, third.standardizedFileURL)
+    }
+
+    @MainActor
     func testInvalidImageShowsErrorState() throws {
         let invalid = temporaryDirectory.appendingPathComponent("broken.jpg")
         try Data("not an image".utf8).write(to: invalid)
@@ -253,5 +344,56 @@ final class ImageViewerViewModelTests: XCTestCase {
 
         try data.write(to: url)
         return url.standardizedFileURL
+    }
+
+    @MainActor
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        condition: @MainActor () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition() {
+            guard clock.now < deadline else {
+                XCTFail("Timed out waiting for asynchronous Finder order")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+}
+
+private final class StubFinderOrderProvider: FinderFolderOrderProviding, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedOrderedURLs: [URL]?
+    private var storedRequestedFolders: [URL] = []
+
+    var orderedURLs: [URL]? {
+        get { lock.withLock { storedOrderedURLs } }
+        set { lock.withLock { storedOrderedURLs = newValue } }
+    }
+
+    var requestedFolders: [URL] {
+        lock.withLock { storedRequestedFolders }
+    }
+
+    init(orderedURLs: [URL]?) {
+        self.storedOrderedURLs = orderedURLs
+    }
+
+    func orderedURLs(for folderURL: URL) async -> [URL]? {
+        lock.withLock {
+            storedRequestedFolders.append(folderURL.standardizedFileURL)
+            return storedOrderedURLs
+        }
+    }
+}
+
+private struct SlowFinderOrderProvider: FinderFolderOrderProviding {
+    let delay: TimeInterval
+
+    func orderedURLs(for folderURL: URL) async -> [URL]? {
+        try? await Task.sleep(for: .seconds(delay))
+        return nil
     }
 }

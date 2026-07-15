@@ -63,6 +63,133 @@ final class FolderImageNavigatorTests: XCTestCase {
         XCTAssertNil(lastNavigator.nextURL())
     }
 
+    func testPreferredOrderDeterminesCurrentPreviousAndNextPositions() throws {
+        let first = try createFile(named: "001.jpg")
+        let second = try createFile(named: "002.jpg")
+        let third = try createFile(named: "003.jpg")
+
+        let navigator = try FolderImageNavigator(
+            currentImageURL: second,
+            preferredOrder: [third, second, first]
+        )
+
+        XCTAssertEqual(navigator.images, [third, second, first])
+        XCTAssertEqual(navigator.currentIndex, 1)
+        XCTAssertEqual(navigator.previousURL(), third)
+        XCTAssertEqual(navigator.nextURL(), first)
+    }
+
+    func testPreferredOrderFiltersDuplicatesUnsupportedFilesAndOtherFolders() throws {
+        let first = try createFile(named: "001.jpg")
+        let second = try createFile(named: "002.jpg")
+        let notes = try createFile(named: "notes.txt")
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent("outside.jpg")
+
+        let navigator = try FolderImageNavigator(
+            currentImageURL: second,
+            preferredOrder: [second, notes, outside, first, second]
+        )
+
+        XCTAssertEqual(navigator.images, [second, first])
+        XCTAssertEqual(navigator.currentIndex, 0)
+    }
+
+    func testImageNamedDirectoriesAreExcludedFromScannedAndPreferredOrders() throws {
+        let current = try createFile(named: "001.jpg")
+        let imageNamedDirectory = temporaryDirectory.appendingPathComponent("002.png", isDirectory: true)
+        try FileManager.default.createDirectory(at: imageNamedDirectory, withIntermediateDirectories: false)
+
+        let scannedNavigator = try FolderImageNavigator(currentImageURL: current)
+        let preferredNavigator = try FolderImageNavigator(
+            currentImageURL: current,
+            preferredOrder: [current, imageNamedDirectory]
+        )
+
+        XCTAssertEqual(scannedNavigator.images, [current])
+        XCTAssertEqual(preferredNavigator.images, [current])
+    }
+
+    func testPreferredOrderWithoutCurrentImageFallsBackToFilenameOrder() throws {
+        let first = try createFile(named: "001.jpg")
+        let second = try createFile(named: "002.jpg")
+        let third = try createFile(named: "003.jpg")
+
+        let navigator = try FolderImageNavigator(
+            currentImageURL: second,
+            preferredOrder: [third, first]
+        )
+
+        XCTAssertEqual(navigator.images, [first, second, third])
+        XCTAssertEqual(navigator.currentIndex, 1)
+    }
+
+    func testNextPrunesDeletedCandidatesAndContinuesForward() throws {
+        let first = try createFile(named: "001.jpg")
+        let second = try createFile(named: "002.jpg")
+        let deleted = try createFile(named: "003.jpg")
+        let fourth = try createFile(named: "004.jpg")
+        let navigator = try FolderImageNavigator(
+            currentImageURL: second,
+            preferredOrder: [first, second, deleted, fourth]
+        )
+        try FileManager.default.removeItem(at: deleted)
+
+        XCTAssertEqual(navigator.nextURL(), fourth)
+        XCTAssertEqual(navigator.images, [first, second, fourth])
+        XCTAssertEqual(navigator.currentIndex, 1)
+    }
+
+    func testPreviousPrunesDeletedCandidatesAndUpdatesCurrentIndex() throws {
+        let deleted = try createFile(named: "001.jpg")
+        let second = try createFile(named: "002.jpg")
+        let third = try createFile(named: "003.jpg")
+        let navigator = try FolderImageNavigator(
+            currentImageURL: second,
+            preferredOrder: [deleted, second, third]
+        )
+        try FileManager.default.removeItem(at: deleted)
+
+        XCTAssertNil(navigator.previousURL())
+        XCTAssertEqual(navigator.images, [second, third])
+        XCTAssertEqual(navigator.currentIndex, 0)
+    }
+
+    func testDeletedCurrentImageRemainsAnchorUntilNavigationMovesAway() throws {
+        let first = try createFile(named: "001.jpg")
+        let current = try createFile(named: "002.jpg")
+        let third = try createFile(named: "003.jpg")
+        let navigator = try FolderImageNavigator(
+            currentImageURL: current,
+            preferredOrder: [first, current, third]
+        )
+        try FileManager.default.removeItem(at: current)
+
+        XCTAssertEqual(navigator.previousURL(), first)
+        XCTAssertEqual(navigator.nextURL(), third)
+
+        navigator.move(to: third)
+
+        XCTAssertEqual(navigator.currentIndex, 1)
+        XCTAssertEqual(navigator.images, [first, third])
+        XCTAssertEqual(navigator.previousURL(), first)
+    }
+
+    func testRemoveFromSnapshotKeepsCurrentIndexAligned() throws {
+        let first = try createFile(named: "001.jpg")
+        let second = try createFile(named: "002.jpg")
+        let third = try createFile(named: "003.jpg")
+        let navigator = try FolderImageNavigator(
+            currentImageURL: second,
+            preferredOrder: [first, second, third]
+        )
+
+        navigator.removeFromSnapshot(first)
+
+        XCTAssertEqual(navigator.images, [second, third])
+        XCTAssertEqual(navigator.currentIndex, 0)
+    }
+
     func testMissingCurrentImageStillReturnsSingleImageNavigator() throws {
         let missing = temporaryDirectory.appendingPathComponent("missing.jpg")
 

@@ -91,7 +91,10 @@ final class WindowManager {
     func openViewer(for url: URL) {
         guard currentWindow == nil else { return }
 
-        let viewModel = ImageViewerViewModel(imageURL: url)
+        let viewModel = ImageViewerViewModel(
+            imageURL: url,
+            finderOrderProvider: FinderFolderOrderProvider()
+        )
         let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
         let initialContentFrame = initialWindowContentFrame(for: viewModel.image)

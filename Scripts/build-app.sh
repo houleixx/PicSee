@@ -7,6 +7,7 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 ICON_SOURCE="$ROOT_DIR/Images/picsee_icon.png"
+ENTITLEMENTS_FILE="$ROOT_DIR/Resources/PicSee.entitlements"
 ICONSET_DIR="$ROOT_DIR/build/AppIcon.iconset"
 ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 
@@ -103,6 +104,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>PicSee 需要读取 Finder 当前的图片排序方式，以便按相同顺序切换上一张和下一张图片。</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>
@@ -170,6 +173,7 @@ echo "Built $APP_DIR"
 codesign --force --deep --sign "$CODESIGN_IDENTITY" \
   --identifier "local.picsee.viewer" \
   --options runtime \
+  --entitlements "$ENTITLEMENTS_FILE" \
   "${CODESIGN_TIMESTAMP_ARGS[@]}" \
   "$APP_DIR" >/dev/null
 

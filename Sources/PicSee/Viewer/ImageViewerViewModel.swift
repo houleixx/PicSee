@@ -18,13 +18,39 @@ final class ImageViewerViewModel: ObservableObject {
     @Published var displayScale: CGFloat = 1
     @Published var rotationDegrees: Int = 0
     @Published var zoomRequest: ImageZoomRequest?
+    @Published private(set) var isNavigationOrderReady: Bool
 
-    private var navigator: FolderImageNavigator?
+    @Published private var navigator: FolderImageNavigator?
+    private let fileManager: FileManager
+    private var finderOrderTask: Task<Void, Never>?
+    private var navigationRevision = 0
     private var nextZoomRequestID = 0
 
-    init(imageURL: URL) {
+    init(
+        imageURL: URL,
+        finderOrderProvider: any FinderFolderOrderProviding = FilenameFolderOrderProvider(),
+        fileManager: FileManager = .default
+    ) {
         self.currentURL = imageURL.standardizedFileURL
-        load(imageURL: imageURL)
+        self.fileManager = fileManager
+        self.isNavigationOrderReady = finderOrderProvider.isOrderingAvailableImmediately
+        establishNavigator(for: imageURL, preferredOrder: nil)
+        _ = load(imageURL: imageURL)
+
+        let initialURL = imageURL.standardizedFileURL
+        let initialRevision = navigationRevision
+        let folderURL = initialURL.deletingLastPathComponent()
+        finderOrderTask = Task { [weak self] in
+            let preferredOrder = await finderOrderProvider.orderedURLs(for: folderURL)
+            guard let self,
+                  self.navigationRevision == initialRevision,
+                  self.currentURL == initialURL
+            else {
+                return
+            }
+            self.establishNavigator(for: initialURL, preferredOrder: preferredOrder)
+            self.isNavigationOrderReady = true
+        }
     }
 
     var currentFilename: String {
@@ -62,25 +88,35 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     var previousURL: URL? {
-        navigator?.previousURL()
+        guard isNavigationOrderReady else { return nil }
+        return navigator?.previousURL()
     }
 
     var nextURL: URL? {
-        navigator?.nextURL()
+        guard isNavigationOrderReady else { return nil }
+        return navigator?.nextURL()
     }
 
     func navigateToPrevious() {
-        guard let previousURL else { return }
-        navigate(to: previousURL)
+        guard isNavigationOrderReady else { return }
+        navigationRevision += 1
+        navigateUsingSnapshot(direction: .previous)
     }
 
     func navigateToNext() {
-        guard let nextURL else { return }
-        navigate(to: nextURL)
+        guard isNavigationOrderReady else { return }
+        navigationRevision += 1
+        navigateUsingSnapshot(direction: .next)
     }
 
     func navigate(to url: URL) {
-        load(imageURL: url)
+        navigationRevision += 1
+        isNavigationOrderReady = true
+        let standardizedURL = url.standardizedFileURL
+        if navigator?.images.contains(standardizedURL) != true {
+            establishNavigator(for: standardizedURL, preferredOrder: nil)
+        }
+        _ = load(imageURL: standardizedURL)
     }
 
     func resetViewTransform() {
@@ -125,27 +161,56 @@ final class ImageViewerViewModel: ObservableObject {
         panOffset = .zero
     }
 
-    private func load(imageURL: URL) {
+    private enum NavigationDirection {
+        case previous
+        case next
+    }
+
+    private func establishNavigator(for imageURL: URL, preferredOrder: [URL]?) {
         let standardizedURL = imageURL.standardizedFileURL
+        navigator = try? FolderImageNavigator(
+            currentImageURL: standardizedURL,
+            fileManager: fileManager,
+            preferredOrder: preferredOrder
+        )
+    }
+
+    private func navigateUsingSnapshot(direction: NavigationDirection) {
+        while let candidate = direction == .previous ? navigator?.previousURL() : navigator?.nextURL() {
+            if load(imageURL: candidate, preservesCurrentImageWhenMissing: true) {
+                return
+            }
+            guard !fileManager.fileExists(atPath: candidate.path) else { return }
+            navigator?.removeFromSnapshot(candidate)
+        }
+    }
+
+    @discardableResult
+    private func load(imageURL: URL, preservesCurrentImageWhenMissing: Bool = false) -> Bool {
+        let standardizedURL = imageURL.standardizedFileURL
+        guard let loadedImage = NSImage(contentsOf: standardizedURL), loadedImage.isValid else {
+            if preservesCurrentImageWhenMissing,
+               !fileManager.fileExists(atPath: standardizedURL.path) {
+                return false
+            }
+            currentURL = standardizedURL
+            resetViewTransform()
+            rotationDegrees = 0
+            zoomRequest = nil
+            image = nil
+            errorMessage = "PicSee could not open this image."
+            navigator?.move(to: standardizedURL)
+            return false
+        }
+
         currentURL = standardizedURL
         resetViewTransform()
         rotationDegrees = 0
         zoomRequest = nil
-
-        do {
-            navigator = try FolderImageNavigator(currentImageURL: standardizedURL)
-        } catch {
-            navigator = nil
-        }
-
-        guard let loadedImage = NSImage(contentsOf: standardizedURL), loadedImage.isValid else {
-            image = nil
-            errorMessage = "PicSee could not open this image."
-            return
-        }
-
         image = loadedImage
         errorMessage = nil
+        navigator?.move(to: standardizedURL)
+        return true
     }
 
     private func requestZoom(multiplier: CGFloat) {

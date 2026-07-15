@@ -12,11 +12,23 @@ struct ImageViewerView: View {
     @State private var imageParametersVisible = ViewerOverlayPreference.isImageParametersVisible()
     @State private var fixedWindowEnabled = WindowFramePreference.isFixedEnabled()
     @State private var navigationPointerX: CGFloat?
+    @State private var toolbarPointerY: CGFloat?
+    @State private var toolbarViewerHeight: CGFloat = 1
     @State private var revealsAvailableNavigationDirections = true
     @State private var hasPresentedNavigationDiscovery = false
+    @State private var isFullScreen = false
     private let hudPadding: CGFloat = 12
     private let navigationFadeDuration = 0.18
+    private let toolbarEdgeFraction: CGFloat = 0.20
     private let navigationDiscoveryDuration = 1.2
+
+    private var toolbarEffectivelyVisible: Bool {
+        guard toolbarVisible else { return false }
+        guard isFullScreen else { return true }
+        guard let toolbarPointerY, toolbarViewerHeight > 0 else { return false }
+        let fraction = 1 - toolbarPointerY / toolbarViewerHeight
+        return fraction >= 0 && fraction <= toolbarEdgeFraction
+    }
 
     var body: some View {
         ZStack {
@@ -106,7 +118,7 @@ struct ImageViewerView: View {
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    if toolbarVisible {
+                    if toolbarEffectivelyVisible {
                         ImageToolBar(
                             onFitToWindow: viewModel.fitToWindow,
                             onShowHundredPercent: viewModel.showActualSize,
@@ -116,6 +128,7 @@ struct ImageViewerView: View {
                             onRotateRight: viewModel.rotateRight
                         )
                         .padding(.bottom, hudPadding)
+                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
                     }
                 }
                 .overlay(alignment: .trailing) {
@@ -133,6 +146,10 @@ struct ImageViewerView: View {
                 .overlay {
                     GeometryReader { geometry in
                         imageNavigationControls(viewerWidth: geometry.size.width)
+                            .onAppear { toolbarViewerHeight = geometry.size.height }
+                            .onChange(of: geometry.size.height) { _, newValue in
+                                toolbarViewerHeight = newValue
+                            }
                     }
                 }
                 .onContinuousHover { phase in
@@ -145,6 +162,18 @@ struct ImageViewerView: View {
                     }
                     withAnimation(.easeInOut(duration: navigationFadeDuration)) {
                         navigationPointerX = pointerX
+                    }
+                }
+                .onContinuousHover(coordinateSpace: .local) { phase in
+                    switch phase {
+                    case .active(let location):
+                        withAnimation(.easeInOut(duration: navigationFadeDuration)) {
+                            toolbarPointerY = location.y
+                        }
+                    case .ended:
+                        withAnimation(.easeInOut(duration: navigationFadeDuration)) {
+                            toolbarPointerY = nil
+                        }
                     }
                 }
                 .task {
@@ -183,6 +212,7 @@ struct ImageViewerView: View {
             }
         }
         .frame(minWidth: 480, minHeight: 320)
+        .animation(.easeInOut(duration: navigationFadeDuration), value: toolbarEffectivelyVisible)
         .task {
             if let updateChecker {
                 await updateChecker.checkForUpdatesIfNeeded()
@@ -191,6 +221,12 @@ struct ImageViewerView: View {
         .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.toggleImageParametersNotification)) { _ in
             imageParametersVisible.toggle()
             ViewerOverlayPreference.setImageParametersVisible(imageParametersVisible)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.didEnterFullScreenNotification)) { _ in
+            isFullScreen = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.didExitFullScreenNotification)) { _ in
+            isFullScreen = false
         }
     }
 
@@ -266,6 +302,10 @@ struct ImageViewerView: View {
         withAnimation(.easeInOut(duration: navigationFadeDuration)) {
             revealsAvailableNavigationDirections = false
         }
+    }
+
+    private var toolbarHoverEdgeFraction: CGFloat {
+        isFullScreen ? toolbarEdgeFraction : 1.0
     }
 }
 

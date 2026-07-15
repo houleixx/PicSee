@@ -13,11 +13,10 @@ struct ViewerTitleBarPreference {
     }
 
     static func styleMask(titleBarVisible: Bool) -> NSWindow.StyleMask {
-        var mask: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable]
-        if !titleBarVisible {
-            mask.insert(.fullSizeContentView)
+        if titleBarVisible {
+            return [.titled, .closable, .miniaturizable, .resizable]
         }
-        return mask
+        return [.borderless, .resizable, .fullSizeContentView]
     }
 
     @MainActor

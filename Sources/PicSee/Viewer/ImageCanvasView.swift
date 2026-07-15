@@ -831,11 +831,16 @@ final class CanvasNSView: NSView {
         }
 
         if event.clickCount == 2, hitText == nil {
-            zoomScale = 1
-            panOffset = .zero
-            onZoomChanged?(1)
-            onPanChanged?(.zero)
-            onReset?()
+            let isFitted = abs(zoomScale - 1) < 0.001 && abs(panOffset.width) < 0.5 && abs(panOffset.height) < 0.5
+            if isFitted {
+                window?.toggleFullScreen(nil)
+            } else {
+                zoomScale = 1
+                panOffset = .zero
+                onZoomChanged?(1)
+                onPanChanged?(.zero)
+                onReset?()
+            }
             return
         }
 

@@ -130,6 +130,7 @@ final class WindowManager {
         let hostingController = NSHostingController(rootView: rootView)
 
         currentWindow = window
+        window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
         titleObserver = viewModel.$currentURL
             .combineLatest(viewModel.$displayScale, viewModel.$image)
             .sink { [weak window, weak viewModel] _, _, _ in

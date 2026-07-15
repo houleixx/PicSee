@@ -831,11 +831,16 @@ final class CanvasNSView: NSView {
         }
 
         if event.clickCount == 2, hitText == nil {
-            zoomScale = 1
-            panOffset = .zero
-            onZoomChanged?(1)
-            onPanChanged?(.zero)
-            onReset?()
+            let isFitted = abs(zoomScale - 1) < 0.001 && abs(panOffset.width) < 0.5 && abs(panOffset.height) < 0.5
+            if isFitted {
+                window?.toggleFullScreen(nil)
+            } else {
+                zoomScale = 1
+                panOffset = .zero
+                onZoomChanged?(1)
+                onPanChanged?(.zero)
+                onReset?()
+            }
             return
         }
 
@@ -1038,6 +1043,20 @@ final class CanvasNSView: NSView {
         onCheckForUpdates?()
     }
 
+    @objc private func selectTheme(_ sender: Any?) {
+        guard
+            let item = sender as? NSMenuItem,
+            let rawValue = item.representedObject as? Int,
+            let theme = ViewerTheme(rawValue: rawValue)
+        else { return }
+        ViewerTheme.set(theme, in: defaults)
+        if let appearance = theme.appearance {
+            window?.appearance = appearance
+        } else {
+            window?.appearance = nil
+        }
+    }
+
     private func toggleImageParametersVisibility() {
         imageParametersVisible.toggle()
         ViewerOverlayPreference.setImageParametersVisible(imageParametersVisible, in: defaults)
@@ -1104,6 +1123,20 @@ final class CanvasNSView: NSView {
             menu.addItem(fixedWindowItem)
         }
 
+        if menu.items.first(where: { $0.action == #selector(selectTheme(_:)) }) == nil {
+            let themeItem = NSMenuItem(title: "主题", action: nil, keyEquivalent: "")
+            let themeMenu = NSMenu(title: "主题")
+            for theme in ViewerTheme.allCases {
+                let item = NSMenuItem(title: theme.displayName, action: #selector(selectTheme(_:)), keyEquivalent: "")
+                item.target = self
+                item.state = ViewerTheme.current(in: defaults) == theme ? .on : .off
+                item.representedObject = theme.rawValue
+                themeMenu.addItem(item)
+            }
+            themeItem.submenu = themeMenu
+            menu.addItem(themeItem)
+        }
+
         if menu.items.first(where: { $0.action == #selector(copyImagePathForMenu(_:)) }) == nil {
             if !menu.items.isEmpty {
                 menu.addItem(.separator())
@@ -1138,6 +1171,7 @@ final class CanvasNSView: NSView {
             if !menu.items.isEmpty {
                 menu.addItem(.separator())
             }
+
             let updateItem = NSMenuItem(title: "检查更新", action: #selector(checkForUpdatesForMenu(_:)), keyEquivalent: "")
             updateItem.target = self
             updateItem.isEnabled = onCheckForUpdates != nil

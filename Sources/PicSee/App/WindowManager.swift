@@ -133,6 +133,7 @@ final class WindowManager {
         let hostingController = NSHostingController(rootView: rootView)
 
         currentWindow = window
+        window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
         titleObserver = viewModel.$currentURL
             .combineLatest(viewModel.$displayScale, viewModel.$image)
             .sink { [weak window, weak viewModel] _, _, _ in
@@ -144,6 +145,9 @@ final class WindowManager {
         window.isMovableByWindowBackground = false
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
+        if let appearance = ViewerTheme.current().appearance {
+            window.appearance = appearance
+        }
         window.fallbackFrameForTemporaryDesktopFullScreen = ViewerWindow.temporaryDesktopFullScreenFallbackFrame(
             suitableFrame: suitableWindowFrame,
             fixedRestoreFrame: fixedRestoreFrame

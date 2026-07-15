@@ -25,11 +25,19 @@ final class ViewerWindow: NSWindow {
             super.toggleFullScreen(sender)
             return
         }
-        // borderless 窗口需要 .titled 才能进入全屏
-        // 同时移除 .borderless 和 .fullSizeContentView，避免全屏标题栏按钮不可点击
+        prepareStyleMaskForNativeFullScreen()
+        super.toggleFullScreen(sender)
+    }
+
+    func prepareStyleMaskForNativeFullScreen() {
         fullScreenPreMask = styleMask
         styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        super.toggleFullScreen(sender)
+    }
+
+    func restoreStyleMaskAfterFailedFullScreenEntry() {
+        guard let fullScreenPreMask else { return }
+        styleMask = fullScreenPreMask
+        self.fullScreenPreMask = nil
     }
 
     func toggleTemporaryDesktopFullScreen() {
@@ -67,6 +75,16 @@ final class ViewerWindow: NSWindow {
         fixedRestoreFrame: NSRect?
     ) -> NSRect {
         fixedRestoreFrame ?? suitableFrame
+    }
+
+    static func frameRestoringHiddenTitleBar(from frame: NSRect, titleBarHeight: CGFloat) -> NSRect {
+        guard titleBarHeight > 0, titleBarHeight < frame.height else { return frame }
+        return NSRect(
+            x: frame.minX,
+            y: frame.minY + titleBarHeight,
+            width: frame.width,
+            height: frame.height - titleBarHeight
+        )
     }
 
     func isTitleBarPoint(_ point: NSPoint) -> Bool {
@@ -198,6 +216,9 @@ final class WindowManager {
             onExitFullScreen: { [weak self, weak window] in
                 guard let window else { return }
                 self?.restoreStyleMaskAfterFullScreen(to: window)
+            },
+            onFailToEnterFullScreen: { [weak window] in
+                window?.restoreStyleMaskAfterFailedFullScreenEntry()
             }
         )
         window.delegate = delegate
@@ -301,21 +322,23 @@ final class WindowManager {
     private func restoreStyleMaskAfterFullScreen(to window: NSWindow) {
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
         let frame = window.frame
+        let titledContentRect = window.contentRect(forFrameRect: frame)
+        let titleBarHeight = max(0, frame.height - titledContentRect.height)
         window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
         if !titleBarVisible {
-            // macOS 退出全屏时 frame 包含标题栏高度（28px），改 .borderless 后要补偿
-            let titleBarHeight = frame.height - window.contentRect(forFrameRect: frame).height
-            window.setFrame(NSRect(
-                x: frame.minX,
-                y: frame.minY + titleBarHeight,
-                width: frame.width,
-                height: frame.height - titleBarHeight
-            ), display: true)
+            window.setFrame(
+                ViewerWindow.frameRestoringHiddenTitleBar(
+                    from: frame,
+                    titleBarHeight: titleBarHeight
+                ),
+                display: true
+            )
         } else {
             window.setFrame(frame, display: true)
         }
         applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
+        (window as? ViewerWindow)?.fullScreenPreMask = nil
     }
 
     private func installKeyboardMonitor(for viewModel: ImageViewerViewModel) {
@@ -351,11 +374,18 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
     private let onFrameChanged: () -> Void
     private let onClose: () -> Void
     private let onExitFullScreen: () -> Void
+    private let onFailToEnterFullScreen: () -> Void
 
-    init(onFrameChanged: @escaping () -> Void, onClose: @escaping () -> Void, onExitFullScreen: @escaping () -> Void) {
+    init(
+        onFrameChanged: @escaping () -> Void,
+        onClose: @escaping () -> Void,
+        onExitFullScreen: @escaping () -> Void,
+        onFailToEnterFullScreen: @escaping () -> Void
+    ) {
         self.onFrameChanged = onFrameChanged
         self.onClose = onClose
         self.onExitFullScreen = onExitFullScreen
+        self.onFailToEnterFullScreen = onFailToEnterFullScreen
     }
 
     func windowDidMove(_ notification: Notification) {
@@ -377,6 +407,10 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
     func windowDidExitFullScreen(_ notification: Notification) {
         NotificationCenter.default.post(name: ViewerOverlayPreference.didExitFullScreenNotification, object: nil)
         onExitFullScreen()
+    }
+
+    func windowDidFailToEnterFullScreen(_ window: NSWindow) {
+        onFailToEnterFullScreen()
     }
 
     func windowWillClose(_ notification: Notification) {

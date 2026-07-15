@@ -7,4 +7,5 @@ DerivedData/
 *.xcuserdata/
 .DS_Store
 .superpowers/
+.worktrees/
 .claude/

@@ -7,7 +7,7 @@ final class ViewerWindow: NSWindow {
     private var restoreFrameAfterTemporaryDesktopFullScreen: NSRect?
     var fallbackFrameForTemporaryDesktopFullScreen: NSRect?
     var onWillEnterTemporaryDesktopFullScreen: ((NSRect) -> Void)?
-    fileprivate var fullScreenPreMask: NSWindow.StyleMask?
+    private var fullScreenPreMask: NSWindow.StyleMask?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -25,11 +25,13 @@ final class ViewerWindow: NSWindow {
             super.toggleFullScreen(sender)
             return
         }
+        guard fullScreenPreMask == nil else { return }
         prepareStyleMaskForNativeFullScreen()
         super.toggleFullScreen(sender)
     }
 
     func prepareStyleMaskForNativeFullScreen() {
+        guard fullScreenPreMask == nil else { return }
         fullScreenPreMask = styleMask
         styleMask = [.titled, .closable, .miniaturizable, .resizable]
     }
@@ -38,6 +40,10 @@ final class ViewerWindow: NSWindow {
         guard let fullScreenPreMask else { return }
         styleMask = fullScreenPreMask
         self.fullScreenPreMask = nil
+    }
+
+    func completeNativeFullScreenExit() {
+        fullScreenPreMask = nil
     }
 
     func toggleTemporaryDesktopFullScreen() {
@@ -338,7 +344,7 @@ final class WindowManager {
         }
         applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
-        (window as? ViewerWindow)?.fullScreenPreMask = nil
+        (window as? ViewerWindow)?.completeNativeFullScreenExit()
     }
 
     private func installKeyboardMonitor(for viewModel: ImageViewerViewModel) {

@@ -159,6 +159,28 @@ final class AppMenuTests: XCTestCase {
         XCTAssertEqual(menu.items.filter { $0.title == "主题" }.count, 1)
     }
 
+    func testSelectingThemeRefreshesReusedMenuCheckmarks() {
+        let suiteName = "PicSee.AppMenuTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let view = CanvasNSView(frame: .zero, backend: .liveText, defaults: defaults)
+        let menu = NSMenu(title: "Live Text")
+
+        view.debugAppendPicSeeContextMenuItems(to: menu)
+        guard
+            let themeItems = menu.items.first(where: { $0.title == "主题" })?.submenu?.items,
+            let darkItem = themeItems.first(where: { $0.representedObject as? Int == ViewerTheme.dark.rawValue })
+        else {
+            return XCTFail("Expected theme submenu")
+        }
+
+        view.selectTheme(darkItem)
+
+        XCTAssertEqual(ViewerTheme.current(in: defaults), .dark)
+        XCTAssertEqual(darkItem.state, .on)
+        XCTAssertTrue(themeItems.filter { $0.state == .on }.count == 1)
+    }
+
     func testImageContextMenuShowsCheckForUpdatesAboveAboutItem() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
         view.onCheckForUpdates = {}

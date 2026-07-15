@@ -1051,6 +1051,9 @@ final class CanvasNSView: NSView {
             let theme = ViewerTheme(rawValue: rawValue)
         else { return }
         ViewerTheme.set(theme, in: defaults)
+        item.menu?.items.forEach { menuItem in
+            menuItem.state = menuItem.representedObject as? Int == theme.rawValue ? .on : .off
+        }
         if let appearance = theme.appearance {
             window?.appearance = appearance
         } else {

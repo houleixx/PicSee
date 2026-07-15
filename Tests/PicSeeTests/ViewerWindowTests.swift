@@ -133,6 +133,14 @@ final class ViewerWindowTests: XCTestCase {
             ViewerWindow.frameRestoringHiddenTitleBar(from: frame, titleBarHeight: 900),
             frame
         )
+        XCTAssertEqual(
+            ViewerWindow.frameRestoringHiddenTitleBar(from: frame, titleBarHeight: 0),
+            frame
+        )
+        XCTAssertEqual(
+            ViewerWindow.frameRestoringHiddenTitleBar(from: frame, titleBarHeight: -28),
+            frame
+        )
     }
 
     func testFailedNativeFullScreenEntryRestoresOriginalStyleMaskOnce() {
@@ -153,5 +161,38 @@ final class ViewerWindowTests: XCTestCase {
         window.styleMask = [.titled, .resizable]
         window.restoreStyleMaskAfterFailedFullScreenEntry()
         XCTAssertEqual(window.styleMask, [.titled, .resizable])
+    }
+
+    func testSuccessfulNativeFullScreenExitClearsSavedStyleMask() {
+        let originalMask: NSWindow.StyleMask = [.borderless, .resizable, .fullSizeContentView]
+        let window = ViewerWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 420),
+            styleMask: originalMask,
+            backing: .buffered,
+            defer: false
+        )
+
+        window.prepareStyleMaskForNativeFullScreen()
+        window.completeNativeFullScreenExit()
+        window.styleMask = [.titled, .resizable]
+        window.restoreStyleMaskAfterFailedFullScreenEntry()
+
+        XCTAssertEqual(window.styleMask, [.titled, .resizable])
+    }
+
+    func testRepeatedNativeFullScreenPreparationPreservesOriginalStyleMask() {
+        let originalMask: NSWindow.StyleMask = [.borderless, .resizable, .fullSizeContentView]
+        let window = ViewerWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 420),
+            styleMask: originalMask,
+            backing: .buffered,
+            defer: false
+        )
+
+        window.prepareStyleMaskForNativeFullScreen()
+        window.prepareStyleMaskForNativeFullScreen()
+        window.restoreStyleMaskAfterFailedFullScreenEntry()
+
+        XCTAssertEqual(window.styleMask, originalMask)
     }
 }

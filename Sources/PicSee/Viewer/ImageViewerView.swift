@@ -11,7 +11,12 @@ struct ImageViewerView: View {
     @State private var toolbarVisible = ViewerOverlayPreference.isToolbarVisible()
     @State private var imageParametersVisible = ViewerOverlayPreference.isImageParametersVisible()
     @State private var fixedWindowEnabled = WindowFramePreference.isFixedEnabled()
+    @State private var navigationPointerX: CGFloat?
+    @State private var revealsAvailableNavigationDirections = true
+    @State private var hasPresentedNavigationDiscovery = false
     private let hudPadding: CGFloat = 12
+    private let navigationFadeDuration = 0.18
+    private let navigationDiscoveryDuration = 1.2
 
     var body: some View {
         ZStack {
@@ -125,6 +130,26 @@ struct ImageViewerView: View {
                             .padding(.trailing, hudPadding)
                     }
                 }
+                .overlay {
+                    GeometryReader { geometry in
+                        imageNavigationControls(viewerWidth: geometry.size.width)
+                    }
+                }
+                .onContinuousHover { phase in
+                    let pointerX: CGFloat?
+                    switch phase {
+                    case .active(let location):
+                        pointerX = location.x
+                    case .ended:
+                        pointerX = nil
+                    }
+                    withAnimation(.easeInOut(duration: navigationFadeDuration)) {
+                        navigationPointerX = pointerX
+                    }
+                }
+                .task {
+                    await presentNavigationDiscoveryIfNeeded()
+                }
             } else {
                 VStack(spacing: 12) {
                     Text("Cannot Open Image")
@@ -166,6 +191,80 @@ struct ImageViewerView: View {
         .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.toggleImageParametersNotification)) { _ in
             imageParametersVisible.toggle()
             ViewerOverlayPreference.setImageParametersVisible(imageParametersVisible)
+        }
+    }
+
+    @ViewBuilder
+    private func imageNavigationControls(viewerWidth: CGFloat) -> some View {
+        let visibility = ImageNavigationVisibilityPolicy.visibility(
+            pointerX: navigationPointerX,
+            viewerWidth: viewerWidth,
+            hasPrevious: viewModel.previousURL != nil,
+            hasNext: viewModel.nextURL != nil,
+            revealsAvailableDirections: revealsAvailableNavigationDirections
+        )
+
+        HStack(spacing: 0) {
+            if visibility.previous {
+                imageNavigationButton(
+                    systemName: "chevron.left",
+                    accessibilityLabel: "上一张图片",
+                    help: "上一张图片",
+                    action: viewModel.navigateToPrevious
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+            }
+
+            Spacer(minLength: 0)
+
+            if visibility.next {
+                imageNavigationButton(
+                    systemName: "chevron.right",
+                    accessibilityLabel: "下一张图片",
+                    help: "下一张图片",
+                    action: viewModel.navigateToNext
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeInOut(duration: navigationFadeDuration), value: visibility)
+    }
+
+    private func imageNavigationButton(
+        systemName: String,
+        accessibilityLabel: String,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.96))
+                .frame(width: 40, height: 40)
+                .background(.black.opacity(0.46), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.24), lineWidth: 1))
+                .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 3)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .help(help)
+    }
+
+    @MainActor
+    private func presentNavigationDiscoveryIfNeeded() async {
+        guard !hasPresentedNavigationDiscovery else { return }
+        hasPresentedNavigationDiscovery = true
+        revealsAvailableNavigationDirections = true
+
+        try? await Task.sleep(for: .seconds(navigationDiscoveryDuration))
+        guard !Task.isCancelled else { return }
+
+        withAnimation(.easeInOut(duration: navigationFadeDuration)) {
+            revealsAvailableNavigationDirections = false
         }
     }
 }

@@ -117,6 +117,40 @@ final class ViewerWindowTests: XCTestCase {
         XCTAssertFalse(view.debugShouldToggleDesktopFillOnMouseDown(clickCount: 1, at: CGPoint(x: 320, y: 410)))
     }
 
+    func testNormalWindowUsesCurrentFrameForPersistence() {
+        let window = ViewerWindow(
+            contentRect: NSRect(x: 100, y: 80, width: 800, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+
+        XCTAssertEqual(window.persistableFrame, window.frame)
+    }
+
+    func testNativeFullScreenTransitionUsesCapturedFrameForPersistence() {
+        let window = ViewerWindow(
+            contentRect: NSRect(x: 100, y: 80, width: 800, height: 600),
+            styleMask: [.borderless, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        let originalFrame = window.frame
+
+        window.prepareStyleMaskForNativeFullScreen()
+        window.setFrame(NSRect(x: 0, y: 0, width: 1440, height: 900), display: false)
+
+        XCTAssertEqual(window.persistableFrame, originalFrame)
+    }
+
+    func testFullScreenWithoutSnapshotHasNoPersistableFrame() {
+        XCTAssertNil(ViewerWindow.persistableFrame(
+            currentFrame: NSRect(x: 0, y: 0, width: 1440, height: 900),
+            capturedFrame: nil,
+            isFullScreen: true
+        ))
+    }
+
     func testHiddenTitleBarExitRestoresOriginalFrame() {
         assertNativeFullScreenExit(
             entryMask: [.borderless, .resizable, .fullSizeContentView],
@@ -156,6 +190,10 @@ final class ViewerWindowTests: XCTestCase {
         XCTAssertEqual(window.styleMask, originalMask)
         XCTAssertEqual(window.frame, originalFrame)
 
+        let normalFrameAfterCleanup = NSRect(x: 180, y: 140, width: 720, height: 480)
+        window.setFrame(normalFrameAfterCleanup, display: false)
+        XCTAssertEqual(window.persistableFrame, normalFrameAfterCleanup)
+
         window.styleMask = [.titled, .resizable]
         window.restoreStyleMaskAfterFailedFullScreenEntry()
         XCTAssertEqual(window.styleMask, [.titled, .resizable])
@@ -172,6 +210,11 @@ final class ViewerWindowTests: XCTestCase {
 
         window.prepareStyleMaskForNativeFullScreen()
         XCTAssertTrue(window.completeNativeFullScreenExit(restoring: originalMask))
+
+        let normalFrameAfterCleanup = NSRect(x: 180, y: 140, width: 720, height: 480)
+        window.setFrame(normalFrameAfterCleanup, display: false)
+        XCTAssertEqual(window.persistableFrame, normalFrameAfterCleanup)
+
         window.styleMask = [.titled, .resizable]
         window.restoreStyleMaskAfterFailedFullScreenEntry()
 

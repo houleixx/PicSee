@@ -14,6 +14,25 @@ final class ViewerWindow: NSWindow {
     var onWillEnterTemporaryDesktopFullScreen: ((NSRect) -> Void)?
     private var nativeFullScreenSnapshot: NativeFullScreenSnapshot?
 
+    var persistableFrame: NSRect? {
+        Self.persistableFrame(
+            currentFrame: frame,
+            capturedFrame: nativeFullScreenSnapshot?.frame,
+            isFullScreen: styleMask.contains(.fullScreen)
+        )
+    }
+
+    static func persistableFrame(
+        currentFrame: NSRect,
+        capturedFrame: NSRect?,
+        isFullScreen: Bool
+    ) -> NSRect? {
+        if let capturedFrame {
+            return capturedFrame
+        }
+        return isFullScreen ? nil : currentFrame
+    }
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
@@ -205,27 +224,13 @@ final class WindowManager {
         installKeyboardMonitor(for: viewModel)
 
         let delegate = WindowDelegate(
-            onFrameChanged: { [weak window] in
-                guard let window else { return }
-                guard !window.styleMask.contains(.fullScreen) else { return }
-                WindowFramePreference.save(window.frame)
-                if WindowFramePreference.isFixedEnabled() {
-                    WindowFramePreference.saveFixedFrame(window.frame)
-                }
+            onFrameChanged: { [weak self, weak window] in
+                guard let self, let window else { return }
+                self.saveWindowFrame(window)
             },
             onClose: { [weak self, weak window] in
-                if let window {
-                    if let preFrame = window.preFullScreenFrame {
-                        WindowFramePreference.save(preFrame)
-                        if WindowFramePreference.isFixedEnabled() {
-                            WindowFramePreference.saveFixedFrame(preFrame)
-                        }
-                    } else if !window.styleMask.contains(.fullScreen) {
-                        WindowFramePreference.save(window.frame)
-                        if WindowFramePreference.isFixedEnabled() {
-                            WindowFramePreference.saveFixedFrame(window.frame)
-                        }
-                    }
+                if let self, let window {
+                    self.saveWindowFrame(window)
                 }
                 self?.titleObserver = nil
                 if let monitor = self?.keyEventMonitor {
@@ -272,6 +277,14 @@ final class WindowManager {
             fitting: screenFrame,
             minimumSize: minimumWindowSize
         )
+    }
+
+    private func saveWindowFrame(_ window: ViewerWindow) {
+        guard let frame = window.persistableFrame else { return }
+        WindowFramePreference.save(frame)
+        if WindowFramePreference.isFixedEnabled() {
+            WindowFramePreference.saveFixedFrame(frame)
+        }
     }
 
     private static var delegateAssociationKey: UInt8 = 0

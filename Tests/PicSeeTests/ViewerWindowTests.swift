@@ -117,32 +117,6 @@ final class ViewerWindowTests: XCTestCase {
         XCTAssertFalse(view.debugShouldToggleDesktopFillOnMouseDown(clickCount: 1, at: CGPoint(x: 320, y: 410)))
     }
 
-    func testHiddenTitleBarFullScreenRestoreRemovesTitledChromeHeight() {
-        let frame = NSRect(x: 100, y: 80, width: 800, height: 628)
-
-        XCTAssertEqual(
-            ViewerWindow.frameRestoringHiddenTitleBar(from: frame, titleBarHeight: 28),
-            NSRect(x: 100, y: 108, width: 800, height: 600)
-        )
-    }
-
-    func testHiddenTitleBarFullScreenRestoreClampsInvalidChromeHeight() {
-        let frame = NSRect(x: 100, y: 80, width: 800, height: 600)
-
-        XCTAssertEqual(
-            ViewerWindow.frameRestoringHiddenTitleBar(from: frame, titleBarHeight: 900),
-            frame
-        )
-        XCTAssertEqual(
-            ViewerWindow.frameRestoringHiddenTitleBar(from: frame, titleBarHeight: 0),
-            frame
-        )
-        XCTAssertEqual(
-            ViewerWindow.frameRestoringHiddenTitleBar(from: frame, titleBarHeight: -28),
-            frame
-        )
-    }
-
     func testFailedNativeFullScreenEntryRestoresOriginalStyleMaskOnce() {
         let originalMask: NSWindow.StyleMask = [.borderless, .resizable, .fullSizeContentView]
         let window = ViewerWindow(

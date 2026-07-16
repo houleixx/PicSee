@@ -7,7 +7,8 @@ final class ViewerWindow: NSWindow {
     private var restoreFrameAfterTemporaryDesktopFullScreen: NSRect?
     var fallbackFrameForTemporaryDesktopFullScreen: NSRect?
     var onWillEnterTemporaryDesktopFullScreen: ((NSRect) -> Void)?
-    private var fullScreenPreMask: NSWindow.StyleMask?
+    var fullScreenPreMask: NSWindow.StyleMask?
+    var preFullScreenFrame: NSRect?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -33,6 +34,7 @@ final class ViewerWindow: NSWindow {
     func prepareStyleMaskForNativeFullScreen() {
         guard fullScreenPreMask == nil else { return }
         fullScreenPreMask = styleMask
+        preFullScreenFrame = frame
         styleMask = [.titled, .closable, .miniaturizable, .resizable]
     }
 
@@ -40,6 +42,7 @@ final class ViewerWindow: NSWindow {
         guard let fullScreenPreMask else { return }
         styleMask = fullScreenPreMask
         self.fullScreenPreMask = nil
+        preFullScreenFrame = nil
     }
 
     func completeNativeFullScreenExit() {
@@ -81,16 +84,6 @@ final class ViewerWindow: NSWindow {
         fixedRestoreFrame: NSRect?
     ) -> NSRect {
         fixedRestoreFrame ?? suitableFrame
-    }
-
-    static func frameRestoringHiddenTitleBar(from frame: NSRect, titleBarHeight: CGFloat) -> NSRect {
-        guard titleBarHeight > 0, titleBarHeight < frame.height else { return frame }
-        return NSRect(
-            x: frame.minX,
-            y: frame.minY + titleBarHeight,
-            width: frame.width,
-            height: frame.height - titleBarHeight
-        )
     }
 
     func isTitleBarPoint(_ point: NSPoint) -> Bool {
@@ -327,24 +320,25 @@ final class WindowManager {
 
     private func restoreStyleMaskAfterFullScreen(to window: NSWindow) {
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
-        let frame = window.frame
-        let titledContentRect = window.contentRect(forFrameRect: frame)
-        let titleBarHeight = max(0, frame.height - titledContentRect.height)
-        window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
-        if !titleBarVisible {
-            window.setFrame(
-                ViewerWindow.frameRestoringHiddenTitleBar(
-                    from: frame,
-                    titleBarHeight: titleBarHeight
-                ),
-                display: true
-            )
-        } else {
+        guard let viewerWindow = window as? ViewerWindow,
+              let originalFrame = viewerWindow.preFullScreenFrame,
+              viewerWindow.fullScreenPreMask != nil
+        else {
+            let frame = window.frame
+            window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
             window.setFrame(frame, display: true)
+            applyWindowShape(to: window, titleBarVisible: titleBarVisible)
+            applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
+            (window as? ViewerWindow)?.completeNativeFullScreenExit()
+            return
         }
+
+        window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
+        window.setFrame(originalFrame, display: true)
         applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
-        (window as? ViewerWindow)?.completeNativeFullScreenExit()
+        viewerWindow.completeNativeFullScreenExit()
+        viewerWindow.preFullScreenFrame = nil
     }
 
     private func installKeyboardMonitor(for viewModel: ImageViewerViewModel) {

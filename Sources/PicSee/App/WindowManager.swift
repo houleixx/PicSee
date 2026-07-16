@@ -206,12 +206,26 @@ final class WindowManager {
         let delegate = WindowDelegate(
             onFrameChanged: { [weak window] in
                 guard let window else { return }
+                guard !window.styleMask.contains(.fullScreen) else { return }
                 WindowFramePreference.save(window.frame)
                 if WindowFramePreference.isFixedEnabled() {
                     WindowFramePreference.saveFixedFrame(window.frame)
                 }
             },
-            onClose: { [weak self] in
+            onClose: { [weak self, weak window] in
+                if let window {
+                    if let preFrame = window.preFullScreenFrame {
+                        WindowFramePreference.save(preFrame)
+                        if WindowFramePreference.isFixedEnabled() {
+                            WindowFramePreference.saveFixedFrame(preFrame)
+                        }
+                    } else if !window.styleMask.contains(.fullScreen) {
+                        WindowFramePreference.save(window.frame)
+                        if WindowFramePreference.isFixedEnabled() {
+                            WindowFramePreference.saveFixedFrame(window.frame)
+                        }
+                    }
+                }
                 self?.titleObserver = nil
                 if let monitor = self?.keyEventMonitor {
                     NSEvent.removeMonitor(monitor)

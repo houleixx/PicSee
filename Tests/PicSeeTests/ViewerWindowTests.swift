@@ -117,6 +117,27 @@ final class ViewerWindowTests: XCTestCase {
         XCTAssertFalse(view.debugShouldToggleDesktopFillOnMouseDown(clickCount: 1, at: CGPoint(x: 320, y: 410)))
     }
 
+    func testHiddenTitleBarExitRestoresOriginalFrame() {
+        assertNativeFullScreenExit(
+            entryMask: [.borderless, .resizable, .fullSizeContentView],
+            exitMask: [.borderless, .resizable, .fullSizeContentView]
+        )
+    }
+
+    func testChangingFromHiddenToVisibleTitleBarInFullScreenRestoresOriginalFrame() {
+        assertNativeFullScreenExit(
+            entryMask: [.borderless, .resizable, .fullSizeContentView],
+            exitMask: [.titled, .closable, .miniaturizable, .resizable]
+        )
+    }
+
+    func testChangingFromVisibleToHiddenTitleBarInFullScreenRestoresOriginalFrame() {
+        assertNativeFullScreenExit(
+            entryMask: [.titled, .closable, .miniaturizable, .resizable],
+            exitMask: [.borderless, .resizable, .fullSizeContentView]
+        )
+    }
+
     func testFailedNativeFullScreenEntryRestoresOriginalStyleMaskOnce() {
         let originalMask: NSWindow.StyleMask = [.borderless, .resizable, .fullSizeContentView]
         let window = ViewerWindow(
@@ -125,12 +146,15 @@ final class ViewerWindowTests: XCTestCase {
             backing: .buffered,
             defer: false
         )
+        let originalFrame = window.frame
 
         window.prepareStyleMaskForNativeFullScreen()
         XCTAssertTrue(window.styleMask.contains(.titled))
+        window.setFrame(NSRect(x: 0, y: 0, width: 1440, height: 900), display: false)
 
         window.restoreStyleMaskAfterFailedFullScreenEntry()
         XCTAssertEqual(window.styleMask, originalMask)
+        XCTAssertEqual(window.frame, originalFrame)
 
         window.styleMask = [.titled, .resizable]
         window.restoreStyleMaskAfterFailedFullScreenEntry()
@@ -147,7 +171,7 @@ final class ViewerWindowTests: XCTestCase {
         )
 
         window.prepareStyleMaskForNativeFullScreen()
-        window.completeNativeFullScreenExit()
+        XCTAssertTrue(window.completeNativeFullScreenExit(restoring: originalMask))
         window.styleMask = [.titled, .resizable]
         window.restoreStyleMaskAfterFailedFullScreenEntry()
 
@@ -162,11 +186,48 @@ final class ViewerWindowTests: XCTestCase {
             backing: .buffered,
             defer: false
         )
+        let originalFrame = window.frame
 
         window.prepareStyleMaskForNativeFullScreen()
+        window.setFrame(NSRect(x: 0, y: 0, width: 1440, height: 900), display: false)
         window.prepareStyleMaskForNativeFullScreen()
         window.restoreStyleMaskAfterFailedFullScreenEntry()
 
         XCTAssertEqual(window.styleMask, originalMask)
+        XCTAssertEqual(window.frame, originalFrame)
+    }
+
+    private func assertNativeFullScreenExit(
+        entryMask: NSWindow.StyleMask,
+        exitMask: NSWindow.StyleMask,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let window = ViewerWindow(
+            contentRect: NSRect(x: 100, y: 80, width: 800, height: 600),
+            styleMask: entryMask,
+            backing: .buffered,
+            defer: false
+        )
+        let originalFrame = window.frame
+
+        window.prepareStyleMaskForNativeFullScreen()
+        window.setFrame(NSRect(x: 0, y: 0, width: 1440, height: 900), display: false)
+
+        XCTAssertTrue(
+            window.completeNativeFullScreenExit(restoring: exitMask),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(window.frame, originalFrame, file: file, line: line)
+        XCTAssertEqual(window.styleMask, exitMask, file: file, line: line)
+
+        let frameAfterExit = window.frame
+        XCTAssertFalse(
+            window.completeNativeFullScreenExit(restoring: entryMask),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(window.frame, frameAfterExit, file: file, line: line)
     }
 }

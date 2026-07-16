@@ -4,11 +4,15 @@ import ObjectiveC
 import SwiftUI
 
 final class ViewerWindow: NSWindow {
+    private struct NativeFullScreenSnapshot {
+        let styleMask: NSWindow.StyleMask
+        let frame: NSRect
+    }
+
     private var restoreFrameAfterTemporaryDesktopFullScreen: NSRect?
     var fallbackFrameForTemporaryDesktopFullScreen: NSRect?
     var onWillEnterTemporaryDesktopFullScreen: ((NSRect) -> Void)?
-    var fullScreenPreMask: NSWindow.StyleMask?
-    var preFullScreenFrame: NSRect?
+    private var nativeFullScreenSnapshot: NativeFullScreenSnapshot?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -26,27 +30,31 @@ final class ViewerWindow: NSWindow {
             super.toggleFullScreen(sender)
             return
         }
-        guard fullScreenPreMask == nil else { return }
+        guard nativeFullScreenSnapshot == nil else { return }
         prepareStyleMaskForNativeFullScreen()
         super.toggleFullScreen(sender)
     }
 
     func prepareStyleMaskForNativeFullScreen() {
-        guard fullScreenPreMask == nil else { return }
-        fullScreenPreMask = styleMask
-        preFullScreenFrame = frame
+        guard nativeFullScreenSnapshot == nil else { return }
+        nativeFullScreenSnapshot = NativeFullScreenSnapshot(styleMask: styleMask, frame: frame)
         styleMask = [.titled, .closable, .miniaturizable, .resizable]
     }
 
     func restoreStyleMaskAfterFailedFullScreenEntry() {
-        guard let fullScreenPreMask else { return }
-        styleMask = fullScreenPreMask
-        self.fullScreenPreMask = nil
-        preFullScreenFrame = nil
+        guard let snapshot = nativeFullScreenSnapshot else { return }
+        styleMask = snapshot.styleMask
+        setFrame(snapshot.frame, display: true)
+        nativeFullScreenSnapshot = nil
     }
 
-    func completeNativeFullScreenExit() {
-        fullScreenPreMask = nil
+    @discardableResult
+    func completeNativeFullScreenExit(restoring styleMask: NSWindow.StyleMask) -> Bool {
+        guard let snapshot = nativeFullScreenSnapshot else { return false }
+        self.styleMask = styleMask
+        setFrame(snapshot.frame, display: true)
+        nativeFullScreenSnapshot = nil
+        return true
     }
 
     func toggleTemporaryDesktopFullScreen() {
@@ -320,25 +328,18 @@ final class WindowManager {
 
     private func restoreStyleMaskAfterFullScreen(to window: NSWindow) {
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
-        guard let viewerWindow = window as? ViewerWindow,
-              let originalFrame = viewerWindow.preFullScreenFrame,
-              viewerWindow.fullScreenPreMask != nil
-        else {
-            let frame = window.frame
-            window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
-            window.setFrame(frame, display: true)
-            applyWindowShape(to: window, titleBarVisible: titleBarVisible)
-            applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
-            (window as? ViewerWindow)?.completeNativeFullScreenExit()
-            return
+        let preferredStyleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
+        let fallbackFrame = window.frame
+        let restoredCapturedFrame = (window as? ViewerWindow)?
+            .completeNativeFullScreenExit(restoring: preferredStyleMask) ?? false
+
+        if !restoredCapturedFrame {
+            window.styleMask = preferredStyleMask
+            window.setFrame(fallbackFrame, display: true)
         }
 
-        window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
-        window.setFrame(originalFrame, display: true)
         applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
-        viewerWindow.completeNativeFullScreenExit()
-        viewerWindow.preFullScreenFrame = nil
     }
 
     private func installKeyboardMonitor(for viewModel: ImageViewerViewModel) {

@@ -243,4 +243,3 @@ Merge PR #4 using the repository-supported merge method, delete the remote featu
 Run: `swift test`
 
 Expected: the merged `master` passes the complete test suite with zero failures.
-

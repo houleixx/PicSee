@@ -771,9 +771,18 @@ final class CanvasNSView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        let isTrackpad = event.hasPreciseScrollingDeltas && (event.phase != [] || event.momentumPhase != [])
+        if isTrackpad, abs(zoomScale - 1) > 0.001 {
+            panOffset = constrainPan(
+                CGSize(width: panOffset.width + event.scrollingDeltaX, height: panOffset.height - event.scrollingDeltaY),
+                geometry: currentGeometry()
+            )
+            onPanChanged?(panOffset)
+            needsLayout = true
+            return
+        }
         let delta = event.scrollingDeltaY == 0 ? -event.scrollingDeltaX : event.scrollingDeltaY
         guard delta != 0 else { return }
-
         let step: CGFloat = event.hasPreciseScrollingDeltas ? 0.0018 : 0.018
         let multiplier = exp(abs(delta) * step)
         applyZoom(multiplier: delta > 0 ? multiplier : 1 / multiplier)

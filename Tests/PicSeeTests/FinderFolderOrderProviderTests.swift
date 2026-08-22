@@ -141,6 +141,80 @@ final class FinderFolderOrderProviderTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    func testVisibleFinderOrderWinsOverGlobalDateAddedPreference() async {
+        let folder = URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
+        let visibleOrder = ["1.png", "2.png", "3.png", "4.png"].map {
+            folder.appendingPathComponent($0).standardizedFileURL
+        }
+        let provider = FinderFolderOrderProvider(
+            scriptRunner: { _ in "DATE_ADDED_DESCENDING" },
+            visibleOrderReader: { _ in visibleOrder }
+        )
+
+        let result = await provider.orderedURLs(for: folder)
+
+        XCTAssertEqual(result, visibleOrder)
+    }
+
+    func testAccessibilityOrderMustCoverEveryDirectoryImage() {
+        let folder = URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
+        let one = folder.appendingPathComponent("1.png")
+        let two = folder.appendingPathComponent("2.png")
+
+        XCTAssertNil(
+            FinderAccessibilityTraversal.validatedCompleteOrder(
+                visibleURLs: [one],
+                directoryURLs: [one, two]
+            )
+        )
+        XCTAssertEqual(
+            FinderAccessibilityTraversal.validatedCompleteOrder(
+                visibleURLs: [two, one],
+                directoryURLs: [one, two]
+            ),
+            [two.standardizedFileURL, one.standardizedFileURL]
+        )
+    }
+
+    func testAccessibilityOrderUsesLaterCompleteCandidateAfterPartialCandidate() {
+        let folder = URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
+        let one = folder.appendingPathComponent("1.png")
+        let two = folder.appendingPathComponent("2.png")
+        let three = folder.appendingPathComponent("3.png")
+
+        let result = FinderAccessibilityTraversal.firstCompleteOrder(
+            candidates: [
+                [two],
+                [three, one, two]
+            ],
+            directoryURLs: [one, two, three]
+        )
+
+        XCTAssertEqual(
+            result,
+            [three, one, two].map(\.standardizedFileURL)
+        )
+    }
+
+    func testAccessibilityOrderRejectsDuplicateCandidateAndAllPartialCandidates() {
+        let folder = URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
+        let one = folder.appendingPathComponent("1.png")
+        let two = folder.appendingPathComponent("2.png")
+
+        XCTAssertNil(
+            FinderAccessibilityTraversal.validatedCompleteOrder(
+                visibleURLs: [one, one, two],
+                directoryURLs: [one, two]
+            )
+        )
+        XCTAssertNil(
+            FinderAccessibilityTraversal.firstCompleteOrder(
+                candidates: [[one], [two]],
+                directoryURLs: [one, two]
+            )
+        )
+    }
+
     func testGeneratedFinderScriptCompiles() throws {
         let source = FinderFolderOrderProvider.scriptSource(
             folderURL: URL(fileURLWithPath: "/tmp/photos", isDirectory: true)

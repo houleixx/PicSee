@@ -6,14 +6,11 @@ PicSee should navigate sibling images in the order currently displayed by the Fi
 
 ## Finder Order Snapshot
 
-When the viewer first opens, PicSee asks Finder for the frontmost open Finder window whose target is the image's parent folder. It reads that window's current view and ordering:
+When the viewer first opens, PicSee uses macOS Accessibility APIs to locate a Finder window whose target is the image's parent folder. It reads candidate item orders from Finder's navigation-order, children, and contents accessibility branches. Exact document URL matches are preferred; if Finder does not expose document URLs, all same-title window candidates are checked.
 
-- List view: active sort column and normal or reversed direction.
-- Icon view: arrangement property. For `not arranged` and `snap to grid`, order items by icon position from top to bottom and then left to right.
-- Column view: name order, because Finder column view does not expose a separate sort choice.
-- Gallery/group view or an unsupported Finder response: fall back to PicSee's localized natural filename order.
+Each candidate is filtered to supported image extensions, standardized, and deduplicated. PicSee accepts a candidate only when it contains every supported regular image currently in the directory exactly once. A partial accessibility result is never used because that could make images disappear from navigation. Candidate traversal has messaging, elapsed-time, and node-count limits so an unresponsive Finder cannot block image opening indefinitely.
 
-Finder supplies the sorted item URLs. PicSee filters that ordered list to supported image extensions, standardizes the URLs, removes duplicates, and records the current image index. The resulting list is a session snapshot: Finder window closure, Finder sort changes, and newly added files do not reorder the active viewer.
+The accepted list is a session snapshot: Finder window closure, Finder sort changes, and newly added files do not reorder the active viewer. If no complete candidate is available, PicSee falls back to localized natural filename order.
 
 ## Deleted Files
 
@@ -28,17 +25,17 @@ The snapshot order is stable, but its membership is pruned lazily:
 
 ## Permissions and Fallback
 
-Reading Finder state uses Apple Events. The app bundle declares `NSAppleEventsUsageDescription` and the hardened-runtime entitlement `com.apple.security.automation.apple-events`.
+Reading Finder's displayed order requires Accessibility permission. PicSee requests the system prompt at most once, provides a shortcut to the Accessibility privacy pane in settings, and shows whether access is enabled. The app does not request Apple Events automation permission.
 
-Finder access is best-effort. If the user denies access, no matching Finder window exists, the script fails, or the returned order omits the current image, PicSee falls back to its existing localized natural filename order. Image viewing must never wait on a permission retry loop or fail solely because Finder ordering is unavailable.
+Finder access is best-effort. If the user denies access, no matching Finder window exists, traversal reaches its budget, or every returned order is incomplete, PicSee falls back to its existing localized natural filename order. Image viewing must never wait on a permission retry loop or fail solely because Finder ordering is unavailable.
 
 ## Components
 
-- `FinderFolderOrderProvider` owns the read-only Finder AppleScript and returns an ordered URL snapshot or `nil`.
+- `FinderFolderOrderProvider` reads Finder's accessibility tree and returns a complete ordered URL snapshot or `nil`.
 - `FolderImageNavigator` accepts a preferred ordered URL list, filters it, finds the current index, and mutably prunes missing neighbors.
 - `ImageViewerViewModel` asks for Finder order only for the first image in a viewer session, retains one navigator across navigation, and retries past files deleted during navigation.
-- `Scripts/build-app.sh` embeds the usage description and signs with the Apple Events entitlement.
+- `AccessibilityPermissionSettings` owns the one-time prompt preference, status text, and System Settings shortcut.
 
 ## Testing
 
-Unit tests cover preferred Finder order, fallback order, current index, duplicate and unsupported entries, deleted previous/next candidates, deletion of the current file, and deleted-file races during navigation. Script-source tests cover every Finder view/sort mode without requiring live Finder automation. Build-script tests cover the usage description and entitlement. The full Swift test suite and app build remain required.
+Unit tests cover preferred Finder order, fallback order, current index, duplicate and unsupported entries, complete-candidate selection, permission prompt state, deleted previous/next candidates, deletion of the current file, and deleted-file races during navigation. The full Swift test suite and app build remain required; live Finder accessibility behavior remains an integration check.

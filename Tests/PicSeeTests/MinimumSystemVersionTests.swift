@@ -35,20 +35,18 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(script.contains("CODESIGN_TIMESTAMP_ARGS=(--timestamp)"))
     }
 
-    func testBuildScriptDeclaresFinderAutomationUsageDescription() throws {
+    func testBuildScriptDoesNotDeclareUnusedFinderAutomationUsage() throws {
         let script = try repositoryFile("Scripts/build-app.sh")
 
-        XCTAssertTrue(script.contains("<key>NSAppleEventsUsageDescription</key>"))
-        XCTAssertTrue(script.contains("读取 Finder 当前的图片排序方式"))
+        XCTAssertFalse(script.contains("<key>NSAppleEventsUsageDescription</key>"))
     }
 
-    func testBuildScriptSignsWithFinderAutomationEntitlement() throws {
+    func testBuildScriptDoesNotSignWithUnusedFinderAutomationEntitlement() throws {
         let script = try repositoryFile("Scripts/build-app.sh")
         let entitlements = try repositoryFile("Resources/PicSee.entitlements")
 
         XCTAssertTrue(script.contains("--entitlements \"$ENTITLEMENTS_FILE\""))
-        XCTAssertTrue(entitlements.contains("<key>com.apple.security.automation.apple-events</key>"))
-        XCTAssertTrue(entitlements.contains("<true/>"))
+        XCTAssertFalse(entitlements.contains("<key>com.apple.security.automation.apple-events</key>"))
     }
 
     func testReleaseWorkflowImportsCertificateAndNotarizesDmg() throws {

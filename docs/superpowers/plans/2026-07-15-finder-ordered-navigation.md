@@ -1,5 +1,7 @@
 # Finder-Ordered Image Navigation Implementation Plan
 
+> **Historical note (2026-08-22):** This plan records the original Apple Events implementation. Production now reads Finder's Accessibility tree, accepts only complete directory orders, and falls back to localized natural filename sorting. The app no longer declares Finder automation usage or the Apple Events entitlement. See the companion design document for the current behavior.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Navigate sibling images using a stable snapshot of the matching Finder window's current order while pruning files deleted during browsing.

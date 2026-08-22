@@ -104,8 +104,6 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>PicSee 需要读取 Finder 当前的图片排序方式，以便按相同顺序切换上一张和下一张图片。</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

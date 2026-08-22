@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 
 protocol FinderFolderOrderProviding: Sendable {
@@ -20,14 +21,30 @@ struct FilenameFolderOrderProvider: FinderFolderOrderProviding {
 
 struct FinderFolderOrderProvider: FinderFolderOrderProviding {
     typealias ScriptRunner = @Sendable (String) -> String?
+    typealias VisibleOrderReader = @Sendable (URL) -> [URL]?
 
     private let scriptRunner: ScriptRunner
+    private let visibleOrderReader: VisibleOrderReader
+    private let usesAccessibilityOrder: Bool
 
-    init(scriptRunner: ScriptRunner? = nil) {
+    init(
+        scriptRunner: ScriptRunner? = nil,
+        visibleOrderReader: VisibleOrderReader? = nil
+    ) {
         self.scriptRunner = scriptRunner ?? Self.execute
+        self.visibleOrderReader = visibleOrderReader ?? FinderVisibleOrderProvider.orderedURLs
+        self.usesAccessibilityOrder = scriptRunner == nil || visibleOrderReader != nil
     }
 
     func orderedURLs(for folderURL: URL) async -> [URL]? {
+        if usesAccessibilityOrder {
+            // Finder does not expose a column-view sort property through
+            // AppleScript. Reading its global preferences can therefore disagree
+            // with the order visible in this particular Finder window. Read the
+            // accessible UI tree instead, which preserves the displayed order.
+            return visibleOrderReader(folderURL)
+        }
+
         guard let output = scriptRunner(Self.scriptSource(folderURL: folderURL)) else {
             return nil
         }
@@ -248,6 +265,253 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
         string
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+}
+
+enum FinderAccessibilityTraversal {
+    static func validatedCompleteOrder(
+        visibleURLs: [URL],
+        directoryURLs: [URL]
+    ) -> [URL]? {
+        let visibleOrder = visibleURLs.map(\.standardizedFileURL)
+        let expectedURLs = Set(directoryURLs.map(\.standardizedFileURL))
+        guard
+            !visibleOrder.isEmpty,
+            visibleOrder.count == expectedURLs.count,
+            Set(visibleOrder) == expectedURLs
+        else {
+            return nil
+        }
+        return visibleOrder
+    }
+
+    static func firstCompleteOrder(
+        candidates: [[URL]],
+        directoryURLs: [URL]
+    ) -> [URL]? {
+        candidates.lazy.compactMap {
+            validatedCompleteOrder(visibleURLs: $0, directoryURLs: directoryURLs)
+        }.first
+    }
+}
+
+private enum FinderVisibleOrderProvider {
+    private static let messagingTimeout: Float = 0.25
+    private static let traversalTimeout: CFTimeInterval = 0.8
+    private static let maximumVisitedNodes = 10_000
+    private static let childAttributeOrders = [
+        ["AXChildrenInNavigationOrder", kAXChildrenAttribute, "AXContents"],
+        [kAXChildrenAttribute, "AXChildrenInNavigationOrder", "AXContents"],
+        ["AXContents", "AXChildrenInNavigationOrder", kAXChildrenAttribute]
+    ]
+
+    static func orderedURLs(for folderURL: URL) -> [URL]? {
+        guard isAccessibilityTrusted() else {
+            return nil
+        }
+        guard
+              let finder = NSRunningApplication.runningApplications(
+                withBundleIdentifier: "com.apple.finder"
+              ).first
+        else {
+            return nil
+        }
+
+        let targetFolder = folderURL.standardizedFileURL
+        guard let directoryURLs = supportedImageURLs(in: targetFolder) else {
+            return nil
+        }
+
+        let application = AXUIElementCreateApplication(finder.processIdentifier)
+        AXUIElementSetMessagingTimeout(application, messagingTimeout)
+        let deadline = CFAbsoluteTimeGetCurrent() + traversalTimeout
+        guard
+            let windows = attribute(
+                kAXWindowsAttribute,
+                of: application,
+                before: deadline
+            ) as? [AXUIElement]
+        else {
+            return nil
+        }
+        let candidateWindows = matchingWindows(
+            from: windows,
+            targetFolder: targetFolder,
+            deadline: deadline
+        )
+        guard !candidateWindows.isEmpty else {
+            return nil
+        }
+
+        var candidates: [[URL]] = []
+        for window in candidateWindows {
+            for childAttributeOrder in childAttributeOrders {
+                guard CFAbsoluteTimeGetCurrent() < deadline else { break }
+
+                var urls: [URL] = []
+                var visited: Set<UnsafeRawPointer> = []
+                collectURLs(
+                    in: window,
+                    containedIn: targetFolder,
+                    childAttributeOrder: childAttributeOrder,
+                    deadline: deadline,
+                    visited: &visited,
+                    into: &urls
+                )
+
+                var seen: Set<URL> = []
+                let candidate = urls.filter {
+                    FolderImageNavigator.isSupportedImage($0) && seen.insert($0).inserted
+                }
+                candidates.append(candidate)
+                if let completeOrder = FinderAccessibilityTraversal.firstCompleteOrder(
+                    candidates: candidates,
+                    directoryURLs: directoryURLs
+                ) {
+                    return completeOrder
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func isAccessibilityTrusted() -> Bool {
+        AXIsProcessTrusted()
+    }
+
+    private static func matchingWindows(
+        from windows: [AXUIElement],
+        targetFolder: URL,
+        deadline: CFAbsoluteTime
+    ) -> [AXUIElement] {
+        var exactMatches: [AXUIElement] = []
+        var titleMatches: [AXUIElement] = []
+
+        for window in windows {
+            guard CFAbsoluteTimeGetCurrent() < deadline else { break }
+
+            if url(from: attribute(
+                kAXDocumentAttribute,
+                of: window,
+                before: deadline
+            ))?.standardizedFileURL == targetFolder {
+                exactMatches.append(window)
+            } else if attribute(
+                kAXTitleAttribute,
+                of: window,
+                before: deadline
+            ) as? String == targetFolder.lastPathComponent {
+                titleMatches.append(window)
+            }
+        }
+
+        return exactMatches.isEmpty ? titleMatches : exactMatches
+    }
+
+    private static func collectURLs(
+        in element: AXUIElement,
+        containedIn folderURL: URL,
+        childAttributeOrder: [String],
+        deadline: CFAbsoluteTime,
+        visited: inout Set<UnsafeRawPointer>,
+        into urls: inout [URL]
+    ) {
+        guard
+            CFAbsoluteTimeGetCurrent() < deadline,
+            visited.count < maximumVisitedNodes
+        else {
+            return
+        }
+
+        let identity = Unmanaged.passUnretained(element).toOpaque()
+        guard visited.insert(UnsafeRawPointer(identity)).inserted else {
+            return
+        }
+
+        if let url = url(from: attribute(
+            kAXURLAttribute,
+            of: element,
+            before: deadline
+        ))?.standardizedFileURL,
+           url.deletingLastPathComponent() == folderURL {
+            urls.append(url)
+        }
+
+        for attributeName in childAttributeOrder {
+            guard
+                let group = attribute(
+                    attributeName,
+                    of: element,
+                    before: deadline
+                ) as? [AXUIElement],
+                !group.isEmpty
+            else {
+                continue
+            }
+
+            let urlCountBeforeTraversal = urls.count
+            for child in group {
+                collectURLs(
+                    in: child,
+                    containedIn: folderURL,
+                    childAttributeOrder: childAttributeOrder,
+                    deadline: deadline,
+                    visited: &visited,
+                    into: &urls
+                )
+            }
+            if urls.count > urlCountBeforeTraversal {
+                return
+            }
+        }
+    }
+
+    private static func supportedImageURLs(in folderURL: URL) -> [URL]? {
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        return urls.compactMap { url in
+            let standardizedURL = url.standardizedFileURL
+            guard
+                FolderImageNavigator.isSupportedImage(standardizedURL),
+                (try? standardizedURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            else {
+                return nil
+            }
+            return standardizedURL
+        }
+    }
+
+    private static func attribute(
+        _ name: String,
+        of element: AXUIElement,
+        before deadline: CFAbsoluteTime
+    ) -> AnyObject? {
+        guard CFAbsoluteTimeGetCurrent() < deadline else {
+            return nil
+        }
+
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
+            return nil
+        }
+        return value
+    }
+
+    private static func url(from value: AnyObject?) -> URL? {
+        if let url = value as? URL {
+            return url
+        }
+        if let string = value as? String {
+            return URL(string: string)
+        }
+        return nil
     }
 }
 

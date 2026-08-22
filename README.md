@@ -32,6 +32,7 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 - 鼠标移动到文字区域时显示 I 形光标，可拖选并复制图片中文字
 - `Cmd + C` 复制当前选中的图片文字
 - `← → ↑ ↓` 切换同目录图片
+- 开启辅助功能权限后，切图顺序跟随 Finder 当前显示顺序；读取不完整时安全回退到文件名顺序
 - 双击图片进入或退出 macOS 原生全屏
 - `Esc` 关闭当前图片并退出应用
 - 右键菜单支持复制图片路径、切换跟随系统 / 浅色 / 深色主题
@@ -70,7 +71,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.39 PICSEE_BUILD_NUMBER=39 Scripts/build-app.sh
+PICSEE_VERSION=0.2.40 PICSEE_BUILD_NUMBER=40 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -83,12 +84,12 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.39.dmg`
+- DMG: `build/dmg/PicSee-0.2.40.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.39 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.40 Scripts/build-dmg.sh
 ```
 
 ## 使用方式
@@ -137,14 +138,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.39
-git push origin v0.2.39
+git tag v0.2.40
+git push origin v0.2.40
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.39`
-- Asset: `PicSee-0.2.39.dmg`
+- Release: `v0.2.40`
+- Asset: `PicSee-0.2.40.dmg`
 
 ## Release 说明
 

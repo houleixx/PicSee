@@ -21,6 +21,62 @@ final class DefaultImageAppSettingsTests: XCTestCase {
         XCTAssertTrue(DefaultImageAppSettings.fallbackInstructions.contains("全部更改"))
     }
 
+    func testAccessibilityPermissionExplanationDescribesBehaviorAndFallback() {
+        XCTAssertEqual(
+            AccessibilityPermissionSettings.explanation,
+            "开启辅助功能权限，按 Finder 显示顺序预览图片。"
+        )
+    }
+
+    func testAccessibilityPermissionPresentationReflectsCurrentState() {
+        XCTAssertEqual(AccessibilityPermissionSettings.enabledStatus, "已经开启")
+        XCTAssertEqual(AccessibilityPermissionSettings.actionTitle, "去开启")
+    }
+
+    func testAccessibilityPermissionSettingsURLTargetsAccessibilityPrivacyPane() {
+        XCTAssertTrue(
+            AccessibilityPermissionSettings.systemSettingsURL.absoluteString.contains("Privacy_Accessibility")
+        )
+    }
+
+    func testAccessibilityPermissionPromptIsRequestedOnlyOnceWhenNotTrusted() {
+        let suiteName = "AccessibilityPermissionPromptTests.notTrusted"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertTrue(
+            AccessibilityPermissionPromptPreference.shouldRequestPermission(
+                isTrusted: false,
+                defaults: defaults
+            )
+        )
+        XCTAssertFalse(
+            AccessibilityPermissionPromptPreference.shouldRequestPermission(
+                isTrusted: false,
+                defaults: defaults
+            )
+        )
+    }
+
+    func testAccessibilityPermissionPromptIsConsumedWhenAlreadyTrusted() {
+        let suiteName = "AccessibilityPermissionPromptTests.trusted"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertFalse(
+            AccessibilityPermissionPromptPreference.shouldRequestPermission(
+                isTrusted: true,
+                defaults: defaults
+            )
+        )
+        XCTAssertFalse(
+            AccessibilityPermissionPromptPreference.shouldRequestPermission(
+                isTrusted: false,
+                defaults: defaults
+            )
+        )
+    }
+
     func testLaunchSettingsWindowOnlyForDirectLaunchWithoutOpenedImages() {
         XCTAssertTrue(
             DefaultImageAppSettings.shouldShowSettingsWindowAfterLaunch(

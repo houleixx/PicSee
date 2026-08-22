@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowManager = WindowManager()
+    private let accessibilityPermissionHandler = SystemAccessibilityPermissionHandler()
     private var didReceiveOpenRequest = false
     private var defaultImageAppSettingsWindowController: DefaultImageAppSettingsWindowController?
 
@@ -12,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         DispatchQueue.main.async { [weak self] in
+            self?.requestAccessibilityPermissionOnceIfNeeded()
             self?.showSettingsWindowAfterDirectLaunchIfNeeded()
         }
     }
@@ -96,5 +98,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         showDefaultImageAppSettings(nil)
+    }
+
+    private func requestAccessibilityPermissionOnceIfNeeded() {
+        guard AccessibilityPermissionPromptPreference.shouldRequestPermission(
+            isTrusted: accessibilityPermissionHandler.isTrusted
+        ) else {
+            return
+        }
+
+        accessibilityPermissionHandler.requestSystemPermissionPrompt()
     }
 }

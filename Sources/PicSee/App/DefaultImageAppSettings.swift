@@ -27,7 +27,7 @@ enum DefaultImageAppSettings {
         DefaultImageFormat(label: "RAW", contentType: "public.camera-raw-image", extensions: "dng, cr2, cr3, nef, arw, raf, rw2")
     ]
 
-    static let fallbackInstructions = "未列出的图片格式，可以在 Finder 中选择文件，打开“显示简介”，在“打开方式”中选择 PicSee，并点击“全部更改...”。"
+    static let fallbackInstructions = "其他格式可在 Finder 的“显示简介”→“打开方式”中选择 PicSee，并点“全部更改…”。"
 
     static func shouldShowSettingsWindowAfterLaunch(didReceiveOpenRequest: Bool, hasOpenViewer: Bool) -> Bool {
         !didReceiveOpenRequest && !hasOpenViewer

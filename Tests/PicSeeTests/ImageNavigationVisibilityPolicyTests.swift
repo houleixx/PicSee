@@ -2,6 +2,14 @@ import XCTest
 @testable import PicSee
 
 final class ImageNavigationVisibilityPolicyTests: XCTestCase {
+    func testImageParametersPanelCentersInUpperHalf() {
+        XCTAssertEqual(ImageParametersPanelLayout.verticalCenterFraction, 0.25)
+        XCTAssertEqual(ImageParametersPanelLayout.verticalOffset(viewerHeight: 800), -200)
+        XCTAssertEqual(ImageParametersPanelLayout.verticalOffset(viewerHeight: 320), -80)
+        XCTAssertEqual(ImageParametersPanelLayout.verticalOffset(viewerHeight: 0), 0)
+        XCTAssertEqual(ImageParametersPanelLayout.trailingPadding, 12)
+    }
+
     func testInitialRevealShowsEveryAvailableDirection() {
         XCTAssertEqual(
             visibility(pointerX: nil, revealsAvailableDirections: true),

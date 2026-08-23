@@ -13,7 +13,7 @@ struct ImageViewerView: View {
     @State private var fixedWindowEnabled = WindowFramePreference.isFixedEnabled()
     @State private var navigationPointerX: CGFloat?
     @State private var toolbarPointerY: CGFloat?
-    @State private var toolbarViewerHeight: CGFloat = 1
+    @State private var viewerHeight: CGFloat = 1
     @State private var revealsAvailableNavigationDirections = true
     @State private var hasPresentedNavigationDiscovery = false
     @State private var isFullScreen = false
@@ -25,8 +25,8 @@ struct ImageViewerView: View {
     private var toolbarEffectivelyVisible: Bool {
         guard toolbarVisible else { return false }
         guard isFullScreen else { return true }
-        guard let toolbarPointerY, toolbarViewerHeight > 0 else { return false }
-        let fraction = 1 - toolbarPointerY / toolbarViewerHeight
+        guard let toolbarPointerY, viewerHeight > 0 else { return false }
+        let fraction = 1 - toolbarPointerY / viewerHeight
         return fraction >= 0 && fraction <= toolbarEdgeFraction
     }
 
@@ -140,15 +140,23 @@ struct ImageViewerView: View {
                                 ViewerOverlayPreference.setImageParametersVisible(false)
                             }
                         )
-                            .padding(.trailing, hudPadding)
+                            .padding(
+                                .trailing,
+                                ImageParametersPanelLayout.trailingPadding
+                            )
+                            .offset(
+                                y: ImageParametersPanelLayout.verticalOffset(
+                                    viewerHeight: viewerHeight
+                                )
+                            )
                     }
                 }
                 .overlay {
                     GeometryReader { geometry in
                         imageNavigationControls(viewerWidth: geometry.size.width)
-                            .onAppear { toolbarViewerHeight = geometry.size.height }
+                            .onAppear { viewerHeight = geometry.size.height }
                             .onChange(of: geometry.size.height) { _, newValue in
-                                toolbarViewerHeight = newValue
+                                viewerHeight = newValue
                             }
                     }
                 }
@@ -304,6 +312,16 @@ struct ImageViewerView: View {
         }
     }
 
+}
+
+enum ImageParametersPanelLayout {
+    static let trailingPadding: CGFloat = 12
+    static let verticalCenterFraction: CGFloat = 0.25
+
+    static func verticalOffset(viewerHeight: CGFloat) -> CGFloat {
+        guard viewerHeight > 0 else { return 0 }
+        return -viewerHeight * (0.5 - verticalCenterFraction)
+    }
 }
 
 private struct ImageToolBar: View {

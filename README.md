@@ -71,7 +71,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.41 PICSEE_BUILD_NUMBER=41 Scripts/build-app.sh
+PICSEE_VERSION=0.2.42 PICSEE_BUILD_NUMBER=42 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -84,12 +84,12 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.41.dmg`
+- DMG: `build/dmg/PicSee-0.2.42.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.41 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.42 Scripts/build-dmg.sh
 ```
 
 ## 使用方式
@@ -150,14 +150,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.41
-git push origin v0.2.41
+git tag v0.2.42
+git push origin v0.2.42
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.41`
-- Asset: `PicSee-0.2.41.dmg`
+- Release: `v0.2.42`
+- Asset: `PicSee-0.2.42.dmg`
 
 ## Release 说明
 

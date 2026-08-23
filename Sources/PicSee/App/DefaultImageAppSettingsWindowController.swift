@@ -8,35 +8,27 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
     private static let optionLeadingInset: CGFloat = 15
 
     private let handler: DefaultImageAppHandling
-    private let accessibilityPermissionHandler: AccessibilityPermissionHandling
     private var checkboxes: [(format: DefaultImageFormat, button: NSButton)] = []
     private let statusLabel = NSTextField(labelWithString: "")
-    private let accessibilityEnabledLabel = NSTextField(labelWithString: AccessibilityPermissionSettings.enabledStatus)
-    private var accessibilitySettingsButton: NSButton!
 
-    init(
-        handler: DefaultImageAppHandling,
-        accessibilityPermissionHandler: AccessibilityPermissionHandling = SystemAccessibilityPermissionHandler()
-    ) {
+    init(handler: DefaultImageAppHandling) {
         self.handler = handler
-        self.accessibilityPermissionHandler = accessibilityPermissionHandler
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 590, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 590, height: 430),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.title = "设置默认图片打开方式"
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 570, height: 480)
+        window.minSize = NSSize(width: 570, height: 410)
         window.center()
 
         super.init(window: window)
 
         window.delegate = self
         window.contentView = buildContentView()
-        refreshAccessibilityPermissionStatus()
     }
 
     @available(*, unavailable)
@@ -45,7 +37,6 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
     }
 
     func show() {
-        refreshAccessibilityPermissionStatus()
         window?.center()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -65,11 +56,9 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
         let header = buildHeaderView()
         let settingsCard = buildSettingsCard()
-        let accessibilityCard = buildAccessibilityCard()
 
         stack.addArrangedSubview(header)
         stack.addArrangedSubview(settingsCard)
-        stack.addArrangedSubview(accessibilityCard)
 
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 28),
@@ -77,8 +66,7 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
             stack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 26),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -24),
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            settingsCard.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            accessibilityCard.widthAnchor.constraint(equalTo: stack.widthAnchor)
+            settingsCard.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
 
         return contentView
@@ -132,38 +120,10 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         cardContent.addArrangedSubview(buildFormatGridView())
         cardContent.addArrangedSubview(indentedView(buildFormatSelectionControlsView()))
         cardContent.addArrangedSubview(indentedView(buildTipView()))
+        cardContent.addArrangedSubview(buildSeparatorView())
+        cardContent.addArrangedSubview(indentedView(buildApplyControlsView()))
 
         return insetCard(cardContent, horizontal: 14, vertical: 14)
-    }
-
-    private func buildAccessibilityCard() -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 12
-
-        let explanation = wrappingLabel(AccessibilityPermissionSettings.explanation)
-        explanation.font = .systemFont(ofSize: 13)
-        explanation.alignment = .left
-
-        accessibilityEnabledLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        accessibilityEnabledLabel.textColor = .systemGreen
-        accessibilityEnabledLabel.setAccessibilityIdentifier("accessibility-permission-enabled")
-
-        accessibilitySettingsButton = NSButton(
-            title: AccessibilityPermissionSettings.actionTitle,
-            target: self,
-            action: #selector(openAccessibilitySettings(_:))
-        )
-        accessibilitySettingsButton.bezelStyle = .rounded
-        accessibilitySettingsButton.setAccessibilityIdentifier("open-accessibility-settings")
-
-        row.addArrangedSubview(explanation)
-        row.addArrangedSubview(flexibleSpacer())
-        row.addArrangedSubview(accessibilityEnabledLabel)
-        row.addArrangedSubview(accessibilitySettingsButton)
-
-        return insetCard(row, horizontal: 14, vertical: 12)
     }
 
     private func buildCardHeaderView(title: String = "常用图片格式") -> NSView {
@@ -256,9 +216,18 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         let clearButton = NSButton(title: "清除", target: self, action: #selector(clearSelectedFormats(_:)))
         clearButton.bezelStyle = .rounded
 
-        let applyButton = NSButton(title: "设为默认", target: self, action: #selector(applySelectedFormats(_:)))
-        applyButton.bezelStyle = .rounded
-        applyButton.keyEquivalent = "\r"
+        row.addArrangedSubview(selectAllButton)
+        row.addArrangedSubview(clearButton)
+        row.addArrangedSubview(flexibleSpacer())
+
+        return row
+    }
+
+    private func buildApplyControlsView() -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 12
 
         statusLabel.font = .systemFont(ofSize: 12)
         statusLabel.textColor = .secondaryLabelColor
@@ -266,13 +235,25 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         statusLabel.maximumNumberOfLines = 1
         statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        row.addArrangedSubview(selectAllButton)
-        row.addArrangedSubview(clearButton)
+        let applyButton = NSButton(
+            title: "设为默认",
+            target: self,
+            action: #selector(applySelectedFormats(_:))
+        )
+        applyButton.bezelStyle = .rounded
+        applyButton.keyEquivalent = "\r"
+        applyButton.setAccessibilityIdentifier("set-default-image-formats")
+
+        row.addArrangedSubview(applyButton)
         row.addArrangedSubview(flexibleSpacer())
         row.addArrangedSubview(statusLabel)
-        row.addArrangedSubview(applyButton)
-
         return row
+    }
+
+    private func buildSeparatorView() -> NSView {
+        let separator = NSBox()
+        separator.boxType = .separator
+        return separator
     }
 
     private func dottedExtensions(_ extensions: String) -> String {
@@ -365,20 +346,6 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return spacer
-    }
-
-    func windowDidBecomeKey(_ notification: Notification) {
-        refreshAccessibilityPermissionStatus()
-    }
-
-    private func refreshAccessibilityPermissionStatus() {
-        let isTrusted = accessibilityPermissionHandler.isTrusted
-        accessibilityEnabledLabel.isHidden = !isTrusted
-        accessibilitySettingsButton?.isHidden = isTrusted
-    }
-
-    @objc private func openAccessibilitySettings(_ sender: Any?) {
-        accessibilityPermissionHandler.openSystemSettings()
     }
 
     @objc private func selectAllFormats(_ sender: Any?) {

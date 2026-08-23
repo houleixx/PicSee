@@ -72,6 +72,39 @@ final class ImageViewerViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testNavigationRequestedBeforeFinderOrderLookupIsAppliedWhenReady() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let second = try writePNG(named: "002.png", color: .blue)
+        let provider = SlowFinderOrderProvider(delay: 0.2)
+        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+
+        viewModel.navigateToNext()
+        XCTAssertEqual(viewModel.currentURL, first.standardizedFileURL)
+
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertEqual(viewModel.currentURL, second.standardizedFileURL)
+    }
+
+    @MainActor
+    func testLateFinderOrderDoesNotReplaceFallbackAfterUserNavigates() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let second = try writePNG(named: "002.png", color: .blue)
+        let third = try writePNG(named: "003.png", color: .green)
+        let provider = DelayedImmediateOrderProvider(
+            delay: 0.2,
+            orderedURLs: [first, third, second]
+        )
+        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+
+        viewModel.navigateToNext()
+        XCTAssertEqual(viewModel.currentURL, second.standardizedFileURL)
+
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertEqual(viewModel.currentURL, second.standardizedFileURL)
+        XCTAssertEqual(viewModel.nextURL, third.standardizedFileURL)
+    }
+
+    @MainActor
     func testFinderOrderIsReadOnlyOnceAndRemainsStableForSession() async throws {
         let first = try writePNG(named: "001.png", color: .red)
         let second = try writePNG(named: "002.png", color: .blue)
@@ -395,5 +428,17 @@ private struct SlowFinderOrderProvider: FinderFolderOrderProviding {
     func orderedURLs(for folderURL: URL) async -> [URL]? {
         try? await Task.sleep(for: .seconds(delay))
         return nil
+    }
+}
+
+private struct DelayedImmediateOrderProvider: FinderFolderOrderProviding {
+    let delay: TimeInterval
+    let orderedURLs: [URL]
+
+    var isOrderingAvailableImmediately: Bool { true }
+
+    func orderedURLs(for folderURL: URL) async -> [URL]? {
+        try? await Task.sleep(for: .seconds(delay))
+        return orderedURLs
     }
 }

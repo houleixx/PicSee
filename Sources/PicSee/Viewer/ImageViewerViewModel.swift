@@ -23,6 +23,7 @@ final class ImageViewerViewModel: ObservableObject {
     @Published private var navigator: FolderImageNavigator?
     private let fileManager: FileManager
     private var finderOrderTask: Task<Void, Never>?
+    private var pendingNavigationDirections: [NavigationDirection] = []
     private var navigationRevision = 0
     private var nextZoomRequestID = 0
 
@@ -50,6 +51,7 @@ final class ImageViewerViewModel: ObservableObject {
             }
             self.establishNavigator(for: initialURL, preferredOrder: preferredOrder)
             self.isNavigationOrderReady = true
+            self.applyPendingNavigation()
         }
     }
 
@@ -98,19 +100,26 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func navigateToPrevious() {
-        guard isNavigationOrderReady else { return }
+        guard isNavigationOrderReady else {
+            pendingNavigationDirections.append(.previous)
+            return
+        }
         navigationRevision += 1
         navigateUsingSnapshot(direction: .previous)
     }
 
     func navigateToNext() {
-        guard isNavigationOrderReady else { return }
+        guard isNavigationOrderReady else {
+            pendingNavigationDirections.append(.next)
+            return
+        }
         navigationRevision += 1
         navigateUsingSnapshot(direction: .next)
     }
 
     func navigate(to url: URL) {
         navigationRevision += 1
+        pendingNavigationDirections.removeAll()
         isNavigationOrderReady = true
         let standardizedURL = url.standardizedFileURL
         if navigator?.images.contains(standardizedURL) != true {
@@ -182,6 +191,15 @@ final class ImageViewerViewModel: ObservableObject {
             }
             guard !fileManager.fileExists(atPath: candidate.path) else { return }
             navigator?.removeFromSnapshot(candidate)
+        }
+    }
+
+    private func applyPendingNavigation() {
+        let directions = pendingNavigationDirections
+        pendingNavigationDirections.removeAll()
+        for direction in directions {
+            navigationRevision += 1
+            navigateUsingSnapshot(direction: direction)
         }
     }
 

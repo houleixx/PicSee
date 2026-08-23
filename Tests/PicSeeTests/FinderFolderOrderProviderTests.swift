@@ -3,24 +3,20 @@ import XCTest
 @testable import PicSee
 
 final class FinderFolderOrderProviderTests: XCTestCase {
-    func testScriptMatchesTheRequestedFolderAndEscapesAppleScriptText() {
+    func testScriptMatchesRequestedFolderAndEscapesAppleScriptText() {
         let folderURL = URL(fileURLWithPath: "/tmp/a \"quoted\" folder", isDirectory: true)
 
         let source = FinderFolderOrderProvider.scriptSource(folderURL: folderURL)
 
         XCTAssertTrue(source.contains("URL of target of finderWindow"))
         XCTAssertTrue(source.contains("set finderWindowCount to count of Finder windows"))
-        XCTAssertTrue(source.contains("set finderWindow to Finder window finderWindowIndex"))
-        XCTAssertFalse(source.contains("repeat with finderWindow in Finder windows"))
-        XCTAssertTrue(source.contains("SCRIPT_ERROR"))
         XCTAssertTrue(source.contains("file:///tmp/a%20%22quoted%22%20folder/"))
+        XCTAssertTrue(source.contains("SCRIPT_ERROR"))
         XCTAssertFalse(source.contains("set requestedFolderURL to \"file:///tmp/a%20\"quoted\""))
     }
 
-    func testScriptCoversFinderListSortColumnsAndDirection() {
-        let source = FinderFolderOrderProvider.scriptSource(
-            folderURL: URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
-        )
+    func testScriptUsesExactFinderOrderForListView() {
+        let source = scriptSource()
 
         for token in [
             "sort column of list view options",
@@ -29,199 +25,158 @@ final class FinderFolderOrderProviderTests: XCTestCase {
             "creation date column",
             "size column",
             "kind column",
-            "label column",
-            "version column",
-            "comment column",
             "sort direction of activeColumn",
-            "reversed"
+            "return my encodeOrdered(orderedItems)"
         ] {
-            XCTAssertTrue(source.contains(token), "Missing Finder list sorting token: \(token)")
+            XCTAssertTrue(source.contains(token), "Missing list-view token: \(token)")
         }
     }
 
-    func testScriptCoversIconPositionAndColumnViewOrdering() {
-        let source = FinderFolderOrderProvider.scriptSource(
-            folderURL: URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
-        )
+    func testScriptUsesExactPositionsForManualIconView() {
+        let source = scriptSource()
 
-        for token in [
-            "arrangement of icon view options",
-            "not arranged",
-            "snap to grid",
-            "position of folderItem",
-            "current view of finderWindow is column view",
-            "sort folderItems by name"
-        ] {
-            XCTAssertTrue(source.contains(token), "Missing Finder view token: \(token)")
-        }
+        XCTAssertTrue(source.contains("arrangement of icon view options"))
+        XCTAssertTrue(source.contains("not arranged"))
+        XCTAssertTrue(source.contains("snap to grid"))
+        XCTAssertTrue(source.contains("position of folderItem"))
+        XCTAssertFalse(source.contains("iconArrangement is arranged by name"))
+        XCTAssertFalse(source.contains("iconArrangement is arranged by size"))
     }
 
-    func testColumnViewReadsFinderDateAddedArrangement() {
-        let source = FinderFolderOrderProvider.scriptSource(
-            folderURL: URL(fileURLWithPath: "/Users/holly/Downloads", isDirectory: true)
-        )
+    func testColumnAndGroupedViewsUseDefaultFallbackWithoutChangingFinderSelection() {
+        let source = scriptSource()
 
-        XCTAssertTrue(source.contains("defaults read com.apple.finder FK_ArrangeBy"))
-        XCTAssertTrue(source.contains("Date Added"))
-        XCTAssertTrue(source.contains("DATE_ADDED_DESCENDING"))
+        XCTAssertTrue(source.contains("else if viewMode is column view or viewMode is group view then"))
+        XCTAssertTrue(source.contains("return \"\""))
+        XCTAssertFalse(source.contains("set savedSelection to selection"))
+        XCTAssertFalse(source.contains("set selection to folderItems"))
+        XCTAssertFalse(source.contains("\"None\" & tab & \"Name\""))
+        XCTAssertFalse(source.contains("defaults read com.apple.finder"))
+        XCTAssertFalse(source.contains("FXPreferredGroupBy"))
+        XCTAssertFalse(source.contains("FXArrangeGroupViewBy"))
+        XCTAssertFalse(source.contains("FK_ArrangeBy"))
+        XCTAssertFalse(source.contains("DATE_ADDED_DESCENDING"))
     }
 
-    func testParsesOrderedURLResult() {
-        let result = FinderFolderOrderProvider.parseOutput(
-            "ORDERED\nfile:///tmp/three.jpg\nfile:///tmp/one.jpg\nfile:///tmp/two.jpg"
-        )
-
+    func testParsesExactURLAndPositionResults() {
         XCTAssertEqual(
-            result,
+            FinderFolderOrderProvider.parseOutput(
+                "ORDERED\nfile:///tmp/three.jpg\nfile:///tmp/one.jpg\nfile:///tmp/two.jpg"
+            ),
             ["three.jpg", "one.jpg", "two.jpg"].map {
                 URL(fileURLWithPath: "/tmp/\($0)").standardizedFileURL
             }
         )
-    }
-
-    func testPositionResultSortsTopToBottomThenLeftToRight() {
-        let result = FinderFolderOrderProvider.parseOutput(
-            "POSITION\nfile:///tmp/lower.jpg\t10\t200\nfile:///tmp/right.jpg\t200\t10\nfile:///tmp/left.jpg\t10\t10"
-        )
 
         XCTAssertEqual(
-            result,
+            FinderFolderOrderProvider.parseOutput(
+                "POSITION\nfile:///tmp/lower.jpg\t10\t200\nfile:///tmp/right.jpg\t200\t10\nfile:///tmp/left.jpg\t10\t10"
+            ),
             ["left.jpg", "right.jpg", "lower.jpg"].map {
                 URL(fileURLWithPath: "/tmp/\($0)").standardizedFileURL
             }
         )
     }
 
-    func testDateAddedResultSortsNewestFirstLikeGroupedFinderColumnView() {
-        let older = URL(fileURLWithPath: "/tmp/older.png").standardizedFileURL
-        let newer = URL(fileURLWithPath: "/tmp/newer.png").standardizedFileURL
-        let dates = [
-            older: Date(timeIntervalSince1970: 100),
-            newer: Date(timeIntervalSince1970: 200)
-        ]
-
-        let result = FinderFolderOrderProvider.parseOutput(
-            "DATE_ADDED_DESCENDING\n\(older.absoluteString)\n\(newer.absoluteString)",
-            dateAdded: { dates[$0] }
-        )
-
-        XCTAssertEqual(result, [newer, older])
-    }
-
-    func testDateAddedDescriptorEnumeratesTheFolderWithoutFinderReturningEveryItem() async throws {
-        let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PicSeeFinderDescriptor-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
-        let first = folder.appendingPathComponent("first.png")
-        let second = folder.appendingPathComponent("second.png")
-        try Data().write(to: first)
-        try Data().write(to: second)
-        let provider = FinderFolderOrderProvider { _ in "DATE_ADDED_DESCENDING" }
-
-        let result = await provider.orderedURLs(for: folder)
-
-        XCTAssertEqual(Set(result ?? []), Set([first.standardizedFileURL, second.standardizedFileURL]))
-    }
-
-    func testMalformedOrEmptyResultsReturnNil() {
+    func testMalformedOrUnavailableSystemResultsReturnNil() {
         XCTAssertNil(FinderFolderOrderProvider.parseOutput(""))
         XCTAssertNil(FinderFolderOrderProvider.parseOutput("ORDERED"))
         XCTAssertNil(FinderFolderOrderProvider.parseOutput("POSITION\nnot-a-row"))
-        XCTAssertNil(FinderFolderOrderProvider.parseOutput("ERROR\nfile:///tmp/image.jpg"))
+        XCTAssertNil(FinderFolderOrderProvider.parseOutput("SCRIPT_ERROR\t-1\tfailure"))
+        XCTAssertNil(FinderFolderOrderProvider.parseOutput("NO_MATCHING_WINDOW"))
     }
 
-    func testProviderReturnsNilWhenScriptExecutionFails() async {
-        let provider = FinderFolderOrderProvider { _ in nil }
+    func testUnavailableSystemOrderUsesImmediateFallbackWithoutReadingDirectory() async {
+        let directoryWasRead = ThreadSafeFlag()
+        let provider = FinderFolderOrderProvider(
+            { _ in nil },
+            directoryReader: { _ in
+                directoryWasRead.set()
+                return []
+            }
+        )
 
+        XCTAssertTrue(provider.isOrderingAvailableImmediately)
         let result = await provider.orderedURLs(
             for: URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
         )
-
         XCTAssertNil(result)
+        XCTAssertFalse(directoryWasRead.value)
     }
 
-    func testVisibleFinderOrderWinsOverGlobalDateAddedPreference() async {
+    func testProviderAcceptsOnlyCompleteExactImageOrder() async {
         let folder = URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
-        let visibleOrder = ["1.png", "2.png", "3.png", "4.png"].map {
-            folder.appendingPathComponent($0).standardizedFileURL
-        }
-        let provider = FinderFolderOrderProvider(
-            scriptRunner: { _ in "DATE_ADDED_DESCENDING" },
-            visibleOrderReader: { _ in visibleOrder }
+        let one = imageURL(folder: folder, name: "1.png")
+        let two = imageURL(folder: folder, name: "2.png")
+
+        let complete = FinderFolderOrderProvider(
+            { _ in
+                "ORDERED\nfile:///tmp/photos/readme.txt\n\(two.absoluteString)\n\(one.absoluteString)"
+            },
+            directoryReader: { _ in [one, two] }
+        )
+        let partial = FinderFolderOrderProvider(
+            { _ in "ORDERED\n\(one.absoluteString)" },
+            directoryReader: { _ in [one, two] }
+        )
+        let duplicate = FinderFolderOrderProvider(
+            { _ in "ORDERED\n\(one.absoluteString)\n\(one.absoluteString)\n\(two.absoluteString)" },
+            directoryReader: { _ in [one, two] }
         )
 
-        let result = await provider.orderedURLs(for: folder)
-
-        XCTAssertEqual(result, visibleOrder)
+        let completeResult = await complete.orderedURLs(for: folder)
+        let partialResult = await partial.orderedURLs(for: folder)
+        let duplicateResult = await duplicate.orderedURLs(for: folder)
+        XCTAssertEqual(completeResult, [two, one])
+        XCTAssertNil(partialResult)
+        XCTAssertNil(duplicateResult)
     }
 
-    func testAccessibilityOrderMustCoverEveryDirectoryImage() {
+    func testProviderReturnsNilForUnavailableSystemResultOrMissingDirectory() async {
         let folder = URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
-        let one = folder.appendingPathComponent("1.png")
-        let two = folder.appendingPathComponent("2.png")
-
-        XCTAssertNil(
-            FinderAccessibilityTraversal.validatedCompleteOrder(
-                visibleURLs: [one],
-                directoryURLs: [one, two]
-            )
+        let item = imageURL(folder: folder, name: "1.png")
+        let noSystemResult = FinderFolderOrderProvider(
+            { _ in nil },
+            directoryReader: { _ in [item] }
         )
-        XCTAssertEqual(
-            FinderAccessibilityTraversal.validatedCompleteOrder(
-                visibleURLs: [two, one],
-                directoryURLs: [one, two]
-            ),
-            [two.standardizedFileURL, one.standardizedFileURL]
-        )
-    }
-
-    func testAccessibilityOrderUsesLaterCompleteCandidateAfterPartialCandidate() {
-        let folder = URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
-        let one = folder.appendingPathComponent("1.png")
-        let two = folder.appendingPathComponent("2.png")
-        let three = folder.appendingPathComponent("3.png")
-
-        let result = FinderAccessibilityTraversal.firstCompleteOrder(
-            candidates: [
-                [two],
-                [three, one, two]
-            ],
-            directoryURLs: [one, two, three]
+        let noDirectory = FinderFolderOrderProvider(
+            { _ in "ORDERED\n\(item.absoluteString)" },
+            directoryReader: { _ in nil }
         )
 
-        XCTAssertEqual(
-            result,
-            [three, one, two].map(\.standardizedFileURL)
-        )
-    }
-
-    func testAccessibilityOrderRejectsDuplicateCandidateAndAllPartialCandidates() {
-        let folder = URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
-        let one = folder.appendingPathComponent("1.png")
-        let two = folder.appendingPathComponent("2.png")
-
-        XCTAssertNil(
-            FinderAccessibilityTraversal.validatedCompleteOrder(
-                visibleURLs: [one, one, two],
-                directoryURLs: [one, two]
-            )
-        )
-        XCTAssertNil(
-            FinderAccessibilityTraversal.firstCompleteOrder(
-                candidates: [[one], [two]],
-                directoryURLs: [one, two]
-            )
-        )
+        let noSystemResultValue = await noSystemResult.orderedURLs(for: folder)
+        let noDirectoryValue = await noDirectory.orderedURLs(for: folder)
+        XCTAssertNil(noSystemResultValue)
+        XCTAssertNil(noDirectoryValue)
     }
 
     func testGeneratedFinderScriptCompiles() throws {
-        let source = FinderFolderOrderProvider.scriptSource(
-            folderURL: URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
-        )
-        let script = try XCTUnwrap(NSAppleScript(source: source))
+        let script = try XCTUnwrap(NSAppleScript(source: scriptSource()))
         var error: NSDictionary?
 
         XCTAssertTrue(script.compileAndReturnError(&error), "AppleScript compile error: \(String(describing: error))")
+    }
+
+    private func scriptSource() -> String {
+        FinderFolderOrderProvider.scriptSource(
+            folderURL: URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
+        )
+    }
+
+    private func imageURL(folder: URL, name: String) -> URL {
+        folder.appendingPathComponent(name).standardizedFileURL
+    }
+}
+
+private final class ThreadSafeFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValue = false
+
+    var value: Bool {
+        lock.withLock { storedValue }
+    }
+
+    func set() {
+        lock.withLock { storedValue = true }
     }
 }

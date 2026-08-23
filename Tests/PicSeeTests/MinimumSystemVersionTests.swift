@@ -35,18 +35,34 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(script.contains("CODESIGN_TIMESTAMP_ARGS=(--timestamp)"))
     }
 
-    func testBuildScriptDoesNotDeclareUnusedFinderAutomationUsage() throws {
+    func testBuildScriptDeclaresFinderAutomationUsageForOrderFallback() throws {
         let script = try repositoryFile("Scripts/build-app.sh")
 
-        XCTAssertFalse(script.contains("<key>NSAppleEventsUsageDescription</key>"))
+        XCTAssertTrue(script.contains("<key>NSAppleEventsUsageDescription</key>"))
+        XCTAssertTrue(script.contains("读取 Finder 当前窗口的图片顺序"))
     }
 
-    func testBuildScriptDoesNotSignWithUnusedFinderAutomationEntitlement() throws {
+    func testBuildScriptSignsWithFinderAutomationEntitlement() throws {
         let script = try repositoryFile("Scripts/build-app.sh")
         let entitlements = try repositoryFile("Resources/PicSee.entitlements")
 
         XCTAssertTrue(script.contains("--entitlements \"$ENTITLEMENTS_FILE\""))
-        XCTAssertFalse(entitlements.contains("<key>com.apple.security.automation.apple-events</key>"))
+        XCTAssertTrue(entitlements.contains("<key>com.apple.security.automation.apple-events</key>"))
+    }
+
+    func testAppDoesNotRequestAccessibilityPermission() throws {
+        let delegate = try repositoryFile("Sources/PicSee/App/AppDelegate.swift")
+        let settingsWindow = try repositoryFile(
+            "Sources/PicSee/App/DefaultImageAppSettingsWindowController.swift"
+        )
+        let finderProvider = try repositoryFile(
+            "Sources/PicSee/Navigation/FinderFolderOrderProvider.swift"
+        )
+
+        let combined = delegate + settingsWindow + finderProvider
+        XCTAssertFalse(combined.contains("AXIsProcessTrusted"))
+        XCTAssertFalse(combined.contains("Privacy_Accessibility"))
+        XCTAssertFalse(combined.contains("AccessibilityPermission"))
     }
 
     func testReleaseWorkflowImportsCertificateAndNotarizesDmg() throws {

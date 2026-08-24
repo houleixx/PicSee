@@ -45,19 +45,18 @@ final class AppMenuTests: XCTestCase {
 
         let credits = AppMenu.aboutPanelCredits(from: info)
         let text = credits.string
-        let releaseURL = URL(string: "https://github.com/houleixx/PicSee/releases")!
+        let releaseURL = URL(string: "https://picsee.pages.dev/")!
 
-        XCTAssertTrue(text.contains("下载地址：https://github.com/houleixx/PicSee"))
+        XCTAssertTrue(text.contains("下载地址：https://picsee.pages.dev/"))
         XCTAssertTrue(text.contains("感谢“大脑袋范同学”提出的优化建议"))
-        XCTAssertFalse(text.contains("https://github.com/houleixx/PicSee/releases/releases"))
 
-        let urlRange = (text as NSString).range(of: "https://github.com/houleixx/PicSee")
+        let urlRange = (text as NSString).range(of: "https://picsee.pages.dev/")
         XCTAssertNotEqual(urlRange.location, NSNotFound)
         XCTAssertEqual(credits.attribute(.link, at: urlRange.location, effectiveRange: nil) as? URL, releaseURL)
     }
 
-    func testReleasePageURLUsesGitHubReleasesIndex() {
-        XCTAssertEqual(AppMenu.releasePageURL(from: [:]), URL(string: "https://github.com/houleixx/PicSee/releases"))
+    func testReleasePageURLUsesWebsite() {
+        XCTAssertEqual(AppMenu.releasePageURL(from: [:]), URL(string: "https://picsee.pages.dev/"))
     }
 
     func testImageContextMenuContainsAboutItem() {

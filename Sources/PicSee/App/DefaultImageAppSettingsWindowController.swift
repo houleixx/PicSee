@@ -9,6 +9,11 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
     private let handler: DefaultImageAppHandling
     private var checkboxes: [(format: DefaultImageFormat, button: NSButton)] = []
+    private var primaryLabels: [NSTextField] = []
+    private var secondaryLabels: [NSTextField] = []
+    private weak var contentBackgroundLayer: CALayer?
+    private var cardLayers: [CALayer] = []
+    private var escapeKeyMonitor: Any?
     private let statusLabel = NSTextField(labelWithString: "")
 
     init(handler: DefaultImageAppHandling) {
@@ -27,8 +32,10 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
         super.init(window: window)
 
+        window.appearance = ViewerTheme.current().appearance
         window.delegate = self
         window.contentView = buildContentView()
+        applyTheme()
     }
 
     @available(*, unavailable)
@@ -37,6 +44,10 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
     }
 
     func show() {
+        // Refresh the setting when the user has changed it since this
+        // controller was created. A nil appearance follows the system setting.
+        applyTheme()
+        installEscapeKeyMonitor()
         window?.center()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -45,7 +56,7 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
     private func buildContentView() -> NSView {
         let contentView = NSView()
         contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        contentBackgroundLayer = contentView.layer
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -92,9 +103,10 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
         let title = NSTextField(labelWithString: "默认图片打开方式")
         title.font = .boldSystemFont(ofSize: 22)
+        primaryLabels.append(title)
 
         let subtitle = wrappingLabel("选择双击图片时交给 PicSee 打开的格式，已是 PicSee 默认打开的格式会自动勾选。")
-        subtitle.textColor = .secondaryLabelColor
+        secondaryLabels.append(subtitle)
 
         textStack.addArrangedSubview(title)
         textStack.addArrangedSubview(subtitle)
@@ -131,7 +143,7 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
         let sectionTitle = NSTextField(labelWithString: title)
         sectionTitle.font = .boldSystemFont(ofSize: 13)
-        sectionTitle.textColor = .secondaryLabelColor
+        secondaryLabels.append(sectionTitle)
         sectionTitle.translatesAutoresizingMaskIntoConstraints = false
 
         row.addSubview(sectionTitle)
@@ -230,7 +242,7 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         row.spacing = 12
 
         statusLabel.font = .systemFont(ofSize: 12)
-        statusLabel.textColor = .secondaryLabelColor
+        secondaryLabels.append(statusLabel)
         statusLabel.lineBreakMode = .byTruncatingTail
         statusLabel.maximumNumberOfLines = 1
         statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -265,7 +277,7 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
     private func buildTipView() -> NSView {
         let label = wrappingLabel(DefaultImageAppSettings.fallbackInstructions)
-        label.textColor = .secondaryLabelColor
+        secondaryLabels.append(label)
 
         let tip = insetView(label, horizontal: 0, vertical: 4)
 
@@ -280,9 +292,10 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         let card = NSView()
         card.wantsLayer = true
         card.layer?.cornerRadius = 10
-        card.layer?.backgroundColor = cardBackgroundColor.cgColor
         card.layer?.borderWidth = 1
-        card.layer?.borderColor = NSColor.separatorColor.cgColor
+        if let layer = card.layer {
+            cardLayers.append(layer)
+        }
 
         content.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(content)
@@ -312,11 +325,23 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         return wrapper
     }
 
-    private var cardBackgroundColor: NSColor {
-        NSColor.windowBackgroundColor.blended(
-            withFraction: 0.35,
-            of: .controlBackgroundColor
-        ) ?? .windowBackgroundColor
+    private func cardBackgroundColor(for appearance: NSAppearance) -> NSColor {
+        var backgroundColor: NSColor?
+        appearance.performAsCurrentDrawingAppearance {
+            backgroundColor = NSColor.windowBackgroundColor.blended(
+                withFraction: 0.35,
+                of: .controlBackgroundColor
+            ) ?? .windowBackgroundColor
+        }
+        return backgroundColor ?? .windowBackgroundColor
+    }
+
+    private func cgColor(for color: NSColor, appearance: NSAppearance) -> CGColor {
+        var resolvedColor: CGColor?
+        appearance.performAsCurrentDrawingAppearance {
+            resolvedColor = color.cgColor
+        }
+        return resolvedColor ?? color.cgColor
     }
 
     private func indentedView(_ content: NSView) -> NSView {
@@ -346,6 +371,69 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return spacer
+    }
+
+    private func installEscapeKeyMonitor() {
+        guard escapeKeyMonitor == nil else { return }
+
+        escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard
+                event.keyCode == 53,
+                event.window === self?.window
+            else {
+                return event
+            }
+
+            self?.window?.performClose(nil)
+            return nil
+        }
+    }
+
+    private func removeEscapeKeyMonitor() {
+        guard let escapeKeyMonitor else { return }
+        NSEvent.removeMonitor(escapeKeyMonitor)
+        self.escapeKeyMonitor = nil
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        removeEscapeKeyMonitor()
+    }
+
+    private func applyTheme() {
+        let theme = ViewerTheme.current()
+        window?.appearance = theme.appearance
+        let appearance = window?.effectiveAppearance ?? NSApp.effectiveAppearance
+
+        contentBackgroundLayer?.backgroundColor = cgColor(for: .windowBackgroundColor, appearance: appearance)
+        let cardBackground = cgColor(for: cardBackgroundColor(for: appearance), appearance: appearance)
+        let cardBorder = cgColor(for: .separatorColor, appearance: appearance)
+        for layer in cardLayers {
+            layer.backgroundColor = cardBackground
+            layer.borderColor = cardBorder
+        }
+
+        let primaryColor: NSColor
+        let secondaryColor: NSColor
+        switch theme {
+        case .dark:
+            primaryColor = .white
+            secondaryColor = NSColor(calibratedWhite: 0.72, alpha: 1)
+        case .light, .system:
+            primaryColor = .labelColor
+            secondaryColor = .secondaryLabelColor
+        }
+
+        primaryLabels.forEach { $0.textColor = primaryColor }
+        secondaryLabels.forEach { $0.textColor = secondaryColor }
+        for checkbox in checkboxes {
+            checkbox.button.attributedTitle = NSAttributedString(
+                string: checkbox.button.title,
+                attributes: [
+                    .font: checkbox.button.font ?? .systemFont(ofSize: 13),
+                    .foregroundColor: primaryColor
+                ]
+            )
+        }
     }
 
     @objc private func selectAllFormats(_ sender: Any?) {

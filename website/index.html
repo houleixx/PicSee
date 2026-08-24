@@ -280,12 +280,18 @@
 
     .hero-image {
       position: relative;
+      aspect-ratio: 6 / 5;
+      overflow: hidden;
+      border-radius: var(--radius);
+      box-shadow: 0 -6px 20px rgba(23, 23, 22, 0.08), 0 12px 40px rgba(23, 23, 22, 0.12), 0 4px 10px rgba(23, 23, 22, 0.06);
     }
 
     .hero-image img {
       width: 100%;
-      border-radius: var(--radius);
-      box-shadow: 0 -8px 24px rgba(23, 23, 22, 0.10), 0 16px 56px rgba(23, 23, 22, 0.14), 0 4px 12px rgba(23, 23, 22, 0.08);
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center;
     }
 
     /* ========== Story Sections ========== */
@@ -601,7 +607,7 @@
             项目地址：<a href="https://github.com/houleixx/PicSee" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 6px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px;"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="position: relative; top: 2px;"><path d="M10.226 17.284c-2.965-.36-5.054-2.493-5.054-5.256 0-1.123.404-2.336 1.078-3.144-.292-.741-.247-2.314.09-2.965.898-.112 2.111.36 2.83 1.01.853-.269 1.752-.404 2.853-.404 1.1 0 1.999.135 2.807.382.696-.629 1.932-1.1 2.83-.988.315.606.36 2.179.067 2.942.72.854 1.101 2 1.101 3.167 0 2.763-2.089 4.852-5.098 5.234.763.494 1.28 1.572 1.28 2.807v2.336c0 .674.561 1.056 1.235.786 4.066-1.55 7.255-5.615 7.255-10.646C23.5 6.188 18.334 1 11.978 1 5.62 1 .5 6.188.5 12.545c0 4.986 3.167 9.12 7.435 10.669.606.225 1.19-.18 1.19-.786V20.63a2.9 2.9 0 0 1-1.078.224c-1.483 0-2.359-.808-2.987-2.313-.247-.607-.517-.966-1.034-1.033-.27-.023-.359-.135-.359-.27 0-.27.45-.471.898-.471.652 0 1.213.404 1.797 1.235.45.651.921.943 1.483.943.561 0 .92-.202 1.437-.719.382-.381.674-.718.944-.943"></path></svg><span>github.com/houleixx/PicSee</span></a>
           </p>        </div>
         <div class="hero-image">
-          <img src="assets/hero-app-preview.png" alt="PicSee 深色模式查看图片" width="1200" height="800">
+          <img src="assets/feature-keyboard-navigation.png" alt="PicSee 键盘导航查看图片" width="1024" height="1216">
         </div>
       </div>
     </div>
@@ -649,7 +655,7 @@
           </p>
         </div>
         <div class="story-image">
-          <img src="assets/feature-keyboard-navigation.png" alt="PicSee 查看界面" width="1200" height="800">
+          <img src="assets/hero-app-preview.png" alt="PicSee 深色模式查看图片" width="1200" height="800">
         </div>
       </article>
 

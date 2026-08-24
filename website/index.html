@@ -144,10 +144,19 @@
       border-radius: 6px;
     }
 
-    .nav-brand span {
+    .nav-brand-name {
       font-size: 15px;
       font-weight: 600;
       letter-spacing: -0.01em;
+    }
+
+    .nav-brand-kind {
+      padding-left: 10px;
+      border-left: 1px solid var(--border-strong);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0;
     }
 
     .nav-links {
@@ -536,6 +545,15 @@
         white-space: nowrap;
       }
 
+      .nav-brand-name {
+        font-size: 14px;
+      }
+
+      .nav-brand-kind {
+        padding-left: 7px;
+        font-size: 11px;
+      }
+
       .hero-features {
         gap: 8px;
       }
@@ -549,7 +567,8 @@
     <div class="nav-inner">
       <a href="#" class="nav-brand">
         <img src="assets/brand-mark.png" alt="PicSee" width="28" height="28">
-        <span>PicSee</span>
+        <span class="nav-brand-name">PicSee</span>
+        <span class="nav-brand-kind">macOS 图片查看器</span>
       </a>
       <div class="nav-links">
         <a href="https://github.com/houleixx/PicSee" class="nav-link" target="_blank" rel="noopener">GitHub</a>

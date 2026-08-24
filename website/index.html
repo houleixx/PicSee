@@ -64,6 +64,26 @@
       color: var(--ink);
     }
 
+    .hero-title-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .hero-badge {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--primary);
+      padding: 5px 14px;
+      border-radius: 100px;
+      letter-spacing: 0.01em;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+
     .section-title {
       font-size: clamp(26px, 3.2vw, 44px);
       font-weight: 600;
@@ -543,7 +563,10 @@
       <div class="hero-grid">
         <div class="hero-text">
           <img class="hero-icon" src="assets/brand-mark.png" alt="PicSee 图标" width="48" height="48">
-          <h1 class="display-title">PicSee</h1>
+          <div class="hero-title-row">
+            <h1 class="display-title">PicSee</h1>
+            <span class="hero-badge">免费开源</span>
+          </div>
           <p class="hero-tagline">看图，就该双击即开、看完即退。一款为快速浏览而生的原生 macOS 图片查看器。</p>
           <ul class="hero-features">
             <li>滚轮缩放 · 拖动平移</li>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="PicSee：一款为 macOS 而生的轻量级图片查看器。双击即开，看完即退。" />
+    <meta name="theme-color" content="#f4f1eb" />
+    <title>PicSee — 看图，应该就是这么简单。</title>
+    <link rel="icon" href="assets/picsee-icon.png" />
+    <link rel="preload" href="assets/preview.png" as="image" />
+    <style>
+      :root { --ink:#17201b; --muted:#647068; --paper:#f4f1eb; --line:#d8d5ce; --leaf:#244a37; --lime:#c8f34a; --cream:#fbfaf6; }
+      * { box-sizing:border-box; }
+      html { scroll-behavior:smooth; }
+      body { margin:0; color:var(--ink); background:var(--paper); font-family:"Noto Serif SC", "Songti SC", STSong, serif; }
+      a { color:inherit; text-decoration:none; }
+      .nav { height:78px; padding:0 clamp(22px, 5vw, 78px); display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+      .brand { display:flex; align-items:center; gap:10px; font-family:ui-rounded, "Avenir Next", sans-serif; font-weight:700; font-size:20px; letter-spacing:-.8px; }
+      .brand img { width:33px; height:33px; border-radius:9px; }
+      .nav-links { display:flex; gap:30px; align-items:center; color:#425048; font-family:"Avenir Next", "PingFang SC", sans-serif; font-size:14px; }
+      .nav-links a:hover { color:var(--leaf); }
+      .nav-download { padding:10px 16px; color:var(--cream); background:var(--leaf); border-radius:999px; }
+      .nav-download:hover { background:#172e23; color:white!important; }
+      .hero { min-height:calc(100vh - 78px); padding:clamp(52px, 8vw, 122px) clamp(22px, 8vw, 128px) 44px; overflow:hidden; position:relative; display:grid; grid-template-columns:minmax(300px, .9fr) minmax(430px, 1.1fr); align-items:center; gap:5vw; }
+      .hero::before { content:""; position:absolute; width:48vw; height:48vw; min-width:460px; min-height:460px; border-radius:50%; background:var(--lime); right:-18vw; top:-27vw; z-index:-1; }
+      .hero-copy { max-width:600px; animation:rise .8s cubic-bezier(.2,.8,.2,1) both; }
+      .eyebrow { margin:0 0 21px; color:var(--leaf); font-family:"Avenir Next", "PingFang SC", sans-serif; font-size:12px; font-weight:700; letter-spacing:.15em; }
+      h1 { margin:0; font-size:clamp(48px, 5.45vw, 86px); line-height:1.08; font-weight:700; letter-spacing:-.075em; }
+      h1 em { font-style:normal; color:var(--leaf); }
+      .intro { max-width:430px; margin:28px 0 32px; font-family:"Avenir Next", "PingFang SC", sans-serif; color:#526057; font-size:17px; line-height:1.85; }
+      .actions { display:flex; gap:13px; align-items:center; flex-wrap:wrap; font-family:"Avenir Next", "PingFang SC", sans-serif; font-size:14px; font-weight:600; }
+      .button { padding:14px 21px; border-radius:999px; transition:transform .2s, box-shadow .2s; }
+      .button:hover { transform:translateY(-2px); box-shadow:0 8px 18px rgba(27,60,44,.15); }
+      .button.primary { background:var(--leaf); color:#fff; }
+      .button.secondary { border:1px solid #b7beb8; }
+      .button .arrow { margin-left:7px; font-size:17px; }
+      .meta { display:flex; gap:17px; margin-top:28px; color:#778078; font-family:"Avenir Next", "PingFang SC", sans-serif; font-size:12px; }
+      .meta span + span { border-left:1px solid #bfc5bf; padding-left:17px; }
+      .product { position:relative; animation:rise .9s .12s cubic-bezier(.2,.8,.2,1) both; }
+      .product::before { content:""; position:absolute; inset:9% 1% 6% 10%; border:1px solid rgba(23,32,27,.17); transform:rotate(4deg); border-radius:10px; }
+      .product img { position:relative; z-index:1; display:block; width:100%; max-width:710px; margin:auto; border-radius:13px; box-shadow:0 36px 60px rgba(31,39,33,.2), 0 3px 9px rgba(31,39,33,.14); }
+      .scroll-note { position:absolute; bottom:25px; left:clamp(22px, 8vw, 128px); font-family:"Avenir Next", "PingFang SC", sans-serif; color:#748077; font-size:11px; letter-spacing:.12em; }
+      .scroll-note::after { content:"↓"; padding-left:8px; }
+      .statement { background:var(--leaf); color:#f7f5ed; padding:clamp(72px, 10vw, 150px) clamp(22px, 12vw, 190px); text-align:center; }
+      .statement p { max-width:925px; margin:0 auto; font-size:clamp(32px, 4.1vw, 64px); line-height:1.35; letter-spacing:-.065em; }
+      .statement strong { color:var(--lime); font-weight:inherit; }
+      .features { padding:clamp(80px, 11vw, 150px) clamp(22px, 8vw, 128px); }
+      .section-heading { display:flex; justify-content:space-between; gap:32px; align-items:end; margin-bottom:54px; }
+      h2 { margin:0; font-size:clamp(38px, 4vw, 58px); line-height:1.15; letter-spacing:-.07em; }
+      .section-heading p { max-width:315px; margin:0; color:var(--muted); font-family:"Avenir Next", "PingFang SC", sans-serif; font-size:14px; line-height:1.75; }
+      .feature-grid { display:grid; grid-template-columns:repeat(4, 1fr); border-top:1px solid var(--line); border-left:1px solid var(--line); }
+      .feature { min-height:265px; padding:27px 24px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); display:flex; flex-direction:column; }
+      .feature-number { color:#91a098; font-family:ui-monospace, "SFMono-Regular", monospace; font-size:11px; }
+      .feature h3 { margin:50px 0 10px; font-size:24px; letter-spacing:-.06em; }
+      .feature p { margin:0; font-family:"Avenir Next", "PingFang SC", sans-serif; color:var(--muted); font-size:13px; line-height:1.75; }
+      .workflow { padding:0 clamp(22px, 8vw, 128px) clamp(80px, 10vw, 128px); }
+      .workflow-card { position:relative; background:#e8e5de; padding:clamp(38px, 5.5vw, 80px); overflow:hidden; }
+      .workflow-card::after { content:"PICSEE"; position:absolute; font-family:ui-rounded, "Avenir Next", sans-serif; font-size:clamp(110px, 22vw, 300px); font-weight:800; letter-spacing:-.12em; color:rgba(36,74,55,.06); right:-.04em; bottom:-.28em; pointer-events:none; }
+      .workflow h2 { position:relative; z-index:1; max-width:520px; }
+      .steps { position:relative; z-index:1; max-width:740px; display:grid; grid-template-columns:repeat(3,1fr); gap:35px; margin-top:68px; }
+      .step { border-top:2px solid var(--leaf); padding-top:16px; }
+      .step span { font-family:ui-monospace, "SFMono-Regular", monospace; color:var(--leaf); font-size:11px; }
+      .step p { margin:9px 0 0; font-family:"Avenir Next", "PingFang SC", sans-serif; font-size:15px; line-height:1.6; }
+      .cta { padding:clamp(75px, 10vw, 135px) 22px; text-align:center; border-top:1px solid var(--line); }
+      .cta h2 { max-width:700px; margin:auto; }
+      .cta p { margin:20px auto 28px; font-family:"Avenir Next", "PingFang SC", sans-serif; color:var(--muted); font-size:15px; }
+      footer { padding:28px clamp(22px, 5vw, 78px); display:flex; justify-content:space-between; color:#748077; border-top:1px solid var(--line); font-family:"Avenir Next", "PingFang SC", sans-serif; font-size:12px; }
+      footer a { color:var(--leaf); }
+      @keyframes rise { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
+      @media (max-width: 820px) { .nav { height:66px; } .nav-links a:not(.nav-download) { display:none; } .hero { min-height:auto; grid-template-columns:1fr; padding-top:62px; gap:54px; } .hero::before { right:-32vw; top:38%; } .product { max-width:630px; } .scroll-note { display:none; } .section-heading { display:block; } .section-heading p { margin-top:18px; } .feature-grid { grid-template-columns:repeat(2, 1fr); } .steps { gap:20px; } }
+      @media (max-width: 480px) { .nav { padding:0 18px; } .nav-download { padding:9px 13px; } .hero { padding:48px 20px 55px; } h1 { font-size:47px; } .intro { font-size:15px; } .meta { gap:10px; font-size:10px; } .meta span + span { padding-left:10px; } .features, .workflow { padding-left:20px; padding-right:20px; } .feature-grid { grid-template-columns:1fr; } .feature { min-height:210px; } .feature h3 { margin-top:31px; } .steps { grid-template-columns:1fr; margin-top:42px; gap:28px; } footer { align-items:center; gap:8px; flex-direction:column; text-align:center; } }
+    </style>
+  </head>
+  <body>
+    <nav class="nav">
+      <a class="brand" href="#top"><img src="assets/picsee-icon.png" alt="PicSee 图标" />PicSee</a>
+      <div class="nav-links"><a href="#features">功能</a><a href="#use">使用方式</a><a href="https://github.com/houleixx/PicSee" target="_blank" rel="noreferrer">GitHub ↗</a><a class="nav-download" href="https://github.com/houleixx/PicSee/releases/latest" target="_blank" rel="noreferrer">下载应用</a></div>
+    </nav>
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">A LIGHTWEIGHT IMAGE VIEWER FOR MACOS</p>
+          <h1>看图，<br />应该就是<em>这么简单。</em></h1>
+          <p class="intro">PicSee 是一款为 macOS 而生的轻量级图片查看器。Finder 双击即开，看完即退，把注意力留给眼前的图像。</p>
+          <div class="actions"><a class="button primary" href="https://github.com/houleixx/PicSee/releases/latest" target="_blank" rel="noreferrer">免费下载 <span class="arrow">↓</span></a><a class="button secondary" href="#features">了解功能 <span class="arrow">→</span></a></div>
+          <div class="meta"><span>macOS 14+</span><span>Apple Silicon & Intel</span><span>原生 Swift</span></div>
+        </div>
+        <div class="product"><img src="assets/preview.png" alt="PicSee 图片查看器界面预览" /></div>
+        <span class="scroll-note">向下了解更多</span>
+      </section>
+      <section class="statement"><p>不必打开臃肿的应用，<br />只需<strong>一眼看清图片。</strong></p></section>
+      <section class="features" id="features">
+        <div class="section-heading"><h2>恰到好处，<br />不多不少。</h2><p>PicSee 专注于最自然的看图体验。每一项功能，都是为了减少一次不必要的操作。</p></div>
+        <div class="feature-grid">
+          <article class="feature"><span class="feature-number">01</span><h3>双击即开</h3><p>设为默认查看器后，在 Finder 中双击图片，PicSee 即刻出现。</p></article>
+          <article class="feature"><span class="feature-number">02</span><h3>滚轮缩放</h3><p>手不离鼠标，滚动即可自然缩放；放大后可直接拖动画面。</p></article>
+          <article class="feature"><span class="feature-number">03</span><h3>OCR 选字</h3><p>拖选图片内文字，按下 Cmd + C，所见文字立即进入剪贴板。</p></article>
+          <article class="feature"><span class="feature-number">04</span><h3>顺序切图</h3><p>使用方向键浏览同一文件夹，并尽量贴合 Finder 当前的排列顺序。</p></article>
+        </div>
+      </section>
+      <section class="workflow" id="use"><div class="workflow-card"><h2>从找到图片，<br />到看完它。</h2><div class="steps"><div class="step"><span>01</span><p>在 Finder 中双击一张图片</p></div><div class="step"><span>02</span><p>滚动、缩放、切换，专注浏览</p></div><div class="step"><span>03</span><p>按下 Esc，干净地离开</p></div></div></div></section>
+      <section class="cta"><h2>让图片查看，回归它本该有的轻快。</h2><p>免费、原生、专为 macOS 打造。</p><a class="button primary" href="https://github.com/houleixx/PicSee/releases/latest" target="_blank" rel="noreferrer">下载 PicSee <span class="arrow">↓</span></a></section>
+    </main>
+    <footer><span>© 2026 PicSee. Made for macOS.</span><a href="https://github.com/houleixx/PicSee" target="_blank" rel="noreferrer">查看开源项目 ↗</a></footer>
+  </body>
+</html>

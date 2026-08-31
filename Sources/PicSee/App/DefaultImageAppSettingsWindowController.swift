@@ -3,8 +3,8 @@ import AppKit
 @MainActor
 final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindowDelegate {
     private static let formatRowHeight: CGFloat = 38
-    private static let leftFormatColumnWidth: CGFloat = 150
-    private static let rightFormatColumnWidth: CGFloat = 330
+    private static let formatColumnCount = 3
+    private static let formatColumnWidth: CGFloat = 210
     private static let optionLeadingInset: CGFloat = 15
 
     private let handler: DefaultImageAppHandling
@@ -20,14 +20,14 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         self.handler = handler
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 590, height: 430),
+            contentRect: NSRect(x: 0, y: 0, width: 730, height: 430),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.title = "设置默认图片打开方式"
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 570, height: 410)
+        window.minSize = NSSize(width: 730, height: 410)
         window.center()
 
         super.init(window: window)
@@ -126,16 +126,15 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         let cardContent = NSStackView()
         cardContent.orientation = .vertical
         cardContent.alignment = .width
-        cardContent.spacing = 14
+        cardContent.spacing = 16
 
-        cardContent.addArrangedSubview(buildCardHeaderView())
+        cardContent.addArrangedSubview(buildCardHeaderView(title: "支持的图片格式"))
         cardContent.addArrangedSubview(buildFormatGridView())
-        cardContent.addArrangedSubview(indentedView(buildFormatSelectionControlsView()))
-        cardContent.addArrangedSubview(indentedView(buildTipView()))
+        cardContent.addArrangedSubview(buildTipView())
         cardContent.addArrangedSubview(buildSeparatorView())
-        cardContent.addArrangedSubview(indentedView(buildApplyControlsView()))
+        cardContent.addArrangedSubview(buildFormatActionsView())
 
-        return insetCard(cardContent, horizontal: 14, vertical: 14)
+        return insetCard(cardContent, horizontal: 16, vertical: 16)
     }
 
     private func buildCardHeaderView(title: String = "常用图片格式") -> NSView {
@@ -167,23 +166,23 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         grid.columnSpacing = 6
 
         let hasExistingDefaults = DefaultImageAppSettings.formats.contains { handler.isDefaultViewer(for: $0) }
-        let rows = stride(from: 0, to: DefaultImageAppSettings.formats.count, by: 2).map { index in
-            [formatCell(at: index, hasExistingDefaults: hasExistingDefaults),
-             formatCell(at: index + 1, hasExistingDefaults: hasExistingDefaults)]
+        let rows = stride(
+            from: 0,
+            to: DefaultImageAppSettings.formats.count,
+            by: Self.formatColumnCount
+        ).map { index in
+            (0..<Self.formatColumnCount).map {
+                formatCell(at: index + $0, hasExistingDefaults: hasExistingDefaults)
+            }
         }
 
         for row in rows {
             grid.addRow(with: row)
         }
 
-        if grid.numberOfColumns > 0 {
-            grid.column(at: 0).xPlacement = .fill
-            grid.column(at: 0).width = Self.leftFormatColumnWidth
-        }
-
-        if grid.numberOfColumns > 1 {
-            grid.column(at: 1).xPlacement = .fill
-            grid.column(at: 1).width = Self.rightFormatColumnWidth
+        for columnIndex in 0..<grid.numberOfColumns {
+            grid.column(at: columnIndex).xPlacement = .fill
+            grid.column(at: columnIndex).width = Self.formatColumnWidth
         }
 
         for rowIndex in 0..<grid.numberOfRows {
@@ -191,9 +190,20 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         }
 
         let gridHeight = (Self.formatRowHeight * CGFloat(grid.numberOfRows)) + (grid.rowSpacing * CGFloat(max(grid.numberOfRows - 1, 0)))
+        let gridWidth = (Self.formatColumnWidth * CGFloat(grid.numberOfColumns)) + (grid.columnSpacing * CGFloat(max(grid.numberOfColumns - 1, 0)))
+        grid.widthAnchor.constraint(equalToConstant: gridWidth).isActive = true
         grid.heightAnchor.constraint(equalToConstant: gridHeight).isActive = true
 
-        return grid
+        let container = NSView()
+        container.addSubview(grid)
+
+        NSLayoutConstraint.activate([
+            grid.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            grid.topAnchor.constraint(equalTo: container.topAnchor),
+            grid.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
+
+        return container
     }
 
     private func formatCell(at index: Int, hasExistingDefaults: Bool) -> NSView {
@@ -203,43 +213,34 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
         let format = DefaultImageAppSettings.formats[index]
         let button = NSButton(
-            checkboxWithTitle: "\(format.label)  \(dottedExtensions(format.extensions))",
+            checkboxWithTitle: "\(format.label)  \(dottedExtensions(displayExtensions(for: format)))",
             target: nil,
             action: nil
         )
         button.state = (hasExistingDefaults ? handler.isDefaultViewer(for: format) : true) ? .on : .off
         button.font = .systemFont(ofSize: 13, weight: .semibold)
         button.lineBreakMode = .byTruncatingTail
-        button.toolTip = format.contentType
+        button.toolTip = "\(format.label): \(dottedExtensions(format.extensions))"
         checkboxes.append((format, button))
 
         return button
     }
 
-    private func buildFormatSelectionControlsView() -> NSView {
+    private func displayExtensions(for format: DefaultImageFormat) -> String {
+        format.label == "RAW" ? "dng, cr2, cr3 等" : format.extensions
+    }
+
+    private func buildFormatActionsView() -> NSView {
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 8
+        row.spacing = 10
 
         let selectAllButton = NSButton(title: "全选", target: self, action: #selector(selectAllFormats(_:)))
         selectAllButton.bezelStyle = .rounded
 
         let clearButton = NSButton(title: "清除", target: self, action: #selector(clearSelectedFormats(_:)))
         clearButton.bezelStyle = .rounded
-
-        row.addArrangedSubview(selectAllButton)
-        row.addArrangedSubview(clearButton)
-        row.addArrangedSubview(flexibleSpacer())
-
-        return row
-    }
-
-    private func buildApplyControlsView() -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 12
 
         statusLabel.font = .systemFont(ofSize: 12)
         secondaryLabels.append(statusLabel)
@@ -256,9 +257,11 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         applyButton.keyEquivalent = "\r"
         applyButton.setAccessibilityIdentifier("set-default-image-formats")
 
-        row.addArrangedSubview(applyButton)
+        row.addArrangedSubview(selectAllButton)
+        row.addArrangedSubview(clearButton)
         row.addArrangedSubview(flexibleSpacer())
         row.addArrangedSubview(statusLabel)
+        row.addArrangedSubview(applyButton)
         return row
     }
 

@@ -16,7 +16,7 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 ### 设置为默认图片查看器
 
-内置的默认打开方式设置窗口支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP 及常见 RAW 格式，可按需选择希望交给 PicSee 打开的图片类型。
+内置的默认打开方式设置窗口支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP 及常见 RAW 格式，可按需选择希望交给 PicSee 打开的图片类型。文件夹浏览也支持 AVIF、SVG、ICO/ICNS、JPEG 2000、PSD/PSB、TGA、DDS、EXR/HDR 和 JPEG XL；专业格式是否能完整解码取决于当前 macOS 的 ImageIO 解码器及文件内嵌预览。
 
 <p align="center">
   <img src="Images/preview-default.png" alt="PicSee 设置默认图片打开方式窗口" width="700">

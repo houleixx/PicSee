@@ -5,7 +5,9 @@ final class FolderImageNavigator {
         "jpg", "jpeg", "png", "gif", "heic", "tif", "tiff", "bmp", "webp",
         "raw", "dng", "cr2", "cr3", "nef", "nrw", "arw", "srf", "sr2",
         "raf", "orf", "rw2", "rwl", "pef", "3fr", "fff", "iiq", "mos",
-        "mrw", "x3f", "erf", "kdc", "dcr"
+        "mrw", "x3f", "erf", "kdc", "dcr",
+        "avif", "svg", "ico", "icns", "jp2", "j2k", "jpf", "jpx",
+        "psd", "psb", "tga", "dds", "exr", "hdr", "jxl"
     ]
 
     private(set) var images: [URL]

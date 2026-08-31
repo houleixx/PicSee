@@ -24,7 +24,18 @@ enum DefaultImageAppSettings {
         DefaultImageFormat(label: "TIFF", contentType: "public.tiff", extensions: "tif, tiff"),
         DefaultImageFormat(label: "BMP", contentType: "com.microsoft.bmp", extensions: "bmp"),
         DefaultImageFormat(label: "WebP", contentType: "org.webmproject.webp", extensions: "webp"),
-        DefaultImageFormat(label: "RAW", contentType: "public.camera-raw-image", extensions: "dng, cr2, cr3, nef, arw, raf, rw2")
+        DefaultImageFormat(label: "RAW", contentType: "public.camera-raw-image", extensions: "dng, cr2, cr3, nef, arw, raf, rw2"),
+        DefaultImageFormat(label: "AVIF", contentType: "public.avif", extensions: "avif"),
+        DefaultImageFormat(label: "SVG", contentType: "public.svg-image", extensions: "svg"),
+        DefaultImageFormat(label: "ICO", contentType: "com.microsoft.ico", extensions: "ico"),
+        DefaultImageFormat(label: "ICNS", contentType: "com.apple.icns", extensions: "icns"),
+        DefaultImageFormat(label: "JPEG 2000", contentType: "public.jpeg-2000", extensions: "jp2, j2k, jpf, jpx"),
+        DefaultImageFormat(label: "Photoshop", contentType: "com.adobe.photoshop-image", extensions: "psd, psb"),
+        DefaultImageFormat(label: "TGA", contentType: "com.truevision.tga-image", extensions: "tga"),
+        DefaultImageFormat(label: "DDS", contentType: "com.microsoft.directdraw-surface", extensions: "dds"),
+        DefaultImageFormat(label: "OpenEXR", contentType: "com.ilm.openexr-image", extensions: "exr"),
+        DefaultImageFormat(label: "Radiance HDR", contentType: "public.radiance", extensions: "hdr"),
+        DefaultImageFormat(label: "JPEG XL", contentType: "public.jpeg-xl", extensions: "jxl")
     ]
 
     static let fallbackInstructions = "其他格式可在 Finder 的“显示简介”→“打开方式”中选择 PicSee，并点“全部更改…”。"

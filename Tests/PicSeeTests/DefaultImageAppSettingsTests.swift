@@ -13,6 +13,10 @@ final class DefaultImageAppSettingsTests: XCTestCase {
         XCTAssertTrue(contentTypes.contains("com.microsoft.bmp"))
         XCTAssertTrue(contentTypes.contains("org.webmproject.webp"))
         XCTAssertTrue(contentTypes.contains("public.camera-raw-image"))
+        XCTAssertTrue(contentTypes.contains("public.avif"))
+        XCTAssertTrue(contentTypes.contains("public.svg-image"))
+        XCTAssertTrue(contentTypes.contains("com.adobe.photoshop-image"))
+        XCTAssertFalse(contentTypes.contains("com.adobe.pdf"))
     }
 
     func testFallbackInstructionsExplainFinderGetInfoForUnlistedFormats() {

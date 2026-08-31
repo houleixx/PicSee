@@ -20,7 +20,7 @@ Finder 双击即开、看完即退，同时提供滚轮缩放与图片 OCR 选�
 
 ## Capabilities and Constraints
 
-支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP 和常见 RAW 格式；需要 macOS 14 及以上。
+支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP 和常见 RAW 格式，以及 AVIF、SVG、ICO/ICNS、JPEG 2000、PSD/PSB、TGA、DDS、EXR/HDR 和 JPEG XL；需要 macOS 14 及以上。专业格式的完整解码取决于系统 ImageIO 支持和内嵌预览。
 
 ## Evidence on Hand
 

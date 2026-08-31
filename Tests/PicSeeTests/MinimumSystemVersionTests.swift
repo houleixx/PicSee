@@ -97,6 +97,15 @@ final class MinimumSystemVersionTests: XCTestCase {
         XCTAssertTrue(script.contains("<string>rw2</string>"))
     }
 
+    func testBuildScriptRegistersAdditionalImageExtensionsWithoutPDF() throws {
+        let script = try repositoryFile("Scripts/build-app.sh")
+
+        for fileExtension in ["avif", "svg", "ico", "icns", "jp2", "psd", "psb", "tga", "dds", "exr", "hdr", "jxl"] {
+            XCTAssertTrue(script.contains("<string>\(fileExtension)</string>"), "Missing \(fileExtension)")
+        }
+        XCTAssertFalse(script.contains("<string>com.adobe.pdf</string>"))
+    }
+
     func testResourceBundleLookupUsesPackagedAppBundleBeforeSwiftPMBundleModule() throws {
         let source = try repositoryFile("Sources/PicSee/Viewer/ImageViewerView.swift")
 

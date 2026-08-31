@@ -126,6 +126,11 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
                 <string>com.microsoft.bmp</string>
                 <string>org.webmproject.webp</string>
                 <string>public.camera-raw-image</string>
+                <string>public.svg-image</string>
+                <string>public.ico</string>
+                <string>com.apple.icns</string>
+                <string>public.jpeg-2000</string>
+                <string>com.adobe.photoshop-image</string>
             </array>
             <key>CFBundleTypeExtensions</key>
             <array>
@@ -161,6 +166,21 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
                 <string>erf</string>
                 <string>kdc</string>
                 <string>dcr</string>
+                <string>avif</string>
+                <string>svg</string>
+                <string>ico</string>
+                <string>icns</string>
+                <string>jp2</string>
+                <string>j2k</string>
+                <string>jpf</string>
+                <string>jpx</string>
+                <string>psd</string>
+                <string>psb</string>
+                <string>tga</string>
+                <string>dds</string>
+                <string>exr</string>
+                <string>hdr</string>
+                <string>jxl</string>
             </array>
         </dict>
     </array>

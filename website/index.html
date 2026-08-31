@@ -415,6 +415,13 @@
       margin-left: 4px;
     }
 
+    .formats-note {
+      margin: 18px 0 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
     /* ========== System Info ========== */
     .system {
       padding: clamp(48px, 7vw, 96px) 0;
@@ -665,7 +672,7 @@
           <span class="story-number">04</span>
           <h2 class="section-title story-title">设为默认查看器</h2>
           <p class="story-desc">
-            打开 PicSee 的设置窗口，按需勾选希望交由 PicSee 打开的图片格式。支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP 及常见 RAW 格式。设置完成后，在 Finder 中双击图片即可直接打开。
+            打开 PicSee 的设置窗口，按需勾选希望交由 PicSee 打开的图片格式。除 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP 和常见 RAW 外，也支持 AVIF、SVG、图标、JPEG 2000 与多种专业图片格式。设置完成后，在 Finder 中双击图片即可直接打开。
           </p>
         </div>
         <div class="story-image">
@@ -689,7 +696,18 @@
         <span class="format-tag">BMP <span class="ext">.bmp</span></span>
         <span class="format-tag">WebP <span class="ext">.webp</span></span>
         <span class="format-tag">RAW <span class="ext">.dng, .cr2, .cr3, .nef, .arw, .raf, .rw2</span></span>
+        <span class="format-tag">AVIF <span class="ext">.avif</span></span>
+        <span class="format-tag">SVG <span class="ext">.svg</span></span>
+        <span class="format-tag">图标 <span class="ext">.ico, .icns</span></span>
+        <span class="format-tag">JPEG 2000 <span class="ext">.jp2, .j2k, .jpf, .jpx</span></span>
+        <span class="format-tag">Photoshop <span class="ext">.psd, .psb</span></span>
+        <span class="format-tag">TGA <span class="ext">.tga</span></span>
+        <span class="format-tag">DDS <span class="ext">.dds</span></span>
+        <span class="format-tag">OpenEXR <span class="ext">.exr</span></span>
+        <span class="format-tag">Radiance HDR <span class="ext">.hdr</span></span>
+        <span class="format-tag">JPEG XL <span class="ext">.jxl</span></span>
       </div>
+      <p class="formats-note">专业格式的完整解码取决于当前 macOS 的 ImageIO 支持及文件内嵌预览。</p>
     </div>
   </section>
 

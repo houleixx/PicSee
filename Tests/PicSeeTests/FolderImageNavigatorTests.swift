@@ -20,6 +20,11 @@ final class FolderImageNavigatorTests: XCTestCase {
         XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.JPG")))
         XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.heic")))
         XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.WEBP")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.AVIF")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/photo.SVG")))
+        XCTAssertFalse(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/document.PDF")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/texture.EXR")))
+        XCTAssertTrue(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/design.psd")))
         XCTAssertFalse(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/notes.txt")))
         XCTAssertFalse(FolderImageNavigator.isSupportedImage(URL(fileURLWithPath: "/tmp/no-extension")))
     }

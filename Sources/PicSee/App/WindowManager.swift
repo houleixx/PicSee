@@ -375,7 +375,7 @@ final class WindowManager {
             keyEventMonitor = nil
         }
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak viewModel] event in
-            guard let self, let window = self.currentWindow, NSApp.keyWindow === window else {
+            guard let self, let window = self.currentWindow, NSApp.keyWindow === window, window.attachedSheet == nil, viewModel?.isScreenshotEditing != true else {
                 return event
             }
             switch KeyboardNavigation.action(for: event.keyCode) {

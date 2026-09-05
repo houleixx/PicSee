@@ -17,6 +17,9 @@ struct ImageViewerView: View {
     @State private var revealsAvailableNavigationDirections = true
     @State private var hasPresentedNavigationDiscovery = false
     @State private var isFullScreen = false
+    @State private var screenshotDocument: ScreenshotDocument?
+    @State private var screenshotError: String?
+    @State private var clipboardNoticeID: UUID?
     private let hudPadding: CGFloat = 12
     private let navigationFadeDuration = 0.18
     private let toolbarEdgeFraction: CGFloat = 0.20
@@ -81,7 +84,7 @@ struct ImageViewerView: View {
                     }
                 )
                 .overlay(alignment: .topLeading) {
-                    if !titleBarVisible {
+                    if !titleBarVisible && screenshotDocument == nil {
                         HStack(spacing: 8) {
                             Text(viewModel.zoomPercentageText)
                                 .font(.system(size: 13, weight: .semibold))
@@ -118,21 +121,22 @@ struct ImageViewerView: View {
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    if toolbarEffectivelyVisible {
+                    if toolbarEffectivelyVisible && screenshotDocument == nil {
                         ImageToolBar(
                             onFitToWindow: viewModel.fitToWindow,
                             onShowHundredPercent: viewModel.showActualSize,
                             onZoomOut: viewModel.zoomOut,
                             onZoomIn: viewModel.zoomIn,
                             onRotateLeft: viewModel.rotateLeft,
-                            onRotateRight: viewModel.rotateRight
+                            onRotateRight: viewModel.rotateRight,
+                            onScreenshot: beginScreenshot
                         )
                         .padding(.bottom, hudPadding)
                         .transition(.opacity.combined(with: .scale(scale: 0.92)))
                     }
                 }
                 .overlay(alignment: .trailing) {
-                    if imageParametersVisible, let imageParametersText = viewModel.imageParametersText {
+                    if screenshotDocument == nil, imageParametersVisible, let imageParametersText = viewModel.imageParametersText {
                         ImageParametersPanel(
                             text: imageParametersText,
                             onClose: {
@@ -154,6 +158,8 @@ struct ImageViewerView: View {
                 .overlay {
                     GeometryReader { geometry in
                         imageNavigationControls(viewerWidth: geometry.size.width)
+                            .opacity(screenshotDocument == nil ? 1 : 0)
+                            .allowsHitTesting(screenshotDocument == nil)
                             .onAppear { viewerHeight = geometry.size.height }
                             .onChange(of: geometry.size.height) { _, newValue in
                                 viewerHeight = newValue
@@ -203,7 +209,7 @@ struct ImageViewerView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if !titleBarVisible {
+            if !titleBarVisible && screenshotDocument == nil {
                 Button(action: { NSApp.terminate(nil) }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
@@ -219,6 +225,54 @@ struct ImageViewerView: View {
                 .padding(.trailing, hudPadding)
             }
         }
+        .overlay {
+            if let screenshotDocument, let image = viewModel.image {
+                GeometryReader { geometry in
+                    ScreenshotEditorView(
+                        document: screenshotDocument,
+                        filename: viewModel.currentFilename,
+                        imageRect: ImageDisplayGeometry(
+                            imageSize: image.size, viewportSize: geometry.size,
+                            zoomScale: viewModel.zoomScale, panOffset: viewModel.panOffset,
+                            rotationDegrees: viewModel.rotationDegrees
+                        ).imageRect,
+                        onClose: closeScreenshot,
+                        onCopy: { clipboardNoticeID = UUID() }
+                    )
+                }
+            }
+        }
+        .overlay(alignment: .center) {
+            if clipboardNoticeID != nil {
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 34, weight: .medium))
+                        .accessibilityHidden(true)
+                    Text("已添加到剪贴板")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 26)
+                .padding(.vertical, 28)
+                .background(.black.opacity(0.76), in: RoundedRectangle(cornerRadius: 12))
+                .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: clipboardNoticeID != nil)
+        .task(id: clipboardNoticeID) {
+            guard clipboardNoticeID != nil else { return }
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            clipboardNoticeID = nil
+        }
+        .onChange(of: viewModel.currentURL) { _, _ in closeScreenshot() }
+        .onDisappear { closeScreenshot() }
+        .alert("无法开始截图", isPresented: Binding(
+            get: { screenshotError != nil }, set: { if !$0 { screenshotError = nil } }
+        )) {
+            Button("好") { screenshotError = nil }
+        } message: { Text(screenshotError ?? "") }
         .frame(minWidth: 480, minHeight: 320)
         .animation(.easeInOut(duration: navigationFadeDuration), value: toolbarEffectivelyVisible)
         .task {
@@ -236,6 +290,19 @@ struct ImageViewerView: View {
         .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.didExitFullScreenNotification)) { _ in
             isFullScreen = false
         }
+    }
+
+    private func closeScreenshot() {
+        screenshotDocument = nil
+        viewModel.isScreenshotEditing = false
+    }
+
+    private func beginScreenshot() {
+        guard let image = viewModel.image else { return }
+        do {
+            screenshotDocument = try ScreenshotDocument(image: image, rotationDegrees: viewModel.rotationDegrees)
+            viewModel.isScreenshotEditing = true
+        } catch { screenshotError = error.localizedDescription }
     }
 
     @ViewBuilder
@@ -331,6 +398,7 @@ private struct ImageToolBar: View {
     let onZoomIn: () -> Void
     let onRotateLeft: () -> Void
     let onRotateRight: () -> Void
+    let onScreenshot: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -346,6 +414,20 @@ private struct ImageToolBar: View {
                 .help("向左旋转 90 度")
             toolbarButton(iconName: "arrow-clockwise-bold", accessibilityLabel: "向右旋转 90 度", action: onRotateRight)
                 .help("向右旋转 90 度")
+            Rectangle()
+                .fill(.white.opacity(0.28))
+                .frame(width: 1, height: 18)
+                .padding(.horizontal, 3)
+            Button(action: onScreenshot) {
+                Image(systemName: "crop")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .frame(width: 34, height: 28)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(ImageToolBarButtonStyle())
+            .accessibilityLabel("截图与标注")
+            .help("截取图片区域并标注")
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 4)

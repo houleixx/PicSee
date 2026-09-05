@@ -13,6 +13,7 @@ final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var currentURL: URL
     @Published private(set) var image: NSImage?
     @Published private(set) var errorMessage: String?
+    @Published var isScreenshotEditing = false
     @Published var zoomScale: CGFloat = 1
     @Published var panOffset: CGSize = .zero
     @Published var displayScale: CGFloat = 1

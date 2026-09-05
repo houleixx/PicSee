@@ -20,4 +20,4 @@
 4. 方向键切图
 5. 设置默认图片查看器
 
-裁剪与标注配图位于 `assets/feature-crop-annotate-v6.png`。修改 `index.html` 和资源文件即可更新网站，无需构建。
+裁剪与标注配图位于 `assets/feature-crop-annotate.webp`。修改 `index.html` 和资源文件即可更新网站，无需构建。

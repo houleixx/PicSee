@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="PicSee — macOS 原生图片查看器。Finder 双击即开、看完即退。滚轮缩放、OCR 选字复制、方向键切图。">
+  <meta name="description" content="PicSee — macOS 原生图片查看器。Finder 双击即开、看完即退。滚轮缩放、图片裁剪与标注、OCR 选字复制、方向键切图。">
   <title>PicSee — 看图，双击即开、看完即退</title>
   <link rel="icon" type="image/png" href="assets/brand-icon.png">
   <style>
@@ -609,6 +609,7 @@
           <p class="hero-tagline">看图，就该双击即开、看完即退。一款为快速浏览而生的原生 macOS 图片查看器。</p>
           <ul class="hero-features">
             <li>滚轮缩放 · 拖动平移</li>
+            <li>图片裁剪 · 就地标注</li>
             <li>OCR 选字复制</li>
             <li>方向键切图</li>
           </ul>
@@ -642,10 +643,24 @@
         </div>
       </article>
 
-      <!-- Story 02: OCR -->
+      <!-- Story 02: Crop and Annotate -->
       <article class="story">
         <div class="story-text">
           <span class="story-number">02</span>
+          <h2 class="section-title story-title">框选裁剪，<br>就地标注</h2>
+          <p class="story-desc">
+            在当前图片上拖动框选，输入宽高精确裁剪。加上箭头、形状和多行文字，用马赛克遮住不想展示的细节。文字可拖动、可重新编辑，操作支持撤销；完成后直接复制，或将图片与标注一起按比例保存。
+          </p>
+        </div>
+        <div class="story-image">
+          <img src="assets/feature-crop-annotate-v3.png" alt="PicSee 框选图片区域，添加箭头与文字标注后复制或保存" width="1080" height="720" loading="lazy">
+        </div>
+      </article>
+
+      <!-- Story 03: OCR -->
+      <article class="story">
+        <div class="story-text">
+          <span class="story-number">03</span>
           <h2 class="section-title story-title">OCR 选字，<br>直接复制</h2>
           <p class="story-desc">
             鼠标移到图片中的文字上方，光标自动变为 I 形。拖动选择文字，Cmd+C 复制。截图里的文字、扫描文档上的段落——无需打开额外的 OCR 工具，看图的同时就能提取内容。
@@ -656,10 +671,10 @@
         </div>
       </article>
 
-      <!-- Story 03: Keyboard Navigation -->
+      <!-- Story 04: Keyboard Navigation -->
       <article class="story">
         <div class="story-text">
-          <span class="story-number">03</span>
+          <span class="story-number">04</span>
           <h2 class="section-title story-title">方向键切图，<br>跟随 Finder 排序</h2>
           <p class="story-desc">
             按 ← → ↑ ↓ 在同目录图片间切换。切图顺序跟随 Finder 当前显示顺序——你在 Finder 里怎么排，PicSee 就怎么翻。无法读取 Finder 顺序时，安全回退到文件名自然排序，不会中断浏览。
@@ -670,10 +685,10 @@
         </div>
       </article>
 
-      <!-- Story 04: Set as Default -->
+      <!-- Story 05: Set as Default -->
       <article class="story">
         <div class="story-text">
-          <span class="story-number">04</span>
+          <span class="story-number">05</span>
           <h2 class="section-title story-title">设为默认查看器</h2>
           <p class="story-desc">
             打开 PicSee 的设置窗口，按需勾选希望交由 PicSee 打开的图片格式。除 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP 和常见 RAW 外，也支持 AVIF、SVG、图标、JPEG 2000 与多种专业图片格式。设置完成后，在 Finder 中双击图片即可直接打开。

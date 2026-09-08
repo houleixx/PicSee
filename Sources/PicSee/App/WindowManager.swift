@@ -154,8 +154,8 @@ final class WindowManager {
         )
         let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
-        let initialContentFrame = initialWindowContentFrame(for: viewModel.image)
         let styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
+        let initialContentFrame = initialWindowContentFrame(for: viewModel.image, styleMask: styleMask)
         let suitableWindowFrame = NSWindow.frameRect(forContentRect: initialContentFrame, styleMask: styleMask)
         let initialWindowFrame = self.initialWindowFrame(
             contentFrame: initialContentFrame,
@@ -251,12 +251,14 @@ final class WindowManager {
         objc_setAssociatedObject(window, &Self.delegateAssociationKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 
-    private func initialWindowContentFrame(for image: NSImage?) -> NSRect {
+    private func initialWindowContentFrame(for image: NSImage?, styleMask: NSWindow.StyleMask) -> NSRect {
         guard let screen = NSScreen.main else {
             return NSRect(x: 0, y: 0, width: 1000, height: 760)
         }
 
-        return WindowPlacement.frame(for: image?.size, in: screen.frame)
+        let availableContentFrame = NSWindow.contentRect(forFrameRect: screen.visibleFrame, styleMask: styleMask)
+        return WindowPlacement.frame(for: image.flatMap { ImageExporter.pixelSize(of: $0) },
+                                     in: availableContentFrame, backingScale: screen.backingScaleFactor)
     }
 
     private func initialWindowFrame(contentFrame: NSRect, styleMask: NSWindow.StyleMask) -> NSRect {

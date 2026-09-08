@@ -20,7 +20,7 @@ struct ScreenshotEditorView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             ScreenshotCanvas(document: document, imageRect: imageRect,
-                             isPointerOverControls: isPointerOverControls, onCancel: onClose)
+                             isPointerOverControls: isPointerOverControls, screenScale: screenScale, onCancel: onClose)
             VStack(spacing: 8) {
                 Text(hint)
                     .font(.caption)
@@ -462,17 +462,20 @@ private struct ScreenshotCanvas: NSViewRepresentable {
     @ObservedObject var document: ScreenshotDocument
     let imageRect: CGRect
     let isPointerOverControls: Bool
+    let screenScale: CGFloat
     let onCancel: () -> Void
     func makeNSView(context: Context) -> ScreenshotCanvasNSView {
         let view = ScreenshotCanvasNSView(document: document)
         view.displayImageRect = imageRect
         view.isPointerOverControls = isPointerOverControls
+        view.screenScale = screenScale
         view.onCancel = onCancel
         return view
     }
     func updateNSView(_ nsView: ScreenshotCanvasNSView, context: Context) {
         nsView.displayImageRect = imageRect
         nsView.isPointerOverControls = isPointerOverControls
+        nsView.screenScale = screenScale
         nsView.onCancel = onCancel
         nsView.synchronizeTextEditor()
         nsView.needsDisplay = true
@@ -512,6 +515,7 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
     }
     let document: ScreenshotDocument
     var displayImageRect: CGRect?
+    var screenScale: CGFloat = 1
     var onCancel: (() -> Void)?
     private var textEditor: NSTextField?
     private var brushPointer: CGPoint?
@@ -743,11 +747,42 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
          CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.midX, y: rect.maxY),
          CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.midY)]
     }
+    var selectionSizeText: String? {
+        guard let selection = document.state.selection else { return nil }
+        let size = ScreenshotExportSizeMode.selectedSize.pixelSize(
+            sourceSize: selection.integral.intersection(document.bounds).size,
+            displayScale: ScreenshotExportSizeMode.displayPixelScale(imageDisplayScale: scale, screenScale: screenScale))
+        return "\(Int(size.width)) × \(Int(size.height)) px"
+    }
+
+    private var selectionSizeAttributes: [NSAttributedString.Key: Any] {
+        [.font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium), .foregroundColor: NSColor.white]
+    }
+
+    var selectionSizeLabelRect: CGRect? {
+        guard let selection = document.state.selection, let text = selectionSizeText else { return nil }
+        let textSize = (text as NSString).size(withAttributes: selectionSizeAttributes)
+        let width = ceil(textSize.width) + 12
+        let height = ceil(textSize.height) + 6
+        // Prefer the space above the selection; keep the readout visible at window edges.
+        let x = min(max(bounds.minX + 4, imageRect.minX + selection.minX * scale), max(bounds.minX + 4, bounds.maxX - width - 4))
+        let y = min(max(bounds.minY + 4, imageRect.minY + selection.maxY * scale + 8), max(bounds.minY + 4, bounds.maxY - height - 4))
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    private func drawSelectionSizeLabel() {
+        guard let text = selectionSizeText, let rect = selectionSizeLabelRect else { return }
+        NSColor.black.withAlphaComponent(0.72).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
+        (text as NSString).draw(at: CGPoint(x: rect.minX + 6, y: rect.minY + 3), withAttributes: selectionSizeAttributes)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
         guard let context = NSGraphicsContext.current?.cgContext else { return }
+        context.saveGState()
         context.translateBy(x: imageRect.minX, y: imageRect.minY)
         context.scaleBy(x: scale, y: scale)
         // Inline mode leaves the viewer image in place, including its transparency.
@@ -763,17 +798,14 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
         shade.fill()
         if let selection = document.state.selection {
             let border = NSBezierPath(rect: selection)
-            NSColor.black.withAlphaComponent(0.65).setStroke()
-            border.lineWidth = 3 / scale
-            border.stroke()
-            NSColor.white.setStroke()
-            border.lineWidth = 1 / scale
+            NSColor.systemBlue.setStroke()
+            border.lineWidth = 2 / scale
             border.stroke()
             if document.tool == .crop {
                 for point in handles(selection) {
                     let handleRect = CGRect(x: point.x - 4 / scale, y: point.y - 4 / scale,
                                             width: 8 / scale, height: 8 / scale)
-                    NSColor.controlAccentColor.setFill()
+                    NSColor.systemBlue.setFill()
                     NSBezierPath(rect: handleRect).fill()
                     NSColor.white.setStroke()
                     let outline = NSBezierPath(rect: handleRect)
@@ -797,6 +829,8 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
                 circle.stroke()
             }
         }
+        context.restoreGState()
+        drawSelectionSizeLabel()
     }
     override func mouseDown(with event: NSEvent) {
         if textEditor != nil {

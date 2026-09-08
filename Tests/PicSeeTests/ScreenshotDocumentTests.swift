@@ -136,6 +136,24 @@ final class ScreenshotDocumentTests: XCTestCase {
     }
 
     @MainActor
+    func testSelectionReadoutMatchesScreenPixelsAndStaysVisibleAtTopEdge() throws {
+        let document = try document()
+        let canvas = ScreenshotCanvasNSView(document: document)
+        canvas.frame = CGRect(x: 0, y: 0, width: 840, height: 440)
+        canvas.screenScale = 2
+        document.state.selection = CGRect(x: 10, y: 5, width: 20, height: 10)
+        XCTAssertEqual(canvas.selectionSizeText, "400 × 200 px")
+        let label = try XCTUnwrap(canvas.selectionSizeLabelRect)
+        XCTAssertGreaterThan(label.minY, 170)
+        XCTAssertTrue(canvas.bounds.contains(label))
+        document.selectAll()
+        XCTAssertTrue(canvas.bounds.contains(try XCTUnwrap(canvas.selectionSizeLabelRect)))
+        canvas.frame = CGRect(x: 0, y: 0, width: 440, height: 240)
+        XCTAssertEqual(canvas.selectionSizeText, "800 × 400 px")
+        XCTAssertTrue(canvas.bounds.contains(try XCTUnwrap(canvas.selectionSizeLabelRect)))
+    }
+
+    @MainActor
     func testCanvasSelectMoveResizeAndDraw() throws {
         let document = try document()
         let canvas = ScreenshotCanvasNSView(document: document)

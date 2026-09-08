@@ -5,8 +5,8 @@ enum ScreenshotExportSizeMode: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .selectedSize: "按选择像素保存"
-        case .imageScale: "按原图像素保存"
+        case .selectedSize: "按选择尺寸保存"
+        case .imageScale: "按原图尺寸保存"
         }
     }
 

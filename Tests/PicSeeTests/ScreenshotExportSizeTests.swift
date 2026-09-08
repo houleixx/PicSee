@@ -16,7 +16,7 @@ final class ScreenshotExportSizeTests: XCTestCase {
         for scale: CGFloat in [0.25, 0.5, 1, 2] {
             XCTAssertEqual(ScreenshotExportSizeMode.imageScale.pixelSize(sourceSize: source, displayScale: scale), source)
         }
-        XCTAssertEqual(ScreenshotExportSizeMode.imageScale.title, "按原图像素保存")
+        XCTAssertEqual(ScreenshotExportSizeMode.imageScale.title, "按原图尺寸保存")
     }
 
     func testOutputRoundsToWholePixelsAndInvalidScalesUseOriginalSize() {
@@ -49,8 +49,8 @@ final class ScreenshotExportSizeTests: XCTestCase {
         let grid = try XCTUnwrap(accessory.subviews.compactMap { $0 as? NSGridView }.first)
         let selected = try XCTUnwrap(grid.cell(atColumnIndex: 1, rowIndex: 0).contentView as? NSButton)
         let original = try XCTUnwrap(grid.cell(atColumnIndex: 1, rowIndex: 1).contentView as? NSButton)
-        XCTAssertEqual(selected.title, "按选择像素保存 · 300 × 200 px")
-        XCTAssertEqual(original.title, "按原图像素保存 · 600 × 400 px（当前显示比例 25%）")
+        XCTAssertEqual(selected.title, "按选择尺寸保存 · 300 × 200 px")
+        XCTAssertEqual(original.title, "按原图尺寸保存 · 600 × 400 px（当前显示比例 25%）")
         XCTAssertEqual(selected.state, .on)
         XCTAssertEqual(original.state, .off)
         XCTAssertEqual(accessory.exportOptions.pixelSize, CGSize(width: 300, height: 200))

@@ -237,7 +237,7 @@ struct ScreenshotEditorView: View {
         let timestampFormatter = DateFormatter()
         timestampFormatter.locale = Locale(identifier: "en_US_POSIX")
         timestampFormatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
-        panel.nameFieldStringValue = "picsee-截图-\(timestampFormatter.string(from: Date())).png"
+        panel.nameFieldStringValue = "PicSee_截图_\(timestampFormatter.string(from: Date())).png"
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             do {

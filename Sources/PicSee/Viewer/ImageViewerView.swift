@@ -269,8 +269,7 @@ struct ImageViewerView: View {
         )) {
             Button("好") { screenshotError = nil }
         } message: { Text(screenshotError ?? "") }
-        // NSWindow owns minimum sizing, including fixed frames and title-bar changes.
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: 480, minHeight: 320)
         .animation(.easeInOut(duration: navigationFadeDuration), value: toolbarEffectivelyVisible)
         .task {
             if let updateChecker {

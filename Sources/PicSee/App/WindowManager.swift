@@ -139,11 +139,7 @@ final class WindowManager {
     private var currentWindow: NSWindow?
     private var titleObserver: AnyCancellable?
     private var keyEventMonitor: Any?
-    private var minimumWindowSize: NSSize {
-        ViewerTitleBarPreference.minimumWindowSize(
-            titleBarVisible: ViewerTitleBarPreference.isVisible()
-        )
-    }
+    private let minimumWindowSize = NSSize(width: 320, height: 220)
 
     var hasOpenViewer: Bool {
         currentWindow != nil
@@ -261,14 +257,6 @@ final class WindowManager {
         }
 
         let availableContentFrame = NSWindow.contentRect(forFrameRect: screen.visibleFrame, styleMask: styleMask)
-        if !styleMask.contains(.titled) {
-            // Match the logical dimensions used by ImageDisplayGeometry so the
-            // initial canvas hugs the displayed image without upscaling it.
-            return WindowPlacement.frame(
-                for: image?.size, in: availableContentFrame,
-                minimumSize: WindowPlacement.compactMinimumSize
-            )
-        }
         return WindowPlacement.frame(for: image.flatMap { ImageExporter.pixelSize(of: $0) },
                                      in: availableContentFrame, backingScale: screen.backingScaleFactor)
     }

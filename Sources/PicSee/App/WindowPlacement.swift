@@ -1,14 +1,8 @@
 import AppKit
 
 enum WindowPlacement {
-    static let compactMinimumSize = NSSize(width: 360, height: 240)
-
-    /// Divides image dimensions by backingScale to get screen points.
-    /// Pass logical image dimensions with the default scale of 1.
-    static func frame(
-        for imageSize: NSSize?, in screenFrame: NSRect, backingScale: CGFloat = 1,
-        minimumSize: NSSize = NSSize(width: 800, height: 600)
-    ) -> NSRect {
+    /// Image dimensions are physical pixels; window dimensions are screen points.
+    static func frame(for imageSize: NSSize?, in screenFrame: NSRect, backingScale: CGFloat = 1) -> NSRect {
         let maximumWidth = min(screenFrame.width, max(800, screenFrame.width * 0.8))
         let maximumHeight = min(screenFrame.height, max(600, screenFrame.height * 0.8))
         let screenScale = backingScale.isFinite && backingScale > 0 ? backingScale : 1
@@ -21,8 +15,8 @@ enum WindowPlacement {
         } else {
             fittedSize = NSSize(width: min(maximumWidth, maximumHeight * 4 / 3), height: maximumHeight)
         }
-        let width = min(maximumWidth, max(minimumSize.width, fittedSize.width))
-        let height = min(maximumHeight, max(minimumSize.height, fittedSize.height))
+        let width = min(maximumWidth, max(800, fittedSize.width))
+        let height = min(maximumHeight, max(600, fittedSize.height))
         return NSRect(x: screenFrame.midX - width / 2, y: screenFrame.midY - height / 2,
                       width: width, height: height)
     }

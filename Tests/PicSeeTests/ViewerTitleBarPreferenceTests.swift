@@ -3,6 +3,27 @@ import XCTest
 @testable import PicSee
 
 final class ViewerTitleBarPreferenceTests: XCTestCase {
+    @MainActor
+    func testMinimumWindowSizeReservesTheSameUsableCanvasInBothModes() {
+        for visible in [false, true] {
+            let frame = NSRect(origin: .zero, size: ViewerTitleBarPreference.minimumWindowSize(titleBarVisible: visible))
+            let content = NSWindow.contentRect(
+                forFrameRect: frame,
+                styleMask: ViewerTitleBarPreference.styleMask(titleBarVisible: visible)
+            )
+            XCTAssertEqual(content.size, WindowPlacement.compactMinimumSize)
+            for anchor in [WindowResizeAnchor.topLeft, .bottomRight] {
+                let resized = WindowResizeGeometry.frame(
+                    from: NSRect(x: 100, y: 100, width: 600, height: 600),
+                    anchor: anchor,
+                    delta: anchor == .topLeft ? CGSize(width: 1000, height: -1000) : CGSize(width: -1000, height: 1000),
+                    minimumSize: frame.size
+                )
+                XCTAssertEqual(resized.size, frame.size)
+            }
+        }
+    }
+
     func testDefaultsToHiddenTitleBar() {
         let suiteName = "PicSee.TitleBarPreferenceTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

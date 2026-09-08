@@ -92,7 +92,6 @@ struct ImageViewerView: View {
                                 .padding(.horizontal, 11)
                                 .padding(.vertical, 7)
                                 .background(.black.opacity(0.42), in: Capsule())
-                                .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
 
                             if fileInfoVisible, let imageMetadataText = viewModel.imageMetadataText {
                                 Text(imageMetadataText)
@@ -103,10 +102,8 @@ struct ImageViewerView: View {
                                     .padding(.horizontal, 11)
                                     .padding(.vertical, 7)
                                     .background(.black.opacity(0.42), in: Capsule())
-                                    .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                             }
                         }
-                        .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 3)
                         .padding(.top, hudPadding)
                         .padding(.leading, hudPadding)
                         .padding(.trailing, 56)
@@ -123,6 +120,7 @@ struct ImageViewerView: View {
                 .overlay(alignment: .bottom) {
                     if toolbarEffectivelyVisible && screenshotDocument == nil {
                         ImageToolBar(
+                            usesFlatStyle: !titleBarVisible,
                             onFitToWindow: viewModel.fitToWindow,
                             onShowHundredPercent: viewModel.showActualSize,
                             onZoomOut: viewModel.zoomOut,
@@ -138,6 +136,7 @@ struct ImageViewerView: View {
                 .overlay(alignment: .trailing) {
                     if screenshotDocument == nil, imageParametersVisible, let imageParametersText = viewModel.imageParametersText {
                         ImageParametersPanel(
+                            usesFlatStyle: !titleBarVisible,
                             text: imageParametersText,
                             onClose: {
                                 imageParametersVisible = false
@@ -216,8 +215,6 @@ struct ImageViewerView: View {
                         .foregroundStyle(.white)
                         .frame(width: 32, height: 32)
                         .background(.black.opacity(0.42), in: Circle())
-                        .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
-                        .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 3)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("关闭图片")
@@ -254,7 +251,7 @@ struct ImageViewerView: View {
                 .padding(.horizontal, 26)
                 .padding(.vertical, 28)
                 .background(.black.opacity(0.76), in: RoundedRectangle(cornerRadius: 12))
-                .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+                .shadow(color: .black.opacity(titleBarVisible ? 0.12 : 0), radius: 12, y: 4)
                 .allowsHitTesting(false)
                 .transition(.opacity)
             }
@@ -272,7 +269,8 @@ struct ImageViewerView: View {
         )) {
             Button("好") { screenshotError = nil }
         } message: { Text(screenshotError ?? "") }
-        .frame(minWidth: 480, minHeight: 320)
+        // NSWindow owns minimum sizing, including fixed frames and title-bar changes.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: navigationFadeDuration), value: toolbarEffectivelyVisible)
         .task {
             if let updateChecker {
@@ -354,8 +352,8 @@ struct ImageViewerView: View {
                 .foregroundStyle(.white.opacity(0.96))
                 .frame(width: 40, height: 40)
                 .background(.black.opacity(0.46), in: Circle())
-                .overlay(Circle().stroke(.white.opacity(0.24), lineWidth: 1))
-                .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 3)
+                .overlay(Circle().stroke(.white.opacity(titleBarVisible ? 0.24 : 0), lineWidth: 1))
+                .shadow(color: .black.opacity(titleBarVisible ? 0.32 : 0), radius: 10, x: 0, y: 3)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
@@ -391,6 +389,7 @@ enum ImageParametersPanelLayout {
 }
 
 private struct ImageToolBar: View {
+    let usesFlatStyle: Bool
     let onFitToWindow: () -> Void
     let onShowHundredPercent: () -> Void
     let onZoomOut: () -> Void
@@ -424,15 +423,15 @@ private struct ImageToolBar: View {
                     .frame(width: 34, height: 28)
                     .contentShape(Capsule())
             }
-            .buttonStyle(ImageToolBarButtonStyle())
+            .buttonStyle(ImageToolBarButtonStyle(usesFlatStyle: usesFlatStyle))
             .accessibilityLabel("截图与标注")
             .help("截取图片区域并标注")
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 4)
         .background(.black.opacity(0.46), in: Capsule())
-        .overlay(Capsule().stroke(.white.opacity(0.24), lineWidth: 1))
-        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 8)
+        .overlay(Capsule().stroke(.white.opacity(usesFlatStyle ? 0 : 0.24), lineWidth: 1))
+        .shadow(color: .black.opacity(usesFlatStyle ? 0 : 0.28), radius: 18, x: 0, y: 8)
     }
 
     private func toolbarButton(iconName: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
@@ -444,12 +443,13 @@ private struct ImageToolBar: View {
                 .frame(width: 34, height: 28)
             .contentShape(Capsule())
         }
-        .buttonStyle(ImageToolBarButtonStyle())
+        .buttonStyle(ImageToolBarButtonStyle(usesFlatStyle: usesFlatStyle))
         .accessibilityLabel(accessibilityLabel)
     }
 }
 
 private struct ImageParametersPanel: View {
+    let usesFlatStyle: Bool
     let text: String
     let onClose: () -> Void
 
@@ -479,8 +479,8 @@ private struct ImageParametersPanel: View {
             .accessibilityLabel("关闭图片参数")
         }
         .background(.black.opacity(0.46), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.22), lineWidth: 1))
-        .shadow(color: .black.opacity(0.3), radius: 14, x: 0, y: 6)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(usesFlatStyle ? 0 : 0.22), lineWidth: 1))
+        .shadow(color: .black.opacity(usesFlatStyle ? 0 : 0.3), radius: 14, x: 0, y: 6)
         .frame(maxWidth: 260, alignment: .leading)
     }
 }
@@ -536,10 +536,11 @@ enum PicSeeResourceBundle {
 }
 
 private struct ImageToolBarButtonStyle: ButtonStyle {
+    let usesFlatStyle: Bool
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                (configuration.isPressed ? Color.white.opacity(0.20) : Color.white.opacity(0.08)),
+                (configuration.isPressed ? Color.white.opacity(0.20) : Color.white.opacity(usesFlatStyle ? 0 : 0.08)),
                 in: Capsule()
             )
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)

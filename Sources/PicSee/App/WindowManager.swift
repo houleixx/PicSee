@@ -139,7 +139,11 @@ final class WindowManager {
     private var currentWindow: NSWindow?
     private var titleObserver: AnyCancellable?
     private var keyEventMonitor: Any?
-    private let minimumWindowSize = NSSize(width: 320, height: 220)
+    private var minimumWindowSize: NSSize {
+        ViewerTitleBarPreference.minimumWindowSize(
+            titleBarVisible: ViewerTitleBarPreference.isVisible()
+        )
+    }
 
     var hasOpenViewer: Bool {
         currentWindow != nil
@@ -214,7 +218,7 @@ final class WindowManager {
                 WindowFramePreference.saveTemporaryDesktopFullScreenRestoreFrame(frame)
             }
         }
-        window.hasShadow = true
+        window.hasShadow = titleBarVisible
         window.minSize = minimumWindowSize
         window.contentViewController = hostingController
         window.setFrame(initialWindowFrame, display: false)
@@ -257,6 +261,14 @@ final class WindowManager {
         }
 
         let availableContentFrame = NSWindow.contentRect(forFrameRect: screen.visibleFrame, styleMask: styleMask)
+        if !styleMask.contains(.titled) {
+            // Match the logical dimensions used by ImageDisplayGeometry so the
+            // initial canvas hugs the displayed image without upscaling it.
+            return WindowPlacement.frame(
+                for: image?.size, in: availableContentFrame,
+                minimumSize: WindowPlacement.compactMinimumSize
+            )
+        }
         return WindowPlacement.frame(for: image.flatMap { ImageExporter.pixelSize(of: $0) },
                                      in: availableContentFrame, backingScale: screen.backingScaleFactor)
     }
@@ -339,6 +351,7 @@ final class WindowManager {
     }
 
     private func applyWindowShape(to window: NSWindow, titleBarVisible: Bool) {
+        window.hasShadow = titleBarVisible
         if titleBarVisible {
             window.titleVisibility = .visible
             window.titlebarAppearsTransparent = false

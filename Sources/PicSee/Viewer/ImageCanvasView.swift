@@ -642,7 +642,6 @@ final class CanvasNSView: NSView {
     private let topLeftResizeRegionSize: CGFloat = 44
     private let bottomRightResizeRegionSize: CGFloat = 64
     private let resizeAvoidancePadding: CGFloat = 8
-    private let minimumWindowSize = NSSize(width: 320, height: 220)
     private let minimapMaxSize = CGSize(width: 140, height: 100)
     private let minimapPadding: CGFloat = 12
 
@@ -915,7 +914,7 @@ final class CanvasNSView: NSView {
                 from: dragStartWindowFrame,
                 anchor: anchor,
                 delta: delta,
-                minimumSize: minimumWindowSize
+                minimumSize: window.minSize
             )
             window.setFrame(nextFrame, display: true)
             WindowFramePreference.save(nextFrame)

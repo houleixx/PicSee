@@ -20,6 +20,14 @@ struct ViewerTitleBarPreference {
     }
 
     @MainActor
+    static func minimumWindowSize(titleBarVisible: Bool) -> NSSize {
+        windowFrame(
+            forContentFrame: NSRect(origin: .zero, size: WindowPlacement.compactMinimumSize),
+            titleBarVisible: titleBarVisible
+        ).size
+    }
+
+    @MainActor
     static func windowFrame(forContentFrame contentFrame: NSRect, titleBarVisible: Bool) -> NSRect {
         guard titleBarVisible else { return contentFrame }
         return NSWindow.frameRect(forContentRect: contentFrame, styleMask: styleMask(titleBarVisible: true))

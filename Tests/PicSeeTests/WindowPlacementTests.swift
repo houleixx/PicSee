@@ -3,6 +3,44 @@ import XCTest
 @testable import PicSee
 
 final class WindowPlacementTests: XCTestCase {
+    func testCompactWindowHugsSquareImage() {
+        let screen = NSRect(x: 100, y: 50, width: 1440, height: 900)
+        let frame = WindowPlacement.frame(
+            for: NSSize(width: 512, height: 512), in: screen,
+            minimumSize: WindowPlacement.compactMinimumSize
+        )
+        XCTAssertEqual(frame.size, NSSize(width: 512, height: 512))
+        XCTAssertEqual(frame.midX, screen.midX)
+        XCTAssertEqual(frame.midY, screen.midY)
+    }
+
+    func testCompactWindowKeepsControlsUsableForTinyImage() {
+        let frame = WindowPlacement.frame(
+            for: NSSize(width: 16, height: 16),
+            in: NSRect(x: 0, y: 0, width: 1440, height: 900),
+            minimumSize: WindowPlacement.compactMinimumSize
+        )
+        XCTAssertEqual(frame.size, WindowPlacement.compactMinimumSize)
+    }
+
+    func testCompactPortraitAndPanoramaStayWithinScreen() {
+        let screen = NSRect(x: 1440, y: 40, width: 1440, height: 820)
+        for imageSize in [NSSize(width: 2000, height: 6000), NSSize(width: 6000, height: 1000)] {
+            let frame = WindowPlacement.frame(
+                for: imageSize, in: screen,
+                minimumSize: WindowPlacement.compactMinimumSize
+            )
+            XCTAssertTrue(screen.contains(frame))
+            XCTAssertGreaterThanOrEqual(frame.width, WindowPlacement.compactMinimumSize.width)
+            XCTAssertGreaterThanOrEqual(frame.height, WindowPlacement.compactMinimumSize.height)
+        }
+        let smallScreen = NSRect(x: 20, y: 30, width: 300, height: 200)
+        XCTAssertEqual(WindowPlacement.frame(
+            for: NSSize(width: 512, height: 512), in: smallScreen,
+            minimumSize: WindowPlacement.compactMinimumSize
+        ), smallScreen)
+    }
+
     func testLargeImageFitsAvailableAreaAndCentersWindow() {
         let screen = NSRect(x: 0, y: 0, width: 1440, height: 900)
         let imageSize = NSSize(width: 1200, height: 800)

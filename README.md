@@ -4,7 +4,11 @@ PicSee 是一个面向 macOS 的轻量级图片查看器，主打“Finder 双�
 
 ## 首次打开窗口
 
-未启用固定窗口时，小图按原始像素和当前屏幕倍率换算窗口内容尺寸，不再统一撑到屏幕高度的 80%。大图按比例缩小，窗口宽、高通常不超过可用区域的 80%，预留菜单栏、Dock 和标题栏空间，并居中打开。初始窗口的最小内容尺寸为 800 × 600 点，打开后仍可手动缩小窗口；较小屏幕优先保证初始最小尺寸，但以可用空间为限。启用固定窗口后仍优先恢复已保存的窗口大小和位置。
+未启用固定窗口时，无标题栏窗口按图片的逻辑显示尺寸打开，减少四周灰色留白，不主动放大小图；最小内容尺寸为 360 × 240 点，以便保留工具栏操作空间。图片信息和工具栏悬浮显示，去掉装饰性描边、投影及工具栏按钮的常驻底色。
+
+显示标题栏时，保留系统窗口控制和原有浮层样式，初始内容尺寸仍按图片像素与屏幕倍率换算，最小为 800 × 600 点。两种模式的大图均按比例缩小并居中，窗口宽、高通常不超过可用区域的 80%，以屏幕可用空间为限。
+
+打开后仍可手动调整窗口；最小尺寸统一由窗口管理，并为标题栏预留空间。启用固定窗口后仍优先恢复已保存的窗口大小和位置。
 
 ## 项目背景
 
@@ -77,7 +81,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.48 PICSEE_BUILD_NUMBER=53 Scripts/build-app.sh
+PICSEE_VERSION=0.2.49 PICSEE_BUILD_NUMBER=53 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -90,12 +94,12 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.48.dmg`
+- DMG: `build/dmg/PicSee-0.2.49.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.48 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.49 Scripts/build-dmg.sh
 ```
 
 ## 使用方式
@@ -197,14 +201,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.48
-git push origin v0.2.48
+git tag v0.2.49
+git push origin v0.2.49
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.48`
-- Asset: `PicSee-0.2.48.dmg`
+- Release: `v0.2.49`
+- Asset: `PicSee-0.2.49.dmg`
 
 ## Release 说明
 

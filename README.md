@@ -73,7 +73,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.46 PICSEE_BUILD_NUMBER=46 Scripts/build-app.sh
+PICSEE_VERSION=0.2.47 PICSEE_BUILD_NUMBER=52 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -86,12 +86,12 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.46.dmg`
+- DMG: `build/dmg/PicSee-0.2.47.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.46 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.47 Scripts/build-dmg.sh
 ```
 
 ## 使用方式
@@ -153,14 +153,18 @@ Finder 能通过系统脚本接口返回可靠顺序时，PicSee 会按该顺序
 
 点击右上角的复制图标，将裁剪与标注结果复制到剪贴板；成功后会在窗口中央短暂显示“已添加到剪贴板”。点击绿色对勾打开保存窗口，导出为 PNG。点击红色叉号或在未编辑文字时按 `Esc` 退出截图。
 
-保存窗口提供两种尺寸选项：
+鼠标进入截图工具面板时恢复标准箭头，返回图片区域后恢复选择指针。
+
+截图默认文件名为 `picsee-截图-yyyyMMdd-HHmmss-SSS.png`，使用打开保存窗口时的本地时间，精确到毫秒。
+
+保存窗口以单选按钮展示两种尺寸选项，每项直接显示输出像素，默认选择“按选择像素保存”，并在原图像素选项的尺寸后标注“当前显示比例”，与查看器显示一致：
 
 | 保存尺寸 | 输出规则 |
 | --- | --- |
-| 按选中大小保存 | 按工具栏显示的选区宽、高输出 |
-| 原图比较保存 | 按选中大小乘以图片显示比例的倒数输出，并显示缩放系数与计算后的输出像素 |
+| 按选择像素保存 | 按屏幕实际像素输出（显示逻辑尺寸 × 屏幕倍率），与工具栏宽高、复制图片一致 |
+| 按原图像素保存 | 按选区对应的原图像素输出 |
 
-例如图片按 50% 显示时，比例保存的系数为 2；按 200% 显示时，系数为 0.5。保存时先将图片与文字、线条等标注合成，再统一缩放，保持标注与图片的相对位置和比例。
+例如 2 倍 Retina 屏幕上 600 × 400 逻辑点的选框，底部显示 1200 × 800 px，复制和按选择像素保存都直接输出 1200 × 800 像素，不再放大后缩小。屏幕尺寸导出与复制使用线性采样，避免在较小显示比例下额外平滑文字笔画。调整窗口或切换不同倍率的屏幕时，选区像素尺寸随显示尺寸和屏幕倍率更新。按原图像素保存始终输出原图选区像素。
 
 ## GitHub Actions 自动打包 DMG 并发布 Release
 
@@ -187,14 +191,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.46
-git push origin v0.2.46
+git tag v0.2.47
+git push origin v0.2.47
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.46`
-- Asset: `PicSee-0.2.46.dmg`
+- Release: `v0.2.47`
+- Asset: `PicSee-0.2.47.dmg`
 
 ## Release 说明
 

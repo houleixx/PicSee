@@ -230,7 +230,6 @@ struct ImageViewerView: View {
                 GeometryReader { geometry in
                     ScreenshotEditorView(
                         document: screenshotDocument,
-                        filename: viewModel.currentFilename,
                         imageRect: ImageDisplayGeometry(
                             imageSize: image.size, viewportSize: geometry.size,
                             zoomScale: viewModel.zoomScale, panOffset: viewModel.panOffset,

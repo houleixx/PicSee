@@ -114,6 +114,28 @@ final class ScreenshotDocumentTests: XCTestCase {
         XCTAssertEqual(ImageExporter.pixelSize(of: try document.renderedImage()), CGSize(width: 11, height: 6))
     }
     @MainActor
+    func testCanvasUsesArrowOverToolbarAndRestoresSelectionCursor() throws {
+        _ = NSApplication.shared
+        let canvas = ScreenshotCanvasNSView(document: try document())
+        canvas.frame = CGRect(x: 0, y: 0, width: 840, height: 440)
+        let event = try XCTUnwrap(NSEvent.mouseEvent(with: .mouseMoved,
+            location: CGPoint(x: 100, y: 100), modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, eventNumber: 0, clickCount: 0, pressure: 0))
+        defer { NSCursor.arrow.set() }
+        canvas.mouseMoved(with: event)
+        XCTAssertEqual(NSCursor.current, NSCursor.crosshair)
+        canvas.isPointerOverControls = true
+        canvas.mouseMoved(with: event)
+        XCTAssertEqual(NSCursor.current, NSCursor.arrow)
+        // Further canvas tracking events must not overwrite the toolbar's arrow.
+        canvas.mouseMoved(with: event)
+        XCTAssertEqual(NSCursor.current, NSCursor.arrow)
+        canvas.isPointerOverControls = false
+        canvas.mouseMoved(with: event)
+        XCTAssertEqual(NSCursor.current, NSCursor.crosshair)
+    }
+
+    @MainActor
     func testCanvasSelectMoveResizeAndDraw() throws {
         let document = try document()
         let canvas = ScreenshotCanvasNSView(document: document)
@@ -417,6 +439,105 @@ final class ScreenshotDocumentTests: XCTestCase {
         XCTAssertEqual(document.state.selection, CGRect(x: 10, y: 10, width: 35, height: 20))
         document.redo()
         XCTAssertEqual(document.state.selection?.size, CGSize(width: 35, height: 10))
+    }
+
+    @MainActor
+    func testDisplayedDimensionsResizeOriginalSelectionAndMatchSaveOptions() throws {
+        for scale: CGFloat in [0.25, 0.5, 1, 2] {
+            let document = try document()
+            document.state.selection = CGRect(x: 10, y: 0, width: 20, height: 40)
+            XCTAssertTrue(document.resizeSelection(width: 8, height: 6, displayScale: scale))
+            let size = try XCTUnwrap(document.state.selection).size
+            XCTAssertEqual(size, CGSize(width: 8 / scale, height: 6 / scale))
+            let accessory = ScreenshotExportAccessoryView(sourceSize: size, displayScale: scale)
+            XCTAssertEqual(accessory.exportOptions.pixelSize, CGSize(width: 8, height: 6))
+            accessory.selectedMode = .imageScale
+            XCTAssertEqual(accessory.exportOptions.pixelSize, size)
+            document.undo()
+            XCTAssertEqual(document.state.selection, CGRect(x: 10, y: 0, width: 20, height: 40))
+        }
+    }
+
+    @MainActor
+    func testCommittingRoundedDisplayDimensionsPreservesOriginalSelection() throws {
+        let document = try document()
+        let selection = CGRect(x: 10, y: 10, width: 21, height: 17)
+        document.state.selection = selection
+        XCTAssertFalse(document.resizeSelection(width: 5, height: 4, displayScale: 0.25))
+        XCTAssertEqual(document.state.selection, selection)
+        XCTAssertTrue(document.undoStates.isEmpty)
+    }
+
+    @MainActor
+    func testScaledRenderingKeepsOffsetCropAndAnnotationAligned() throws {
+        let document = try document()
+        document.state.selection = CGRect(x: 20, y: 10, width: 20, height: 20)
+        document.state.annotations = [ScreenshotAnnotation(tool: .pen,
+            points: [CGPoint(x: 24, y: 20), CGPoint(x: 36, y: 20)], color: .red, width: 4)]
+        let image = try document.renderedImage(pixelSize: CGSize(width: 80, height: 80))
+        XCTAssertEqual(ImageExporter.pixelSize(of: image), CGSize(width: 80, height: 80))
+        let cgImage = try XCTUnwrap(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let pixels = NSBitmapImageRep(cgImage: cgImage)
+        let center = try XCTUnwrap(pixels.colorAt(x: 40, y: 40))
+        XCTAssertGreaterThan(center.redComponent, 0.9)
+        XCTAssertLessThan(center.greenComponent, 0.1)
+        XCTAssertGreaterThan(center.alphaComponent, 0.9)
+        XCTAssertThrowsError(try document.renderedImage(pixelSize: CGSize(width: 0, height: 80)))
+    }
+
+    @MainActor
+    func testScreenSizeExportUsesLinearSamplingForFineStrokesAtElevenPercent() throws {
+        let source = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 128, pixelsHigh: 64,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        for y in 0..<64 {
+            for x in 0..<128 {
+                let value: CGFloat = x % 7 < 2 ? 0 : 1
+                source.setColor(NSColor(deviceRed: value, green: value, blue: value, alpha: 1), atX: x, y: y)
+            }
+        }
+        let image = NSImage(size: CGSize(width: 128, height: 64))
+        image.addRepresentation(source)
+        let document = try ScreenshotDocument(image: image, rotationDegrees: 0)
+        document.selectAll()
+        let scale = ScreenshotExportSizeMode.displayPixelScale(imageDisplayScale: 0.11, screenScale: 2)
+        let exported = try document.exportImage(mode: .selectedSize, displayPixelScale: scale)
+        let actual = try XCTUnwrap(exported.representations.first as? NSBitmapImageRep)
+        XCTAssertEqual(actual.pixelsWide, 28)
+        XCTAssertEqual(actual.pixelsHigh, 14)
+        for x in 0..<28 {
+            let actualColor = try XCTUnwrap(actual.colorAt(x: x, y: 7))
+            let sourceX = (CGFloat(x) + 0.5) * 128 / 28 - 0.5
+            let left = Int(floor(sourceX))
+            let fraction = sourceX - CGFloat(left)
+            let leftValue: CGFloat = left % 7 < 2 ? 0 : 1
+            let rightValue: CGFloat = (left + 1) % 7 < 2 ? 0 : 1
+            let expectedValue = leftValue * (1 - fraction) + rightValue * fraction
+            XCTAssertEqual(actualColor.redComponent, expectedValue, accuracy: 0.01,
+                           "Fine strokes must not be averaged away at screen size, pixel \(x)")
+        }
+    }
+
+    @MainActor
+    func testScreenSamplingPreservesOffsetCropAndRotationAtNativeScale() throws {
+        for rotation in [0, 90, 180, 270] {
+            let document = try document(rotation: rotation)
+            document.state.selection = CGRect(x: 5, y: 7, width: 25, height: 23)
+            let original = try document.exportImage(mode: .imageScale, displayPixelScale: 1)
+            let screen = try document.exportImage(mode: .selectedSize, displayPixelScale: 1)
+            let expected = try XCTUnwrap(original.representations.first as? NSBitmapImageRep)
+            let actual = try XCTUnwrap(screen.representations.first as? NSBitmapImageRep)
+            for y in 0..<23 {
+                for x in 0..<25 {
+                    let lhs = try XCTUnwrap(expected.colorAt(x: x, y: y))
+                    let rhs = try XCTUnwrap(actual.colorAt(x: x, y: y))
+                    XCTAssertEqual(lhs.redComponent, rhs.redComponent, accuracy: 0.01)
+                    XCTAssertEqual(lhs.greenComponent, rhs.greenComponent, accuracy: 0.01)
+                    XCTAssertEqual(lhs.blueComponent, rhs.blueComponent, accuracy: 0.01)
+                    XCTAssertEqual(lhs.alphaComponent, rhs.alphaComponent, accuracy: 0.01)
+                }
+            }
+        }
     }
 
     @MainActor

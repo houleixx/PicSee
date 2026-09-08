@@ -5,15 +5,22 @@ import UniformTypeIdentifiers
 struct ScreenshotEditorView: View {
     @ObservedObject var document: ScreenshotDocument
     @Environment(\.colorScheme) private var colorScheme
-    let filename: String
+    @Environment(\.displayScale) private var screenScale
     let imageRect: CGRect
     let onClose: () -> Void
     var onCopy: () -> Void = {}
     @State private var errorMessage: String?
+    @State private var isPointerOverControls = false
+
+    private var displayPixelScale: CGFloat {
+        ScreenshotExportSizeMode.displayPixelScale(
+            imageDisplayScale: imageRect.width / document.pixelSize.width, screenScale: screenScale)
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            ScreenshotCanvas(document: document, imageRect: imageRect, onCancel: onClose)
+            ScreenshotCanvas(document: document, imageRect: imageRect,
+                             isPointerOverControls: isPointerOverControls, onCancel: onClose)
             VStack(spacing: 8) {
                 Text(hint)
                     .font(.caption)
@@ -80,7 +87,7 @@ struct ScreenshotEditorView: View {
                     }
                     Rectangle().fill(.primary.opacity(0.12)).frame(width: 1, height: 16)
                         .padding(.horizontal, 4)
-                    ScreenshotSizeFields(document: document)
+                    ScreenshotSizeFields(document: document, displayScale: displayPixelScale)
                 }
                 .frame(height: 28)
 
@@ -93,6 +100,11 @@ struct ScreenshotEditorView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.08), lineWidth: 0.5))
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.22 : 0.12), radius: 14, y: 5)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isPointerOverControls = hovering
+            if hovering { NSCursor.arrow.set() }
+        }
     }
 
     @ViewBuilder
@@ -202,7 +214,7 @@ struct ScreenshotEditorView: View {
     }
     private func copy() {
         do {
-            let image = try document.renderedImage()
+            let image = try document.exportImage(mode: .selectedSize, displayPixelScale: displayPixelScale)
             NSPasteboard.general.clearContents()
             guard NSPasteboard.general.writeObjects([image]) else { throw ImageExporterError.failedToRender }
             onCopy()
@@ -214,18 +226,22 @@ struct ScreenshotEditorView: View {
         guard let selection = document.state.selection else { return }
         let accessory = ScreenshotExportAccessoryView(
             sourceSize: selection.integral.intersection(document.bounds).size,
-            displayScale: imageRect.width / document.pixelSize.width
+            displayScale: displayPixelScale, screenScale: screenScale
         )
+        let exportScale = displayPixelScale
         let panel = NSSavePanel()
         panel.title = "保存截图"
         panel.appearance = ViewerTheme.current().appearance
         panel.accessoryView = accessory
         panel.allowedContentTypes = [.png]
-        panel.nameFieldStringValue = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent + "-截图.png"
+        let timestampFormatter = DateFormatter()
+        timestampFormatter.locale = Locale(identifier: "en_US_POSIX")
+        timestampFormatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
+        panel.nameFieldStringValue = "picsee-截图-\(timestampFormatter.string(from: Date())).png"
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             do {
-                try ImageExporter.export(document.renderedImage(), to: url,
+                try ImageExporter.export(document.exportImage(mode: accessory.selectedMode, displayPixelScale: exportScale), to: url,
                                          options: accessory.exportOptions)
                 onClose()
             } catch { errorMessage = error.localizedDescription }
@@ -235,6 +251,7 @@ struct ScreenshotEditorView: View {
 
 private struct ScreenshotSizeFields: View {
     @ObservedObject var document: ScreenshotDocument
+    let displayScale: CGFloat
     @State private var widthText = ""
     @State private var heightText = ""
     @State private var recordedResize = false
@@ -257,6 +274,7 @@ private struct ScreenshotSizeFields: View {
         }
         .font(.system(size: 11).monospacedDigit())
         .onAppear { synchronize() }
+        .onChange(of: displayScale) { _, _ in synchronize() }
         .onChange(of: document.state.selection) { _, selection in
             let isTypingChange = selection == lastAppliedSelection
             if !isTypingChange { recordedResize = false }
@@ -283,7 +301,7 @@ private struct ScreenshotSizeFields: View {
             .focused($focusedDimension, equals: dimension)
             .onSubmit { commit(dimension) }
             .accessibilityLabel(title)
-            .help("输入像素数即时调整选区；最大为图片尺寸")
+            .help("按屏幕实际像素输入宽高；最大为图片显示像素尺寸")
     }
 
     private func commit(_ dimension: Dimension) {
@@ -296,9 +314,9 @@ private struct ScreenshotSizeFields: View {
         guard let value = Int(text.trimmingCharacters(in: .whitespacesAndNewlines)), value > 0 else { return }
         let changed: Bool
         if dimension == .width {
-            changed = document.resizeSelection(width: value, recordUndo: !recordedResize)
+            changed = document.resizeSelection(width: value, displayScale: displayScale, recordUndo: !recordedResize)
         } else {
-            changed = document.resizeSelection(height: value, recordUndo: !recordedResize)
+            changed = document.resizeSelection(height: value, displayScale: displayScale, recordUndo: !recordedResize)
         }
         recordedResize = recordedResize || changed
         lastAppliedSelection = document.state.selection
@@ -306,11 +324,13 @@ private struct ScreenshotSizeFields: View {
 
     private func synchronize(preservingInput: Bool = false) {
         guard let selection = document.state.selection else { return }
+        let size = ScreenshotExportSizeMode.selectedSize.pixelSize(
+            sourceSize: selection.integral.intersection(document.bounds).size, displayScale: displayScale)
         if !preservingInput || focusedDimension != .width {
-            widthText = String(Int(selection.integral.width))
+            widthText = String(Int(size.width))
         }
         if !preservingInput || focusedDimension != .height {
-            heightText = String(Int(selection.integral.height))
+            heightText = String(Int(size.height))
         }
     }
 
@@ -441,15 +461,18 @@ private struct ScreenshotMosaicIcon: View {
 private struct ScreenshotCanvas: NSViewRepresentable {
     @ObservedObject var document: ScreenshotDocument
     let imageRect: CGRect
+    let isPointerOverControls: Bool
     let onCancel: () -> Void
     func makeNSView(context: Context) -> ScreenshotCanvasNSView {
         let view = ScreenshotCanvasNSView(document: document)
         view.displayImageRect = imageRect
+        view.isPointerOverControls = isPointerOverControls
         view.onCancel = onCancel
         return view
     }
     func updateNSView(_ nsView: ScreenshotCanvasNSView, context: Context) {
         nsView.displayImageRect = imageRect
+        nsView.isPointerOverControls = isPointerOverControls
         nsView.onCancel = onCancel
         nsView.synchronizeTextEditor()
         nsView.needsDisplay = true
@@ -476,6 +499,17 @@ private final class ScreenshotTextInputCell: NSTextFieldCell {
 
 @MainActor
 final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
+    var isPointerOverControls = false {
+        didSet {
+            guard oldValue != isPointerOverControls else { return }
+            if isPointerOverControls {
+                brushPointer = nil
+                NSCursor.arrow.set()
+                needsDisplay = true
+            }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     let document: ScreenshotDocument
     var displayImageRect: CGRect?
     var onCancel: (() -> Void)?
@@ -650,6 +684,7 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
         }
     }
     override func resetCursorRects() {
+        guard !isPointerOverControls else { return }
         addCursorRect(imageRect, cursor: .crosshair)
         guard document.tool == .text || document.tool == .crop, let selection = document.state.selection else { return }
         for annotation in document.state.annotations where annotation.tool == .text {
@@ -671,6 +706,7 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
     }
 
     override func mouseMoved(with event: NSEvent) {
+        guard !isPointerOverControls else { return }
         brushPointer = convert(event.locationInWindow, from: nil)
         if textEditor == nil {
             (movableText(at: imagePoint(event)) != nil ? NSCursor.openHand : NSCursor.crosshair).set()

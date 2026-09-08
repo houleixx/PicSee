@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 
 /// All editing coordinates are in oriented image pixels, with a bottom-left origin.
 enum ScreenshotTool: String, CaseIterable, Identifiable {
@@ -187,16 +188,23 @@ final class ScreenshotDocument: ObservableObject {
         state.selection = bounds
         tool = .crop
     }
-    /// Pixel-aligned dimensions match the exported PNG. Keep the top-left corner when
+    /// Convert displayed dimensions to original pixels. Keep the top-left corner when
     /// possible, shifting the selection only if its requested size reaches an image edge.
     @discardableResult
-    func resizeSelection(width: Int? = nil, height: Int? = nil, recordUndo: Bool = true) -> Bool {
+    func resizeSelection(width: Int? = nil, height: Int? = nil, displayScale: CGFloat = 1, recordUndo: Bool = true) -> Bool {
         guard let selection = state.selection,
               width.map({ $0 > 0 }) ?? true, height.map({ $0 > 0 }) ?? true else { return false }
         let crop = selection.integral.intersection(bounds)
         guard !crop.isNull, !crop.isEmpty else { return false }
-        let newWidth = min(CGFloat(width ?? Int(crop.width)), pixelSize.width)
-        let newHeight = min(CGFloat(height ?? Int(crop.height)), pixelSize.height)
+        let scale = ScreenshotExportSizeMode.validDisplayScale(displayScale)
+        let displayedSize = ScreenshotExportSizeMode.selectedSize.pixelSize(sourceSize: crop.size, displayScale: scale)
+        // Committing an unchanged, rounded field must not resize the original crop.
+        func originalDimension(_ value: Int?, current: CGFloat, displayed: CGFloat, limit: CGFloat) -> CGFloat {
+            guard let value, CGFloat(value) != displayed else { return current }
+            return min(max(1, (CGFloat(value) / scale).rounded()), limit)
+        }
+        let newWidth = originalDimension(width, current: crop.width, displayed: displayedSize.width, limit: pixelSize.width)
+        let newHeight = originalDimension(height, current: crop.height, displayed: displayedSize.height, limit: pixelSize.height)
         let resized = CGRect(
             x: min(max(0, crop.minX), pixelSize.width - newWidth),
             y: min(max(0, crop.maxY - newHeight), pixelSize.height - newHeight),
@@ -290,21 +298,63 @@ final class ScreenshotDocument: ObservableObject {
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    func renderedImage() throws -> NSImage {
+    /// Copy and save share the same final-size rendering; no intermediate up/downsample.
+    func exportImage(mode: ScreenshotExportSizeMode, displayPixelScale: CGFloat) throws -> NSImage {
+        guard let selection = state.selection else { throw ImageExporterError.failedToRender }
+        let size = mode.pixelSize(sourceSize: selection.integral.intersection(bounds).size,
+                                  displayScale: displayPixelScale)
+        // Screen-size capture should retain the linear sampling of displayed pixels.
+        // High-quality prefiltering at small zoom levels softens fine text strokes.
+        return try renderedImage(pixelSize: size, screenSampling: mode == .selectedSize)
+    }
+
+    func renderedImage(pixelSize: CGSize? = nil, screenSampling: Bool = false) throws -> NSImage {
         commitPendingText()
         guard canExport, let selection = state.selection else { throw ImageExporterError.failedToRender }
         let crop = selection.integral.intersection(bounds)
-        let bitmap = try Self.bitmap(size: crop.size)
+        let renderSize = pixelSize ?? crop.size
+        guard renderSize.width.isFinite, renderSize.height.isFinite,
+              renderSize.width >= 1, renderSize.height >= 1,
+              renderSize.width < CGFloat(Int.max), renderSize.height < CGFloat(Int.max) else {
+            throw ImageExporterError.failedToRender
+        }
+        let size = CGSize(width: renderSize.width.rounded(), height: renderSize.height.rounded())
+        let bitmap = try Self.bitmap(size: size)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
         defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current?.imageInterpolation = .high
+        if screenSampling {
+            guard let source = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                throw ImageExporterError.missingCGImage
+            }
+            let transform = CGAffineTransform(a: size.width / crop.width, b: 0, c: 0,
+                d: size.height / crop.height, tx: -crop.minX * size.width / crop.width,
+                ty: -crop.minY * size.height / crop.height)
+            let scaled = CIImage(cgImage: source).clampedToExtent().samplingLinear()
+                .transformed(by: transform, highQualityDownsample: false)
+            guard let sampled = Self.screenImageContext.createCGImage(scaled,
+                from: CGRect(origin: .zero, size: size), format: .RGBA8,
+                colorSpace: CGColorSpaceCreateDeviceRGB()) else {
+                throw ImageExporterError.failedToRender
+            }
+            // Already at final pixel size: composite once, then draw vector annotations.
+            NSGraphicsContext.current?.cgContext.draw(sampled, in: CGRect(origin: .zero, size: size))
+        }
+        NSGraphicsContext.current?.cgContext.setShouldAntialias(true)
+        NSGraphicsContext.current?.cgContext.scaleBy(x: size.width / crop.width, y: size.height / crop.height)
         NSGraphicsContext.current?.cgContext.translateBy(x: -crop.minX, y: -crop.minY)
-        image.draw(in: bounds)
+        if !screenSampling { image.draw(in: bounds) }
         drawAnnotations(state.annotations)
-        let result = NSImage(size: crop.size)
+        let result = NSImage(size: size)
         result.addRepresentation(bitmap)
         return result
     }
+
+    // Interpolate encoded screen colors without introducing a linear-light brightness shift.
+    private static let screenImageContext = CIContext(options: [
+        .workingColorSpace: NSNull(), .cacheIntermediates: false
+    ])
 
     private static func bitmap(size: CGSize) throws -> NSBitmapImageRep {
         guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width),

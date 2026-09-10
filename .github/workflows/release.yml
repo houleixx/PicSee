@@ -121,9 +121,27 @@ jobs:
           name: ${{ steps.version.outputs.dmg_name }}
           path: build/dmg/${{ steps.version.outputs.dmg_name }}
 
+      - name: Prepare release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          lines = Path("CHANGELOG.md").read_text().splitlines()
+          heading = f"## [{os.environ['RELEASE_VERSION']}]"
+          start = next(i for i, line in enumerate(lines) if line.startswith(heading))
+          end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## [")), len(lines))
+          notes = "\n".join(lines[start + 1:end]).strip()
+          Path("build/release-notes.md").write_text(notes + "\n")
+          PY
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: build/dmg/${{ steps.version.outputs.dmg_name }}
+          body_path: build/release-notes.md
           generate_release_notes: true

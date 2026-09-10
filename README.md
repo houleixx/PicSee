@@ -86,6 +86,10 @@ PICSEE_VERSION=0.2.53 PICSEE_BUILD_NUMBER=54 Scripts/build-app.sh
 
 ## 生成 DMG 安装包
 
+安装包使用紧凑的拖拽安装窗口：左侧 PicSee、右侧 Applications，中间为三个浅灰色圆角箭头，底部显示安装说明。窗口布局与 Retina 背景由打包脚本自动生成，本地构建与 GitHub Actions 使用同一份配置。
+
+需要 Python 3.10 或更高版本；首次构建会在 `build/dmg-tools` 创建隔离环境，安装 `Scripts/dmg-requirements.txt` 中固定版本的 dmgbuild 及依赖。后续构建复用此环境，不修改系统 Python。布局参数位于 `Scripts/dmg-settings.py`，背景绘制位于 `Scripts/dmg-background.swift`。
+
 生成 DMG：
 
 ```bash
@@ -101,6 +105,8 @@ Scripts/build-dmg.sh
 ```bash
 PICSEE_VERSION=0.2.53 Scripts/build-dmg.sh
 ```
+
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.53.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 

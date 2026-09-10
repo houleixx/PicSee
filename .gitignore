@@ -12,3 +12,6 @@ DerivedData/
 
 # Local Xiaohongshu promotional assets
 /output/xiaohongshu/
+
+# Local installer design previews
+/output/installer-preview/

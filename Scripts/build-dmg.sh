@@ -15,6 +15,9 @@ DMG_PATH="$DMG_DIR/$DMG_NAME"
 MODULE_CACHE_DIR="$ROOT_DIR/build/module-cache"
 CLANG_CACHE_DIR="$MODULE_CACHE_DIR/clang"
 SWIFT_CACHE_DIR="$MODULE_CACHE_DIR/swift"
+DMG_ASSETS_DIR="$ROOT_DIR/build/dmg-assets"
+DMG_TOOLS_DIR="$ROOT_DIR/build/dmg-tools"
+DMGBUILD_BIN="${PICSEE_DMGBUILD:-$DMG_TOOLS_DIR/bin/dmgbuild}"
 
 cleanup_stage_dir() {
   rm -rf "$DMG_STAGE_DIR"
@@ -25,6 +28,17 @@ trap cleanup_stage_dir EXIT
 
 rm -rf "$LEGACY_PKG_ROOT_DIR"
 mkdir -p "$CLANG_CACHE_DIR" "$SWIFT_CACHE_DIR"
+
+if [ -z "${PICSEE_DMGBUILD:-}" ]; then
+  if [ ! -x "$DMG_TOOLS_DIR/bin/python" ]; then
+    python3 -m venv "$DMG_TOOLS_DIR"
+  fi
+  "$DMG_TOOLS_DIR/bin/python" -m pip install --disable-pip-version-check \
+    -r "$ROOT_DIR/Scripts/dmg-requirements.txt"
+fi
+
+swift -module-cache-path "$SWIFT_CACHE_DIR" \
+  "$ROOT_DIR/Scripts/dmg-background.swift" "$DMG_ASSETS_DIR"
 
 env \
   CLANG_MODULE_CACHE_PATH="$CLANG_CACHE_DIR" \
@@ -39,18 +53,12 @@ if [ ! -d "$APP_DIR" ]; then
   exit 1
 fi
 
-rm -rf "$DMG_STAGE_DIR" "$DMG_DIR"
-mkdir -p "$DMG_STAGE_DIR" "$DMG_DIR"
+rm -rf "$DMG_STAGE_DIR"
+mkdir -p "$DMG_DIR"
 
-ditto "$APP_DIR" "$DMG_STAGE_DIR/PicSee.app"
-ln -s /Applications "$DMG_STAGE_DIR/Applications"
-
-hdiutil create \
-  -volname "PicSee" \
-  -srcfolder "$DMG_STAGE_DIR" \
-  -ov \
-  -format UDZO \
-  "$DMG_PATH" >/dev/null
+"$DMGBUILD_BIN" -s "$ROOT_DIR/Scripts/dmg-settings.py" \
+  -D "app=$APP_DIR" -D "background=$DMG_ASSETS_DIR/background.png" \
+  "PicSee" "$DMG_PATH"
 
 if [ "$CODESIGN_IDENTITY" != "-" ]; then
   codesign --force --sign "$CODESIGN_IDENTITY" --timestamp "$DMG_PATH" >/dev/null

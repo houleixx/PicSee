@@ -40,6 +40,11 @@ jobs:
       - name: Make scripts executable
         run: chmod +x Scripts/build-app.sh Scripts/build-dmg.sh
 
+      - name: Set up Python for DMG layout
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Configure signing identity
         id: signing
         env:
@@ -84,6 +89,9 @@ jobs:
           PICSEE_SKIP_LOCAL_INSTALL=1 \
           PICSEE_CODESIGN_IDENTITY="$PICSEE_CODESIGN_IDENTITY" \
           Scripts/build-dmg.sh
+
+      - name: Verify installer contents and layout
+        run: bash Tests/verify-dmg.sh "build/dmg/${{ steps.version.outputs.dmg_name }}"
 
       - name: Notarize DMG
         if: ${{ steps.signing.outputs.has_certificate == 'true' }}

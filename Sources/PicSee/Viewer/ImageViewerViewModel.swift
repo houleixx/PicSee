@@ -13,6 +13,10 @@ final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var currentURL: URL
     @Published private(set) var image: NSImage?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var isFolderEmpty = false
+    @Published private(set) var deletionNoticeID: UUID?
+    @Published var fileOperationError: String?
+    @Published private var deletions: [DeletedImage] = []
     @Published var isScreenshotEditing = false
     @Published var zoomScale: CGFloat = 1
     @Published var panOffset: CGSize = .zero
@@ -23,6 +27,12 @@ final class ImageViewerViewModel: ObservableObject {
 
     @Published private var navigator: FolderImageNavigator?
     private let fileManager: FileManager
+    private let imageTrash: any ImageTrashing
+    private struct DeletedImage {
+        let originalURL: URL
+        let trashedURL: URL
+        let order: [URL]
+    }
     private var finderOrderTask: Task<Void, Never>?
     private var pendingNavigationDirections: [NavigationDirection] = []
     private var navigationRevision = 0
@@ -31,10 +41,12 @@ final class ImageViewerViewModel: ObservableObject {
     init(
         imageURL: URL,
         finderOrderProvider: any FinderFolderOrderProviding = FilenameFolderOrderProvider(),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        imageTrash: any ImageTrashing = ImageTrash()
     ) {
         self.currentURL = imageURL.standardizedFileURL
         self.fileManager = fileManager
+        self.imageTrash = imageTrash
         self.isNavigationOrderReady = finderOrderProvider.isOrderingAvailableImmediately
         establishNavigator(for: imageURL, preferredOrder: nil)
         _ = load(imageURL: imageURL)
@@ -57,7 +69,8 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     var currentFilename: String {
-        currentURL.lastPathComponent
+        if isFolderEmpty { return currentURL.deletingLastPathComponent().lastPathComponent }
+        return currentURL.lastPathComponent
     }
 
     var zoomPercentageText: String {
@@ -85,7 +98,8 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     var titleBarText: String {
-        [imageMetadataText, zoomPercentageText]
+        if isFolderEmpty { return "\(currentFilename) — 此文件夹中没有可浏览的图片" }
+        return [imageMetadataText, zoomPercentageText]
             .compactMap { $0 }
             .joined(separator: " | ")
     }
@@ -98,6 +112,76 @@ final class ImageViewerViewModel: ObservableObject {
     var nextURL: URL? {
         guard isNavigationOrderReady else { return nil }
         return navigator?.nextURL()
+    }
+
+    var canTrashCurrentImage: Bool {
+        image != nil && isNavigationOrderReady && !isScreenshotEditing && !isFolderEmpty
+    }
+
+    var canUndoDeletion: Bool { !deletions.isEmpty && !isScreenshotEditing }
+
+    func trashCurrentImage() {
+        guard canTrashCurrentImage else { return }
+        let originalURL = currentURL
+        let order = navigator?.images ?? [originalURL]
+        let index = order.firstIndex(of: originalURL) ?? 0
+        do {
+            let trashedURL = try imageTrash.trash(originalURL)
+            if let trashedURL {
+                deletions.append(DeletedImage(originalURL: originalURL, trashedURL: trashedURL, order: order))
+            }
+            navigationRevision += 1
+            finderOrderTask?.cancel()
+            pendingNavigationDirections.removeAll()
+            deletionNoticeID = UUID()
+            fileOperationError = nil
+
+            // Continue forward in the existing Finder order, then work backwards.
+            // Include files added since the navigation snapshot was taken.
+            let folderContents = (try? fileManager.contentsOfDirectory(
+                at: originalURL.deletingLastPathComponent(),
+                includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]
+            )) ?? []
+            let addedImages = folderContents.map(\.standardizedFileURL).filter {
+                !order.contains($0) && FolderImageNavigator.isSupportedImage($0)
+                    && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            }.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            let candidates = Array(order.dropFirst(index + 1)) + Array(order.prefix(index).reversed()) + addedImages
+            for candidate in candidates where fileManager.fileExists(atPath: candidate.path) {
+                if load(imageURL: candidate) {
+                    establishNavigator(for: candidate, preferredOrder: order + addedImages)
+                    return
+                }
+            }
+            navigator = nil
+            currentURL = originalURL
+            isFolderEmpty = true
+            image = nil
+            errorMessage = nil
+            resetViewTransform()
+            rotationDegrees = 0
+            zoomRequest = nil
+        } catch {
+            fileOperationError = "无法将“\(originalURL.lastPathComponent)”移到废纸篓。\n\(error.localizedDescription)"
+        }
+    }
+
+    func undoDeletion() {
+        guard canUndoDeletion, let deletion = deletions.last else { return }
+        do {
+            try imageTrash.restore(deletion.trashedURL, to: deletion.originalURL)
+            deletions.removeLast()
+            navigationRevision += 1
+            finderOrderTask?.cancel()
+            pendingNavigationDirections.removeAll()
+            isNavigationOrderReady = true
+            establishNavigator(for: deletion.originalURL, preferredOrder: deletion.order)
+            _ = load(imageURL: deletion.originalURL)
+            deletionNoticeID = nil
+            fileOperationError = nil
+        } catch {
+            fileOperationError = "无法恢复“\(deletion.originalURL.lastPathComponent)”。\n\(error.localizedDescription)"
+        }
     }
 
     func navigateToPrevious() {
@@ -207,6 +291,7 @@ final class ImageViewerViewModel: ObservableObject {
     @discardableResult
     private func load(imageURL: URL, preservesCurrentImageWhenMissing: Bool = false) -> Bool {
         let standardizedURL = imageURL.standardizedFileURL
+        isFolderEmpty = false
         guard let loadedImage = NSImage(contentsOf: standardizedURL), loadedImage.isValid else {
             if preservesCurrentImageWhenMissing,
                !fileManager.fileExists(atPath: standardizedURL.path) {

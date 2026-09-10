@@ -23,4 +23,19 @@ final class KeyboardNavigationTests: XCTestCase {
     func testIMapsToToggleImageParameters() {
         XCTAssertEqual(KeyboardNavigation.action(for: 34), .toggleImageParameters)
     }
+
+    func testTrashRequiresCommandAndDoesNotRepeat() {
+        XCTAssertEqual(KeyboardNavigation.action(for: 51), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 51, modifiers: .command), .trash)
+        XCTAssertEqual(KeyboardNavigation.action(for: 51, modifiers: [.command, .shift]), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 51, modifiers: .command, isRepeat: true), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 117, modifiers: .command), .none)
+    }
+
+    func testUndoRequiresCommandAndDoesNotRepeat() {
+        XCTAssertEqual(KeyboardNavigation.action(for: 6), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 6, modifiers: .command), .undoDeletion)
+        XCTAssertEqual(KeyboardNavigation.action(for: 6, modifiers: [.command, .shift]), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 6, modifiers: .command, isRepeat: true), .none)
+    }
 }

@@ -139,6 +139,7 @@ final class WindowManager {
     private var currentWindow: NSWindow?
     private var titleObserver: AnyCancellable?
     private var keyEventMonitor: Any?
+    private let deletionConfirmation = ImageDeletionConfirmation()
     private let minimumWindowSize = NSSize(width: 320, height: 220)
 
     var hasOpenViewer: Bool {
@@ -185,6 +186,10 @@ final class WindowManager {
                     WindowFramePreference.saveFixedFrame(window.frame)
                 }
                 self.applyFixedWindowState(fixed, to: window)
+            },
+            onRequestDeletion: { [weak self, weak window, weak viewModel] in
+                guard let self, let window, let viewModel else { return }
+                self.deletionConfirmation.requestDeletion(for: viewModel, in: window)
             }
         )
         let hostingController = NSHostingController(rootView: rootView)
@@ -381,7 +386,17 @@ final class WindowManager {
             guard let self, let window = self.currentWindow, NSApp.keyWindow === window, window.attachedSheet == nil, viewModel?.isScreenshotEditing != true else {
                 return event
             }
-            switch KeyboardNavigation.action(for: event.keyCode) {
+            if window.firstResponder is NSTextView { return event }
+            switch KeyboardNavigation.action(for: event.keyCode, modifiers: event.modifierFlags, isRepeat: event.isARepeat) {
+            case .trash:
+                if let viewModel {
+                    self.deletionConfirmation.requestDeletion(for: viewModel, in: window)
+                }
+                return nil
+            case .undoDeletion:
+                guard viewModel?.canUndoDeletion == true else { return event }
+                viewModel?.undoDeletion()
+                return nil
             case .previous:
                 viewModel?.navigateToPrevious()
                 return nil

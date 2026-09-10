@@ -6,6 +6,7 @@ struct ImageViewerView: View {
     let updateChecker: UpdateChecker?
     let onTitleBarVisibilityChanged: (Bool) -> Void
     let onFixedWindowChanged: (Bool) -> Void
+    let onRequestDeletion: () -> Void
     @State private var titleBarVisible = ViewerTitleBarPreference.isVisible()
     @State private var fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible()
     @State private var toolbarVisible = ViewerOverlayPreference.isToolbarVisible()
@@ -20,6 +21,7 @@ struct ImageViewerView: View {
     @State private var screenshotDocument: ScreenshotDocument?
     @State private var screenshotError: String?
     @State private var clipboardNoticeID: UUID?
+    @State private var deletionNoticeVisible = false
     private let hudPadding: CGFloat = 12
     private let navigationFadeDuration = 0.18
     private let toolbarEdgeFraction: CGFloat = 0.20
@@ -81,7 +83,11 @@ struct ImageViewerView: View {
                         Task {
                             await updateChecker?.checkForUpdatesManually()
                         }
-                    }
+                    },
+                    canTrashImage: viewModel.canTrashCurrentImage,
+                    canUndoDeletion: viewModel.canUndoDeletion,
+                    onTrashImage: onRequestDeletion,
+                    onUndoDeletion: viewModel.undoDeletion
                 )
                 .overlay(alignment: .topLeading) {
                     if !titleBarVisible && screenshotDocument == nil {
@@ -192,6 +198,25 @@ struct ImageViewerView: View {
                 .task {
                     await presentNavigationDiscoveryIfNeeded()
                 }
+            } else if viewModel.isFolderEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "photo.on.rectangle")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    Text("此文件夹中没有可浏览的图片")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text(viewModel.currentURL.deletingLastPathComponent().lastPathComponent)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 16) {
+                        if viewModel.canUndoDeletion {
+                            Button("撤销删除", action: viewModel.undoDeletion)
+                                .help("恢复上一张删除的图片（⌘Z）")
+                        }
+                        Button("退出 PicSee") { NSApp.terminate(nil) }
+                    }
+                }
+                .padding(32)
             } else {
                 VStack(spacing: 12) {
                     Text("Cannot Open Image")
@@ -257,6 +282,34 @@ struct ImageViewerView: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: clipboardNoticeID != nil)
+        .overlay(alignment: .top) {
+            if deletionNoticeVisible && !viewModel.isFolderEmpty && screenshotDocument == nil {
+                HStack(spacing: 14) {
+                    Text("已移到废纸篓")
+                    if viewModel.canUndoDeletion {
+                        Button("撤销", action: viewModel.undoDeletion)
+                            .buttonStyle(.bordered)
+                            .help("撤销移到废纸篓（⌘Z）")
+                    }
+                }
+                .font(.system(size: 13))
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.top, 56)
+            }
+        }
+        .task(id: viewModel.deletionNoticeID) {
+            deletionNoticeVisible = viewModel.deletionNoticeID != nil
+            guard deletionNoticeVisible else { return }
+            do { try await Task.sleep(for: .seconds(5)) } catch { return }
+            deletionNoticeVisible = false
+        }
+        .alert("文件操作失败", isPresented: Binding(
+            get: { viewModel.fileOperationError != nil },
+            set: { if !$0 { viewModel.fileOperationError = nil } }
+        )) {
+            Button("好") { viewModel.fileOperationError = nil }
+        } message: { Text(viewModel.fileOperationError ?? "") }
         .task(id: clipboardNoticeID) {
             guard clipboardNoticeID != nil else { return }
             do { try await Task.sleep(for: .seconds(2)) } catch { return }

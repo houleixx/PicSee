@@ -29,6 +29,10 @@ struct ImageCanvasView: NSViewRepresentable {
     let fixedWindowEnabled: Bool
     let onFixedWindowChanged: (Bool) -> Void
     let onCheckForUpdates: (() -> Void)?
+    var canTrashImage = false
+    var canUndoDeletion = false
+    var onTrashImage: (() -> Void)?
+    var onUndoDeletion: (() -> Void)?
 
     func makeNSView(context: Context) -> CanvasNSView {
         let view = CanvasNSView()
@@ -54,6 +58,10 @@ struct ImageCanvasView: NSViewRepresentable {
         view.onImageParametersVisibilityChanged = onImageParametersVisibilityChanged
         view.onFixedWindowChanged = onFixedWindowChanged
         view.onCheckForUpdates = onCheckForUpdates
+        view.canTrashImage = canTrashImage
+        view.canUndoDeletion = canUndoDeletion
+        view.onTrashImage = onTrashImage
+        view.onUndoDeletion = onUndoDeletion
         return view
     }
 
@@ -80,6 +88,10 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onImageParametersVisibilityChanged = onImageParametersVisibilityChanged
         nsView.onFixedWindowChanged = onFixedWindowChanged
         nsView.onCheckForUpdates = onCheckForUpdates
+        nsView.canTrashImage = canTrashImage
+        nsView.canUndoDeletion = canUndoDeletion
+        nsView.onTrashImage = onTrashImage
+        nsView.onUndoDeletion = onUndoDeletion
         if let zoomRequest {
             nsView.applyToolbarZoom(request: zoomRequest)
         }
@@ -511,7 +523,7 @@ enum TextRecognitionBackend {
     }
 }
 
-final class CanvasNSView: NSView {
+final class CanvasNSView: NSView, NSMenuItemValidation {
     private static let minimapEnabledDefaultsKey = "PicSee.MinimapEnabled"
     private static let rotationAnimationKey = "PicSee.RotationAnimation"
     private static let themeMenuIdentifier = NSUserInterfaceItemIdentifier("PicSee.ThemeMenu")
@@ -598,6 +610,10 @@ final class CanvasNSView: NSView {
     var onNext: (() -> Void)?
     var onReset: (() -> Void)?
     var onClose: (() -> Void)?
+    var canTrashImage = false
+    var canUndoDeletion = false
+    var onTrashImage: (() -> Void)?
+    var onUndoDeletion: (() -> Void)?
     var onZoomRequestHandled: ((Int) -> Void)?
     var onDisplayScaleChanged: ((CGFloat) -> Void)?
     var onTitleBarVisibilityChanged: ((Bool) -> Void)?
@@ -935,7 +951,11 @@ final class CanvasNSView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        switch KeyboardNavigation.action(for: event.keyCode) {
+        switch KeyboardNavigation.action(for: event.keyCode, modifiers: event.modifierFlags, isRepeat: event.isARepeat) {
+        case .trash:
+            trashImageForMenu(nil)
+        case .undoDeletion:
+            undoDeletionForMenu(nil)
         case .previous:
             onPrevious?()
         case .next:
@@ -981,6 +1001,22 @@ final class CanvasNSView: NSView {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(path, forType: .string)
+    }
+
+    @objc func trashImageForMenu(_ sender: Any?) {
+        guard canTrashImage else { return }
+        onTrashImage?()
+    }
+
+    @objc func undoDeletionForMenu(_ sender: Any?) {
+        guard canUndoDeletion else { return }
+        onUndoDeletion?()
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(trashImageForMenu(_:)) { return canTrashImage }
+        if menuItem.action == #selector(undoDeletionForMenu(_:)) { return canUndoDeletion }
+        return true
     }
 
     @objc func exportImageForMenu(_ sender: Any?) {
@@ -1166,6 +1202,20 @@ final class CanvasNSView: NSView {
             exportItem.target = self
             exportItem.isEnabled = image != nil
             menu.addItem(exportItem)
+        }
+
+        if !menu.items.contains(where: { $0.action == #selector(trashImageForMenu(_:)) }) {
+            menu.addItem(.separator())
+            let trashItem = NSMenuItem(title: "移到废纸篓", action: #selector(trashImageForMenu(_:)), keyEquivalent: "\u{8}")
+            trashItem.keyEquivalentModifierMask = .command
+            trashItem.target = self
+            trashItem.isEnabled = canTrashImage
+            menu.addItem(trashItem)
+            let undoItem = NSMenuItem(title: "撤销移到废纸篓", action: #selector(undoDeletionForMenu(_:)), keyEquivalent: "z")
+            undoItem.keyEquivalentModifierMask = .command
+            undoItem.target = self
+            undoItem.isEnabled = canUndoDeletion
+            menu.addItem(undoItem)
         }
 
         if menu.items.first(where: { $0.action == #selector(AppDelegate.showDefaultImageAppSettings(_:)) }) == nil {

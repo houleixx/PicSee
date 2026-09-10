@@ -44,6 +44,8 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 - 双击图片进入或退出 macOS 原生全屏
 - `Esc` 关闭当前图片并退出应用
 - 右键菜单支持复制图片路径、切换跟随系统 / 浅色 / 深色主题
+- 右键「移到废纸篓」或 `⌘⌫` 删除当前图片，自动切到下一张（末尾则切到上一张）；支持 `⌘Z` 或右键「撤销移到废纸篓」逐次恢复。本次窗口关闭前均可撤销，恢复时不会覆盖同名文件。删完后显示空文件夹提示，可撤销或退出
+- 删除前默认显示确认框，回车或 Escape 取消；确认删除时勾选「以后不再询问」可关闭后续确认，重启应用后仍生效
 
 ## 运行环境
 
@@ -79,7 +81,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.50 PICSEE_BUILD_NUMBER=53 Scripts/build-app.sh
+PICSEE_VERSION=0.2.51 PICSEE_BUILD_NUMBER=53 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -92,12 +94,12 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.50.dmg`
+- DMG: `build/dmg/PicSee-0.2.51.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.50 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.51 Scripts/build-dmg.sh
 ```
 
 ## 使用方式
@@ -174,6 +176,14 @@ Finder 能通过系统脚本接口返回可靠顺序时，PicSee 会按该顺序
 
 例如 2 倍 Retina 屏幕上 600 × 400 逻辑点的选框，底部显示 1200 × 800 px，复制和按选择尺寸保存都直接输出 1200 × 800 像素，不再放大后缩小。屏幕尺寸导出与复制使用线性采样，避免在较小显示比例下额外平滑文字笔画。调整窗口或切换不同倍率的屏幕时，选区像素尺寸随显示尺寸和屏幕倍率更新。按原图尺寸保存始终输出原图选区像素。
 
+### 5. 删除与恢复图片
+
+- 右键选择「移到废纸篓」，或按 `Cmd + Delete`，将当前原文件移到系统废纸篓。
+- 默认显示确认框：左侧「取消」、右侧「移到废纸篓」；回车或 `Esc` 取消。确认删除时勾选「以后不再询问」可关闭后续确认，取消操作不会保存这一偏好。
+- 删除后继续显示下一张；后面没有可浏览图片时回到上一张。删完后显示空文件夹提示，可撤销或退出。
+- 点击成功提示中的「撤销」、右键选择「撤销移到废纸篓」，或按 `Cmd + Z`，可逐次恢复本次窗口中删除的图片。窗口关闭前均可撤销，恢复时不会覆盖原位置的同名文件。
+- 截图标注期间不响应原图删除快捷键，长按删除快捷键不会连续删除多张图片。
+
 ## GitHub Actions 自动打包 DMG 并发布 Release
 
 仓库内已经包含工作流：
@@ -199,14 +209,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.50
-git push origin v0.2.50
+git tag v0.2.51
+git push origin v0.2.51
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.50`
-- Asset: `PicSee-0.2.50.dmg`
+- Release: `v0.2.51`
+- Asset: `PicSee-0.2.51.dmg`
 
 ## Release 说明
 

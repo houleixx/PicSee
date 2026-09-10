@@ -37,12 +37,17 @@ final class ImageDeletionDialog: NSPanel {
         suppressionButton.controlSize = .small
         suppressionButton.font = .systemFont(ofSize: 12)
 
-        let cancel = NSButton(title: "取消", target: self, action: #selector(cancelDeletion(_:)))
+        let cancel = ConfirmationActionButton()
+        cancel.cell = ConfirmationActionButtonCell(textCell: "取消")
+        cancel.title = "取消"
+        cancel.setButtonType(.momentaryPushIn)
+        cancel.target = self
+        cancel.action = #selector(cancelDeletion(_:))
         cancel.bezelStyle = .rounded
         cancel.keyEquivalent = "\r"
         cancel.font = .systemFont(ofSize: 13)
-        let trash = NSButton()
-        trash.cell = DeletionActionButtonCell(textCell: "移到废纸篓")
+        let trash = ConfirmationActionButton()
+        trash.cell = ConfirmationActionButtonCell(textCell: "移到废纸篓")
         trash.title = "移到废纸篓"
         trash.setButtonType(.momentaryPushIn)
         trash.target = self
@@ -99,15 +104,62 @@ final class ImageDeletionDialog: NSPanel {
     }
 }
 
-private final class DeletionActionButtonCell: NSButtonCell {
+private final class ConfirmationActionButton: NSButton {
+    // The custom bezel fills the control itself; native rounded-button alignment
+    // insets would enlarge its frame beyond the width and height constraints.
+    override var alignmentRectInsets: NSEdgeInsets { NSEdgeInsetsZero }
+}
+
+private final class ConfirmationActionButtonCell: NSButtonCell {
+    private func bezelPath(in frame: NSRect) -> NSBezierPath {
+        NSBezierPath(roundedRect: frame.insetBy(dx: 1, dy: 2), xRadius: 6, yRadius: 6)
+    }
+
+    override func drawBezel(withFrame frame: NSRect, in controlView: NSView) {
+        let isDefault = controlView.window?.defaultButtonCell === self
+        let baseColor = isDefault ? NSColor.controlAccentColor : NSColor.controlColor
+        let fillColor = isEnabled ? baseColor : baseColor.withAlphaComponent(0.5)
+        fillColor.setFill()
+        // AppKit may pass an expanded native bezel frame. Use the control's
+        // actual bounds so the visible shape cannot consume the inter-button gap.
+        let path = bezelPath(in: controlView.bounds)
+        path.fill()
+        if isHighlighted {
+            NSColor.black.withAlphaComponent(0.12).setFill()
+            path.fill()
+        }
+        NSColor.labelColor.withAlphaComponent(0.1).setStroke()
+        path.lineWidth = 0.5
+        path.stroke()
+    }
+
+    override func drawFocusRingMask(withFrame frame: NSRect, in controlView: NSView) {
+        bezelPath(in: controlView.bounds).fill()
+    }
+
+    override func focusRingMaskBounds(forFrame frame: NSRect, in controlView: NSView) -> NSRect {
+        controlView.bounds.insetBy(dx: 1, dy: 2)
+    }
+
     override func drawTitle(_ title: NSAttributedString, withFrame frame: NSRect, in controlView: NSView) -> NSRect {
-        // Native rounded buttons may override contentTintColor; tint the title
-        // at drawing time while keeping the system bezel and focus treatment.
+        let isDefault = controlView.window?.defaultButtonCell === self
+        let textColor = isDefault ? NSColor.white : NSColor.systemRed
         let coloredTitle = NSMutableAttributedString(attributedString: title)
         coloredTitle.addAttribute(
-            .foregroundColor, value: isEnabled ? NSColor.systemRed : NSColor.disabledControlTextColor,
+            .foregroundColor, value: isEnabled ? textColor : NSColor.disabledControlTextColor,
             range: NSRange(location: 0, length: coloredTitle.length)
         )
-        return super.drawTitle(coloredTitle, withFrame: frame, in: controlView)
+        // Center the measured text in our visible bezel instead of using the
+        // title frame computed for AppKit's thinner native rounded button.
+        let bezelBounds = controlView.bounds.insetBy(dx: 1, dy: 2)
+        let titleSize = coloredTitle.size()
+        let titleFrame = NSRect(
+            x: bezelBounds.midX - titleSize.width / 2,
+            y: bezelBounds.midY - titleSize.height / 2,
+            width: titleSize.width,
+            height: titleSize.height
+        )
+        coloredTitle.draw(in: titleFrame)
+        return titleFrame
     }
 }

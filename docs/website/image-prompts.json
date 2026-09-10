@@ -1,0 +1,62 @@
+{
+  "tool": "image_gen built-in",
+  "design": {
+    "id": "02",
+    "name": "柔和立体",
+    "desc": "圆润白色卡片、浅蓝实体按键，更轻松亲切。",
+    "style": "Premium soft 3D product illustration. Porcelain-white rounded floating photo cards, small powder-blue sculptural interaction elements, gentle isometric perspective, realistic vivid photographs inset into cards, beautiful soft ambient occlusion and broad daylight, clean warm off-white #F7F7F4 studio. Playful but sophisticated. No clutter.",
+    "scene": "sunlit turquoise Mediterranean cove, limestone cliffs, small white sailboat"
+  },
+  "compression": {
+    "format": "WebP",
+    "quality": 78,
+    "method": 6,
+    "source": "original generated PNG",
+    "hero_dimensions": [
+      1200,
+      1000
+    ],
+    "feature_dimensions": [
+      1080,
+      720
+    ]
+  },
+  "images": [
+    {
+      "set": "02",
+      "slug": "ocr-select-copy",
+      "prompt": "Create one finished website feature illustration for PicSee. Landscape 3:2, 1536x1024. Cohesive series module OCR 选字 · 直接复制. ART DIRECTION: Premium soft 3D product illustration. Porcelain-white rounded floating photo cards, small powder-blue sculptural interaction elements, gentle isometric perspective, realistic vivid photographs inset into cards, beautiful soft ambient occlusion and broad daylight, clean warm off-white #F7F7F4 studio. Playful but sophisticated. No clutter. SCENIC SUBJECT: sunlit turquoise Mediterranean cove, limestone cliffs, small white sailboat. FUNCTIONAL COMPOSITION: Demonstrate selecting text WITHIN a photographed travel postcard and copying it. A beautiful scenic travel postcard image occupies a large frame: upper 65% scenic photograph, lower 35% clean ivory caption area with exactly 'A little escape' as heading and exactly 'Find beauty in the everyday.' below it. Highlight that second sentence with translucent blue selection and place a thin black I-beam at its right end. One small floating white shortcut key '⌘ C' near lower right. Crisp highly readable words. No mobile selection handles. Caption is part of the opened postcard image. Single image, not a contact sheet. Generous 8% safe margin, main object 80% of canvas. No watermark, no marketing titles or extra text. Precisely rendered, beautiful, clear at thumbnail size.",
+      "file": "feature-ocr-select-copy-c080be11.webp"
+    },
+    {
+      "set": "02",
+      "slug": "zoom-pan",
+      "prompt": "Create one finished website feature illustration for PicSee. Landscape 3:2, 1536x1024. Cohesive series module 滚轮缩放 · 拖动平移. ART DIRECTION: Premium soft 3D product illustration. Porcelain-white rounded floating photo cards, small powder-blue sculptural interaction elements, gentle isometric perspective, realistic vivid photographs inset into cards, beautiful soft ambient occlusion and broad daylight, clean warm off-white #F7F7F4 studio. Playful but sophisticated. No clutter. SCENIC SUBJECT: sunlit turquoise Mediterranean cove, limestone cliffs, small white sailboat. FUNCTIONAL COMPOSITION: Demonstrate scroll zoom and drag pan. Main scenic photograph with a circular magnifying inset showing a genuinely enlarged matching detail connected by one fine line to that detail. A small understated white mouse icon and four-way pan icon near bottom edge. No words. Photo is the star; magnification must be obvious. Single image, not a contact sheet. Generous 8% safe margin, main object 80% of canvas. No watermark, no marketing titles or extra text. Precisely rendered, beautiful, clear at thumbnail size.",
+      "file": "feature-zoom-pan-30c78c69.webp"
+    },
+    {
+      "set": "02",
+      "slug": "crop-annotate",
+      "prompt": "Create one finished website feature illustration for PicSee. Landscape 3:2, 1536x1024. Cohesive series module 框选裁剪 · 就地标注. ART DIRECTION: Premium soft 3D product illustration. Porcelain-white rounded floating photo cards, small powder-blue sculptural interaction elements, gentle isometric perspective, realistic vivid photographs inset into cards, beautiful soft ambient occlusion and broad daylight, clean warm off-white #F7F7F4 studio. Playful but sophisticated. No clutter. SCENIC SUBJECT: sunlit turquoise Mediterranean cove, limestone cliffs, small white sailboat. FUNCTIONAL COMPOSITION: Demonstrate image cropping and inline annotation. Main scenic photograph has a thin bright blue rectangular crop boundary with four visible corner handles, outside crop subtly dimmed. One precise coral arrow inside the crop points toward a scenic detail. A restrained small floating white tool strip underneath contains simple recognizable crop, pen, rectangle, undo and checkmark icons only. No words, no text paragraphs, no random tools. Single image, not a contact sheet. Generous 8% safe margin, main object 80% of canvas. No watermark, no marketing titles or extra text. Precisely rendered, beautiful, clear at thumbnail size.",
+      "file": "feature-crop-annotate-971acecf.webp"
+    },
+    {
+      "set": "02",
+      "slug": "keyboard-navigation",
+      "prompt": "Create one finished website feature illustration for PicSee. Landscape 3:2, 1536x1024. Cohesive series module 方向键切图 · 跟随 Finder 排序. ART DIRECTION: Premium soft 3D product illustration. Porcelain-white rounded floating photo cards, small powder-blue sculptural interaction elements, gentle isometric perspective, realistic vivid photographs inset into cards, beautiful soft ambient occlusion and broad daylight, clean warm off-white #F7F7F4 studio. Playful but sophisticated. No clutter. SCENIC SUBJECT: sunlit turquoise Mediterranean cove, limestone cliffs, small white sailboat. FUNCTIONAL COMPOSITION: Demonstrate navigating images with keyboard arrow keys. Five scenic photo cards ordered left-to-right in a graceful shallow arc, first four smaller, final selected photograph larger with a fine blue outline. Cards show five distinct natural destinations, with the main destination matching the supplied scene. Two beautiful small white physical keyboard arrow keycaps '←' and '→' below the row. Clear ordering, no text, no numbers, no complex file browser. Single image, not a contact sheet. Generous 8% safe margin, main object 80% of canvas. No watermark, no marketing titles or extra text. Precisely rendered, beautiful, clear at thumbnail size.",
+      "file": "feature-keyboard-navigation-f21eb3a3.webp"
+    },
+    {
+      "set": "02",
+      "slug": "default-viewer",
+      "prompt": "Create one finished website feature illustration for PicSee. Landscape 3:2, 1536x1024. Cohesive series module 设为默认查看器. ART DIRECTION: Premium soft 3D product illustration. Porcelain-white rounded floating photo cards, small powder-blue sculptural interaction elements, gentle isometric perspective, realistic vivid photographs inset into cards, beautiful soft ambient occlusion and broad daylight, clean warm off-white #F7F7F4 studio. Playful but sophisticated. No clutter. SCENIC SUBJECT: sunlit turquoise Mediterranean cove, limestone cliffs, small white sailboat. FUNCTIONAL COMPOSITION: Demonstrate many photo file types opening in one default image viewer. Four small different scenic photo documents in an orderly row gently converging through a single subtle pale-blue path toward one larger upright white rounded square application tile with a simple BLUE PICTURE glyph (mountain silhouette and small sun, no text). Tiny crisp file labels under the four photos exactly 'JPEG', 'PNG', 'HEIC', 'RAW'. Clear one-to-many relationship, no keyboard, no arrows everywhere, no settings window. Single image, not a contact sheet. Generous 8% safe margin, main object 80% of canvas. No watermark, no marketing titles or extra text. Precisely rendered, beautiful, clear at thumbnail size.",
+      "file": "feature-default-viewer-5f46796a.webp"
+    },
+    {
+      "set": "02",
+      "slug": "hero",
+      "prompt": "Create a polished hero / banner illustration for PicSee, a fast native macOS image viewer. This image is the top-right visual of a product landing page, coordinating with a five-feature illustration set. Canvas LANDSCAPE 6:5 aspect ratio, ideally 1440x1200. ART DIRECTION: Premium soft 3D product illustration. Porcelain-white rounded floating photo cards, small powder-blue sculptural interaction elements, gentle isometric perspective, realistic vivid photographs inset into cards, beautiful soft ambient occlusion and broad daylight, clean warm off-white #F7F7F4 studio. Playful but sophisticated. No clutter. MAIN PHOTOGRAPH: sunlit turquoise Mediterranean cove, limestone cliffs, small white sailboat. COMPOSITION: three beautifully arranged overlapping photo viewer cards with refined depth, central front card is largest, two secondary cards offset behind to the upper right and left. Front photograph is breathtaking, natural, crisp and richly detailed, main scene above. Rear cards show two complementary natural destinations. Picture viewing is the entire story: no text, no letters, no logos, no title, no caption, no OCR highlights, no crop box, no magnifier, no diagrams, no arrows. A very small floating white toolbar centered just beneath the front card, containing only four delicate blue line icons for fit-to-window, zoom out, zoom in, rotate. For the native-window style use thin macOS chrome with tiny traffic lights; for other styles adapt framing to art direction. Sophisticated balanced composition with soft realistic shadows, pristine off-white background, consistent materials, 12% safe margin around all subjects so no part touches or crosses the canvas edge. Main group occupies about 75% canvas. Premium finished marketing illustration, restrained and beautiful, immediately recognizable as a lightweight image viewer. Not a webpage screenshot, not a contact sheet.",
+      "file": "hero-app-preview-ee584887.webp"
+    }
+  ]
+}

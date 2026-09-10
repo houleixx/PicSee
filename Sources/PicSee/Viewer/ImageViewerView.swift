@@ -21,6 +21,7 @@ struct ImageViewerView: View {
     @State private var screenshotDocument: ScreenshotDocument?
     @State private var screenshotError: String?
     @State private var clipboardNoticeID: UUID?
+    @State private var clipboardError: String?
     @State private var deletionNoticeVisible = false
     private let hudPadding: CGFloat = 12
     private let navigationFadeDuration = 0.18
@@ -133,6 +134,7 @@ struct ImageViewerView: View {
                             onZoomIn: viewModel.zoomIn,
                             onRotateLeft: viewModel.rotateLeft,
                             onRotateRight: viewModel.rotateRight,
+                            onCopy: copyCurrentImage,
                             onScreenshot: beginScreenshot
                         )
                         .padding(.bottom, hudPadding)
@@ -269,7 +271,7 @@ struct ImageViewerView: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 34, weight: .medium))
                         .accessibilityHidden(true)
-                    Text("已添加到剪贴板")
+                    Text("已复制到剪贴板")
                         .font(.system(size: 14, weight: .medium))
                 }
                 .foregroundStyle(.white)
@@ -315,6 +317,11 @@ struct ImageViewerView: View {
             do { try await Task.sleep(for: .seconds(2)) } catch { return }
             clipboardNoticeID = nil
         }
+        .alert("无法复制图片", isPresented: Binding(
+            get: { clipboardError != nil }, set: { if !$0 { clipboardError = nil } }
+        )) {
+            Button("好") { clipboardError = nil }
+        } message: { Text(clipboardError ?? "") }
         .onChange(of: viewModel.currentURL) { _, _ in closeScreenshot() }
         .onDisappear { closeScreenshot() }
         .alert("无法开始截图", isPresented: Binding(
@@ -338,6 +345,25 @@ struct ImageViewerView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.didExitFullScreenNotification)) { _ in
             isFullScreen = false
+        }
+    }
+
+    private func copyCurrentImage() {
+        guard let image = viewModel.image else { return }
+        clipboardNoticeID = nil
+        do {
+            let copiedImage = viewModel.rotationDegrees == 0
+                ? image
+                : try ScreenshotDocument(image: image, rotationDegrees: viewModel.rotationDegrees).image
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            guard pasteboard.writeObjects([copiedImage]) else {
+                clipboardError = "无法写入剪贴板，请重试。"
+                return
+            }
+            clipboardNoticeID = UUID()
+        } catch {
+            clipboardError = "无法准备要复制的图片。\n\(error.localizedDescription)"
         }
     }
 
@@ -448,6 +474,7 @@ private struct ImageToolBar: View {
     let onZoomIn: () -> Void
     let onRotateLeft: () -> Void
     let onRotateRight: () -> Void
+    let onCopy: () -> Void
     let onScreenshot: () -> Void
 
     var body: some View {
@@ -464,6 +491,19 @@ private struct ImageToolBar: View {
                 .help("向左旋转 90 度")
             toolbarButton(iconName: "arrow-clockwise-bold", accessibilityLabel: "向右旋转 90 度", action: onRotateRight)
                 .help("向右旋转 90 度")
+            Button(action: onCopy) {
+                Image(systemName: "doc.on.doc")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 17, height: 17)
+                    .foregroundStyle(.white.opacity(0.95))
+                    .frame(width: 34, height: 28)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(ImageToolBarButtonStyle(usesFlatStyle: usesFlatStyle))
+            .accessibilityLabel("复制图片")
+            .help("复制图片到剪贴板")
             Rectangle()
                 .fill(.white.opacity(0.28))
                 .frame(width: 1, height: 18)

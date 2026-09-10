@@ -18,11 +18,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func showAboutPanel(_ sender: Any?) {
         let info = Bundle.main.infoDictionary ?? [:]
+        let credits = AppMenu.aboutPanelCredits(from: info)
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: AppMenu.applicationName(from: info),
             .applicationVersion: AppMenu.aboutPanelVersion(from: info),
-            .credits: AppMenu.aboutPanelCredits(from: info)
+            .credits: credits
         ])
+        for window in NSApp.windows {
+            if let contentView = window.contentView {
+                removeAboutLinkUnderlines(in: contentView, credits: credits.string)
+            }
+        }
+    }
+
+    private func removeAboutLinkUnderlines(in view: NSView, credits: String) {
+        if let textView = view as? NSTextView, textView.string.contains(credits) {
+            // NSTextView applies linkTextAttributes over the attributed string.
+            // Keep its link color and cursor, but override the default underline.
+            var attributes = textView.linkTextAttributes ?? [:]
+            attributes[.underlineStyle] = 0
+            textView.linkTextAttributes = attributes
+            textView.needsDisplay = true
+        }
+        for subview in view.subviews {
+            removeAboutLinkUnderlines(in: subview, credits: credits)
+        }
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

@@ -47,10 +47,10 @@ final class AppMenuTests: XCTestCase {
         let text = credits.string
         let releaseURL = URL(string: "https://picsee.pages.dev/")!
 
-        XCTAssertTrue(text.contains("下载地址：https://picsee.pages.dev/"))
+        XCTAssertTrue(text.contains("下载地址：https://picsee.pages.dev\n"))
         XCTAssertTrue(text.contains("感谢“大脑袋范同学”提出的优化建议"))
 
-        let urlRange = (text as NSString).range(of: "https://picsee.pages.dev/")
+        let urlRange = (text as NSString).range(of: "https://picsee.pages.dev")
         XCTAssertNotEqual(urlRange.location, NSNotFound)
         XCTAssertEqual(credits.attribute(.link, at: urlRange.location, effectiveRange: nil) as? URL, releaseURL)
     }

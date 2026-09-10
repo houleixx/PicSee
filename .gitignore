@@ -9,3 +9,6 @@ DerivedData/
 .superpowers/
 .worktrees/
 .claude/
+
+# Local Xiaohongshu promotional assets
+/output/xiaohongshu/

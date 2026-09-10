@@ -59,8 +59,8 @@ final class ImageDeletionDialog: NSPanel {
 
         let buttonRow = NSStackView(views: buttons)
         buttonRow.orientation = .horizontal
-        buttonRow.spacing = 10
-        buttonRow.distribution = .fillEqually
+        buttonRow.spacing = 12
+        buttonRow.distribution = .fill
         let textStack = NSStackView(views: [titleLabel, filenameLabel, explanation, suppressionButton])
         textStack.orientation = .vertical
         textStack.alignment = .leading
@@ -80,8 +80,8 @@ final class ImageDeletionDialog: NSPanel {
             buttonRow.topAnchor.constraint(equalTo: textStack.bottomAnchor, constant: 16),
             buttonRow.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
             buttonRow.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -20),
-            cancel.widthAnchor.constraint(equalToConstant: 104),
-            trash.widthAnchor.constraint(equalToConstant: 104),
+            cancel.widthAnchor.constraint(equalToConstant: 96),
+            trash.widthAnchor.constraint(equalToConstant: 120),
             cancel.heightAnchor.constraint(equalToConstant: 32),
             trash.heightAnchor.constraint(equalToConstant: 32)
         ])
@@ -112,12 +112,18 @@ private final class ConfirmationActionButton: NSButton {
 
 private final class ConfirmationActionButtonCell: NSButtonCell {
     private func bezelPath(in frame: NSRect) -> NSBezierPath {
-        NSBezierPath(roundedRect: frame.insetBy(dx: 1, dy: 2), xRadius: 6, yRadius: 6)
+        // Inset only for the border so the visible button fills its 32 pt height.
+        NSBezierPath(roundedRect: frame.insetBy(dx: 0.5, dy: 0.5), xRadius: 7, yRadius: 7)
     }
 
     override func drawBezel(withFrame frame: NSRect, in controlView: NSView) {
         let isDefault = controlView.window?.defaultButtonCell === self
-        let baseColor = isDefault ? NSColor.controlAccentColor : NSColor.controlColor
+        let isLight = controlView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua
+        // In a light sheet, controlColor is white and disappears into the sheet.
+        let secondaryColor = isLight
+            ? NSColor(srgbRed: 222.0 / 255, green: 222.0 / 255, blue: 222.0 / 255, alpha: 1)
+            : .controlColor
+        let baseColor = isDefault ? NSColor.controlAccentColor : secondaryColor
         let fillColor = isEnabled ? baseColor : baseColor.withAlphaComponent(0.5)
         fillColor.setFill()
         // AppKit may pass an expanded native bezel frame. Use the control's
@@ -128,9 +134,11 @@ private final class ConfirmationActionButtonCell: NSButtonCell {
             NSColor.black.withAlphaComponent(0.12).setFill()
             path.fill()
         }
-        NSColor.labelColor.withAlphaComponent(0.1).setStroke()
-        path.lineWidth = 0.5
-        path.stroke()
+        if isDefault || !isLight {
+            NSColor.labelColor.withAlphaComponent(0.1).setStroke()
+            path.lineWidth = 0.5
+            path.stroke()
+        }
     }
 
     override func drawFocusRingMask(withFrame frame: NSRect, in controlView: NSView) {
@@ -138,12 +146,16 @@ private final class ConfirmationActionButtonCell: NSButtonCell {
     }
 
     override func focusRingMaskBounds(forFrame frame: NSRect, in controlView: NSView) -> NSRect {
-        controlView.bounds.insetBy(dx: 1, dy: 2)
+        bezelPath(in: controlView.bounds).bounds
     }
 
     override func drawTitle(_ title: NSAttributedString, withFrame frame: NSRect, in controlView: NSView) -> NSRect {
         let isDefault = controlView.window?.defaultButtonCell === self
-        let textColor = isDefault ? NSColor.white : NSColor.systemRed
+        let isLight = controlView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua
+        let destructiveColor = isLight
+            ? NSColor(srgbRed: 204.0 / 255, green: 64.0 / 255, blue: 56.0 / 255, alpha: 1)
+            : .systemRed
+        let textColor = isDefault ? NSColor.white : destructiveColor
         let coloredTitle = NSMutableAttributedString(attributedString: title)
         coloredTitle.addAttribute(
             .foregroundColor, value: isEnabled ? textColor : NSColor.disabledControlTextColor,
@@ -151,7 +163,7 @@ private final class ConfirmationActionButtonCell: NSButtonCell {
         )
         // Center the measured text in our visible bezel instead of using the
         // title frame computed for AppKit's thinner native rounded button.
-        let bezelBounds = controlView.bounds.insetBy(dx: 1, dy: 2)
+        let bezelBounds = bezelPath(in: controlView.bounds).bounds
         let titleSize = coloredTitle.size()
         let titleFrame = NSRect(
             x: bezelBounds.midX - titleSize.width / 2,

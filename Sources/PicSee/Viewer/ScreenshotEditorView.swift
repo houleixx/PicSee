@@ -29,9 +29,10 @@ struct ScreenshotEditorView: View {
                     .allowsHitTesting(false)
                 Spacer(minLength: 0)
                 if document.canExport {
-                    controls
+                    controls.transition(.opacity)
                 }
             }
+            .animation(.easeOut(duration: 0.15), value: document.canExport)
             .padding(12)
         }
         .onExitCommand(perform: onClose)
@@ -43,62 +44,71 @@ struct ScreenshotEditorView: View {
     private var controls: some View {
         VStack(spacing: 8) {
             if document.canExport {
-                HStack(spacing: 4) {
+                HStack(spacing: ViewerToolbarMetrics.editorGroupSpacing) {
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 2) {
+                        HStack(spacing: ViewerToolbarMetrics.editorSpacing) {
                             ForEach(ScreenshotTool.toolbarOrder) { tool in
                                 Button { document.commitPendingText(); document.tool = tool } label: {
                                     ScreenshotToolbarGlyph(tool: tool)
-                                        .frame(width: 30, height: 28)
+                                        .frame(width: ViewerToolbarMetrics.buttonSize, height: ViewerToolbarMetrics.buttonHeight)
                                         .contentShape(Rectangle())
                                 }
-                                .buttonStyle(ScreenshotToolButtonStyle(selected: document.tool == tool)).help(tool.title).accessibilityLabel(tool.title)
+                                .buttonStyle(ViewerToolbarButtonStyle(selected: document.tool == tool)).help(tool.title).accessibilityLabel(tool.title)
                                 .accessibilityAddTraits(document.tool == tool ? .isSelected : [])
                             }
-                            Rectangle().fill(.primary.opacity(0.16)).frame(width: 1, height: 18)
-                            Button { document.undo() } label: { historyIcon("arrow.uturn.backward") }
-                            .buttonStyle(ScreenshotToolButtonStyle())
-                                .disabled(document.undoStates.isEmpty).help("撤销（⌘Z）")
+                            ViewerToolbarDivider()
+                                .padding(.horizontal, ViewerToolbarMetrics.editorGroupSpacing - ViewerToolbarMetrics.editorSpacing)
+                            Button { document.undo() } label: { actionIcon(.undo) }
+                            .buttonStyle(ViewerToolbarButtonStyle())
+                                .disabled(document.undoStates.isEmpty).help("撤销（⌘Z）").accessibilityLabel("撤销")
                                 .keyboardShortcut("z", modifiers: .command)
-                            Button { document.redo() } label: { historyIcon("arrow.uturn.forward") }
-                            .buttonStyle(ScreenshotToolButtonStyle())
-                                .disabled(document.redoStates.isEmpty).help("重做（⇧⌘Z）")
+                            Button { document.redo() } label: { actionIcon(.redo) }
+                            .buttonStyle(ViewerToolbarButtonStyle())
+                                .disabled(document.redoStates.isEmpty).help("重做（⇧⌘Z）").accessibilityLabel("重做")
                                 .keyboardShortcut("z", modifiers: [.command, .shift])
                         }
                     }
-                    Rectangle().fill(.primary.opacity(0.16)).frame(width: 1, height: 18)
-                    HStack(spacing: 4) {
-                        Button(action: copy) { actionIcon("doc.on.doc") }
-                            .buttonStyle(ScreenshotToolButtonStyle())
+                    .frame(height: ViewerToolbarMetrics.buttonHeight)
+                    ViewerToolbarDivider()
+                    HStack(spacing: ViewerToolbarMetrics.editorSpacing) {
+                        Button(action: copy) { actionIcon(.copy) }
+                            .buttonStyle(ViewerToolbarButtonStyle())
                             .help("复制截图").accessibilityLabel("复制截图")
-                        Button(action: onClose) { actionIcon("xmark") }
-                            .buttonStyle(ScreenshotToolButtonStyle(tint: colorScheme == .dark ? .red : Color(red: 0.78, green: 0.12, blue: 0.12)))
+                        Button(action: onClose) { actionIcon(.cancel) }
+                            .buttonStyle(ViewerToolbarButtonStyle(tint: colorScheme == .dark ? .red : Color(red: 0.78, green: 0.12, blue: 0.12)))
                             .keyboardShortcut(.cancelAction)
                             .help("取消截图（Esc）").accessibilityLabel("取消截图")
-                        Button(action: save) { actionIcon("checkmark") }
-                            .buttonStyle(ScreenshotToolButtonStyle(tint: colorScheme == .dark ? .green : Color(red: 0.05, green: 0.45, blue: 0.2)))
+                        Button(action: save) { actionIcon(.confirm) }
+                            .buttonStyle(ViewerToolbarButtonStyle(tint: colorScheme == .dark ? .green : Color(red: 0.05, green: 0.45, blue: 0.2)))
                             .help("保存截图…").accessibilityLabel("保存截图")
                     }
                     .fixedSize()
                 }
-                HStack(spacing: 4) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        toolSettings
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        settingsScroll.frame(minWidth: 180)
+                        ScreenshotSizeFields(document: document, displayScale: displayPixelScale)
+                            .fixedSize()
                     }
-                    Rectangle().fill(.primary.opacity(0.12)).frame(width: 1, height: 16)
-                        .padding(.horizontal, 4)
-                    ScreenshotSizeFields(document: document, displayScale: displayPixelScale)
+                    VStack(alignment: .leading, spacing: 8) {
+                        settingsScroll
+                        HStack {
+                            Spacer(minLength: 0)
+                            ScreenshotSizeFields(document: document, displayScale: displayPixelScale)
+                                .fixedSize()
+                        }
+                    }
                 }
-                .frame(height: 28)
 
             }
         }
         .font(.system(size: 12))
         .controlSize(.small)
-        .padding(10)
-        .frame(maxWidth: 520)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.08), lineWidth: 0.5))
+        .padding(.horizontal, ViewerToolbarMetrics.horizontalPadding)
+        .padding(.vertical, 10)
+        .frame(maxWidth: ViewerToolbarMetrics.editorWidth)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.08), lineWidth: 0.5))
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.22 : 0.12), radius: 14, y: 5)
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -107,38 +117,47 @@ struct ScreenshotEditorView: View {
         }
     }
 
+    private var settingsScroll: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            toolSettings
+        }
+        .frame(height: 28)
+    }
+
     @ViewBuilder
     private var toolSettings: some View {
         switch document.tool {
         case .crop:
             Text("拖动边角调整选区")
-                .font(.caption).foregroundStyle(.secondary).fixedSize()
+                .font(.system(size: 12, weight: .light)).foregroundStyle(.primary.opacity(0.64)).fixedSize()
         case .eraser:
             Text("点击或拖动删除标注")
-                .font(.caption).foregroundStyle(.secondary).fixedSize()
+                .font(.system(size: 12, weight: .light)).foregroundStyle(.primary.opacity(0.64)).fixedSize()
         case .mosaic:
-            HStack(spacing: 3) {
-                Text("直径：").font(.system(size: 11)).foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                settingsLabel("直径")
                 ForEach([16, 40, 96], id: \.self) { size in
-                    sizePreset(size, value: $document.mosaicDiameter, width: 22, title: "马赛克直径")
+                    sizePreset(size, value: $document.mosaicDiameter, title: "马赛克直径")
                 }
                 ScreenshotParameterSlider(value: $document.mosaicDiameter, title: "马赛克直径", range: 8...160)
             }.fixedSize()
         case .text:
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 annotationColorPicker
-                Text("字号：").font(.system(size: 11)).foregroundStyle(.secondary)
-                ScreenshotParameterSlider(value: $document.fontSize, title: "字号", range: 12...96)
-
+                settingsDivider
+                HStack(spacing: 4) {
+                    settingsLabel("字号")
+                    ScreenshotParameterSlider(value: $document.fontSize, title: "字号", range: 12...96)
+                }
             }.fixedSize()
         default:
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 annotationColorPicker
-                Rectangle().fill(.primary.opacity(0.12)).frame(width: 1, height: 16)
-                HStack(spacing: 2) {
-                    Text("粗细：").font(.system(size: 11)).foregroundStyle(.secondary)
+                settingsDivider
+                HStack(spacing: 4) {
+                    settingsLabel("粗细")
                     ForEach([2, 6, 12], id: \.self) { size in
-                        sizePreset(size, value: $document.strokeWidth, width: 16, title: "画笔粗细")
+                        sizePreset(size, value: $document.strokeWidth, title: "画笔粗细")
                     }
                     ScreenshotParameterSlider(value: $document.strokeWidth, title: "画笔粗细", range: 2...32)
 
@@ -147,14 +166,24 @@ struct ScreenshotEditorView: View {
         }
     }
 
-    private func sizePreset(_ size: Int, value: Binding<CGFloat>, width: CGFloat, title: String) -> some View {
+    private func settingsLabel(_ text: String) -> some View {
+        Text(text).font(.system(size: 11, weight: .light))
+            .foregroundStyle(.primary.opacity(0.64))
+            .fixedSize()
+    }
+
+    private var settingsDivider: some View {
+        Rectangle().fill(.primary.opacity(0.16)).frame(width: 1, height: 16)
+    }
+
+    private func sizePreset(_ size: Int, value: Binding<CGFloat>, title: String) -> some View {
         Button { value.wrappedValue = CGFloat(size) } label: {
             Text("\(size)")
-                .font(.system(size: 10).monospacedDigit())
-                .frame(width: width, height: 24)
+                .font(.system(size: 11).monospacedDigit())
+                .frame(width: 20, height: 24)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(ScreenshotToolButtonStyle(selected: value.wrappedValue == CGFloat(size)))
+        .buttonStyle(ViewerToolbarButtonStyle(selected: value.wrappedValue == CGFloat(size), cornerRadius: 6))
         .help("\(title)：\(size) px")
         .accessibilityLabel("\(title) \(size) 像素")
         .accessibilityAddTraits(value.wrappedValue == CGFloat(size) ? .isSelected : [])
@@ -165,9 +194,8 @@ struct ScreenshotEditorView: View {
     }
 
     private var annotationColorPicker: some View {
-        HStack(spacing: 2) {
-            Text("颜色：").font(.system(size: 11)).foregroundStyle(.secondary)
-                .padding(.trailing, 4)
+        HStack(spacing: 3) {
+            settingsLabel("颜色")
             ForEach(commonColors.indices, id: \.self) { index in
                 let preset = commonColors[index]
                 let selected = document.color.isEqual(preset.color)
@@ -177,33 +205,28 @@ struct ScreenshotEditorView: View {
                         .overlay(Circle().stroke(Color.primary.opacity(0.3), lineWidth: 0.5))
                         .padding(2)
                         .overlay(Circle().stroke(selected ? Color.accentColor : .clear, lineWidth: 1))
-                        .frame(width: 16, height: 24)
+                        .frame(width: 18, height: 24)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(preset.name).accessibilityLabel("标注颜色：\(preset.name)")
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
-            ColorPicker("自定义颜色", selection: Binding(get: { Color(nsColor: document.color) },
-                set: { document.color = NSColor($0) }), supportsOpacity: false)
-                .labelsHidden().frame(width: 28)
+            ScreenshotColorWell(color: $document.color)
+                .frame(width: 20, height: 14)
+                .frame(width: 24, height: 24)
                 .help("自定义标注颜色")
-                .padding(.leading, 4)
         }.fixedSize()
     }
 
-    private func actionIcon(_ name: String) -> some View {
-        ScreenshotToolbarGlyph(symbol: name)
-            .frame(width: 30, height: 28)
+    private func actionIcon(_ symbol: ViewerToolbarIcon.Symbol) -> some View {
+        ViewerToolbarIcon(symbol: symbol)
+            .frame(width: ViewerToolbarMetrics.buttonSize, height: ViewerToolbarMetrics.buttonHeight)
             .contentShape(Rectangle())
     }
 
-    private func historyIcon(_ name: String) -> some View {
-        actionIcon(name)
-    }
-
     private var hint: String {
-        if !document.canExport { return "拖动图片选择截图区域，按 Esc 退出" }
+        if !document.canExport { return "拖动选择截图区域（可从图片外开始），按 Esc 退出" }
         switch document.tool {
         case .crop: return "拖动选区内部移动；拖动边角调整大小；在外部拖动重新选择"
         case .text: return "点击框外确认；拖动文字移动，双击编辑，回车换行"
@@ -256,23 +279,23 @@ private struct ScreenshotSizeFields: View {
     @State private var heightText = ""
     @State private var recordedResize = false
     @State private var lastAppliedSelection: CGRect?
-    @FocusState private var focusedDimension: Dimension?
+    @State private var focusedDimension: Dimension?
     private enum Dimension: Hashable { case width, height }
 
     var body: some View {
-        HStack(spacing: 4) {
-            Text("宽：").foregroundStyle(.secondary).fixedSize()
+        HStack(spacing: 8) {
+            Text("宽").foregroundStyle(ViewerToolbarMetrics.secondaryForeground).fixedSize()
             dimensionField("选区宽度（像素）", text: $widthText, dimension: .width)
             Image(systemName: "multiply")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.primary)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(ViewerToolbarMetrics.secondaryForeground)
                 .frame(width: 14, height: 16)
                 .accessibilityLabel("乘")
-            Text("高：").foregroundStyle(.secondary).fixedSize()
+            Text("高").foregroundStyle(ViewerToolbarMetrics.secondaryForeground).fixedSize()
             dimensionField("选区高度（像素）", text: $heightText, dimension: .height)
-            Text("px").foregroundStyle(.secondary).fixedSize()
+            Text("px").foregroundStyle(ViewerToolbarMetrics.secondaryForeground).fixedSize()
         }
-        .font(.system(size: 11).monospacedDigit())
+        .font(.system(size: 13).monospacedDigit())
         .onAppear { synchronize() }
         .onChange(of: displayScale) { _, _ in synchronize() }
         .onChange(of: document.state.selection) { _, selection in
@@ -293,13 +316,22 @@ private struct ScreenshotSizeFields: View {
     }
 
     private func dimensionField(_ title: String, text: Binding<String>, dimension: Dimension) -> some View {
-        TextField(title, text: text)
-            .labelsHidden()
-            .textFieldStyle(.roundedBorder)
-            .multilineTextAlignment(.trailing)
-            .frame(width: 48)
-            .focused($focusedDimension, equals: dimension)
-            .onSubmit { commit(dimension) }
+        ScreenshotDimensionInput(title: title, text: text, onFocusChange: { focused in
+            if focused {
+                focusedDimension = dimension
+            } else if focusedDimension == dimension {
+                focusedDimension = nil
+            }
+        }, onCommit: { commit(dimension) })
+            .frame(height: 20)
+            .padding(.horizontal, 6)
+            .frame(width: 64, height: 28)
+            .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(focusedDimension == dimension ? Color.accentColor : Color.primary.opacity(0.22),
+                                  lineWidth: focusedDimension == dimension ? 1.5 : 1)
+            }
             .accessibilityLabel(title)
             .help("按屏幕实际像素输入宽高；最大为图片显示像素尺寸")
     }
@@ -336,35 +368,22 @@ private struct ScreenshotSizeFields: View {
 
 }
 
-/// Keep every glyph optically centered inside the same compact button footprint.
+/// Match the viewing actions while keeping annotation-specific outlines.
 private struct ScreenshotToolbarGlyph: View {
-    var tool: ScreenshotTool?
-    var symbol: String?
+    let tool: ScreenshotTool
 
     var body: some View {
         Group {
-            if let tool {
-                if tool == .mosaic {
-                    ScreenshotMosaicIcon().frame(width: 14, height: 14)
-                } else {
-                    ScreenshotToolOutline(tool: tool).frame(width: 20, height: 20)
-                }
-            } else if symbol == "checkmark" {
-                Path { path in
-                    path.move(to: CGPoint(x: 2, y: 8))
-                    path.addLine(to: CGPoint(x: 7, y: 13))
-                    path.addLine(to: CGPoint(x: 17, y: 3))
-                }
-                .stroke(style: StrokeStyle(lineWidth: 1.7, lineCap: .round, lineJoin: .round))
-                .frame(width: 19, height: 16)
+            if tool == .crop {
+                ViewerToolbarIcon(symbol: .crop)
+            } else if tool == .mosaic {
+                ScreenshotMosaicIcon()
+                    .frame(width: ViewerToolbarMetrics.iconSize * 0.75, height: ViewerToolbarMetrics.iconSize * 0.75)
             } else {
-                Image(systemName: symbol ?? "circle")
-                    .resizable().scaledToFit()
-                    .symbolRenderingMode(.monochrome)
-                    .frame(width: symbol == "xmark" ? 12 : 16, height: symbol == "xmark" ? 12 : 16)
+                ScreenshotToolOutline(tool: tool)
             }
         }
-        .frame(width: 20, height: 20)
+        .frame(width: ViewerToolbarMetrics.iconSize, height: ViewerToolbarMetrics.iconSize)
         .accessibilityHidden(true)
     }
 }
@@ -372,6 +391,17 @@ private struct ScreenshotToolbarGlyph: View {
 /// A shared 24-unit grid and rounded stroke keep the annotation tools visually related.
 private struct ScreenshotToolOutline: View {
     let tool: ScreenshotTool
+
+    private var opticalExtent: CGFloat {
+        switch tool {
+        case .arrow, .text: return 15.2
+        case .line: return 16
+        case .rectangle: return 17.5
+        case .ellipse: return 20
+        case .eraser: return 19
+        default: return 18
+        }
+    }
 
     var body: some View {
         Canvas { context, size in
@@ -384,8 +414,7 @@ private struct ScreenshotToolOutline: View {
             }
             switch tool {
             case .crop:
-                line([(7.5, 4), (7.5, 16.5), (20, 16.5)])
-                line([(4, 7.5), (16.5, 7.5), (16.5, 20)])
+                break // Rendered by ViewerToolbarIcon in both toolbars.
             case .arrow:
                 line([(5, 19), (19, 5)])
                 line([(8.5, 5), (19, 5), (19, 15.5)])
@@ -394,7 +423,7 @@ private struct ScreenshotToolOutline: View {
             case .rectangle:
                 path.addRoundedRect(in: CGRect(x: 4, y: 5, width: 16, height: 14), cornerSize: CGSize(width: 2, height: 2))
             case .text:
-                line([(5.5, 7), (5.5, 5.5), (18.5, 5.5), (18.5, 7)])
+                line([(6, 7), (6, 5.5), (18, 5.5), (18, 7)])
                 line([(12, 5.5), (12, 18.5)])
                 line([(8.75, 18.5), (15.25, 18.5)])
             case .pen:
@@ -414,29 +443,19 @@ private struct ScreenshotToolOutline: View {
             case .mosaic:
                 break
             }
-            context.stroke(path, with: .foreground, style: StrokeStyle(lineWidth: 1.7, lineCap: .round, lineJoin: .round))
+            let bounds = path.boundingRect
+            let extent = max(bounds.width, bounds.height)
+            guard extent > 0 else { return }
+            // Balance each silhouette around the same center: long diagonals and
+            // the T need less extent, while the oval and eraser need more.
+            // Keep stroke weight and button hit areas independent of this scale.
+            let scale = opticalExtent / extent
+            let centered = path.applying(CGAffineTransform(
+                a: scale, b: 0, c: 0, d: scale,
+                tx: 12 - bounds.midX * scale, ty: 12 - bounds.midY * scale
+            ))
+            context.stroke(centered, with: .foreground, style: StrokeStyle(lineWidth: ViewerToolbarMetrics.strokeWidth, lineCap: .round, lineJoin: .round))
         }
-    }
-}
-
-/// The hit shape fills the original 30 × 28 pt button, including transparent padding.
-private struct ScreenshotToolButtonStyle: ButtonStyle {
-    var selected = false
-    var tint: Color?
-    @Environment(\.isEnabled) private var isEnabled
-    @State private var hovered = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(selected ? Color.accentColor : (tint ?? Color.primary))
-            .background {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(selected ? Color.accentColor.opacity(0.18) :
-                        Color.primary.opacity(configuration.isPressed ? 0.12 : (hovered && isEnabled ? 0.07 : 0)))
-            }
-            .contentShape(Rectangle())
-            .opacity(isEnabled ? 1 : 0.3)
-            .onHover { hovered = $0 }
     }
 }
 
@@ -689,7 +708,7 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
     }
     override func resetCursorRects() {
         guard !isPointerOverControls else { return }
-        addCursorRect(imageRect, cursor: .crosshair)
+        addCursorRect(bounds, cursor: .crosshair)
         guard document.tool == .text || document.tool == .crop, let selection = document.state.selection else { return }
         for annotation in document.state.annotations where annotation.tool == .text {
             let rect = annotation.hitBounds.insetBy(dx: -3 / scale, dy: -3 / scale).intersection(selection)
@@ -846,7 +865,6 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
         let hitHandle = document.state.selection.flatMap { selection in
             handles(selection).firstIndex { hypot($0.x - point.x, $0.y - point.y) <= 9 / scale }
         }
-        guard document.bounds.contains(point) || (document.tool == .crop && hitHandle != nil) else { return }
         window?.makeFirstResponder(self)
         if let index = movableText(at: point) {
             if event.clickCount >= 2 {
@@ -859,16 +877,20 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
             }
             return
         }
+        let startsOutsideImage = !document.bounds.contains(point)
         let startsNewSelection = !document.canExport ||
+            (startsOutsideImage && (document.tool != .crop || hitHandle == nil)) ||
             (document.state.selection?.contains(point) == false && hitHandle == nil)
         activeTool = startsNewSelection ? .crop : document.tool
+        // Clamping both drag endpoints gives the rectangle's intersection with the
+        // image. A drag wholly in blank space has zero width/height and is ignored.
         anchor = document.clamp(point)
         originalSelection = document.state.selection
         handle = nil
         moving = false
         cropGestureRecorded = false
         if activeTool == .crop {
-            handle = hitHandle
+            handle = startsNewSelection ? nil : hitHandle
             moving = handle == nil && (originalSelection?.contains(point) ?? false)
             // Preserve the selection and tool until a real drag begins. Clearing here
             // briefly removes the annotation toolbar even for an ordinary outside click.
@@ -988,12 +1010,12 @@ private struct ScreenshotParameterSlider: View {
                     .font(.system(size: 7, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
-            .font(.system(size: 10))
-            .frame(width: 40, height: 24)
+            .font(.system(size: 11))
+            .frame(width: 44, height: 24)
             .background(.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 5))
             .contentShape(Rectangle())
         }
-        .buttonStyle(ScreenshotToolButtonStyle())
+        .buttonStyle(ViewerToolbarButtonStyle(cornerRadius: 6))
         .help("调整\(title)")
         .accessibilityLabel("\(title)，当前 \(Int(value)) 像素")
         .popover(isPresented: $isPresented) {

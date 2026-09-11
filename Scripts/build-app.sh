@@ -14,7 +14,7 @@ ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 cd "$ROOT_DIR"
 ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
 X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
-APP_VERSION="${PICSEE_VERSION:-0.2.53}"
+APP_VERSION="${PICSEE_VERSION:-0.2.54}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
 SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
 CODESIGN_IDENTITY="${PICSEE_CODESIGN_IDENTITY:--}"
@@ -204,9 +204,9 @@ else
 fi
 
 if [ "$SKIP_LOCAL_INSTALL" != "1" ]; then
-  # 同步到用户「应用程序」文件夹（与 ~/Applications 同一路径，例如 /Users/holly/Applications）
-  USER_APPS_DIR="${HOME}/Applications"
-  mkdir -p "$USER_APPS_DIR"
-  ditto "$APP_DIR" "$USER_APPS_DIR/PicSee.app"
-  echo "Installed $USER_APPS_DIR/PicSee.app"
+  # 与 DMG 拖拽安装使用同一目录，避免本地构建与 Finder 打开的版本不一致。
+  INSTALL_DIR="/Applications"
+  mkdir -p "$INSTALL_DIR"
+  ditto "$APP_DIR" "$INSTALL_DIR/PicSee.app"
+  echo "Installed $INSTALL_DIR/PicSee.app"
 fi

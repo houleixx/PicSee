@@ -121,13 +121,28 @@ jobs:
             --output-format json | tee "$NOTARY_OUTPUT"
 
           xcrun stapler staple "$DMG_PATH"
+          xcrun stapler validate "$DMG_PATH"
+          codesign --verify --strict "$DMG_PATH"
           spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG_PATH"
+
+      - name: Copy verified DMG to stable download name
+        env:
+          DMG_NAME: ${{ steps.version.outputs.dmg_name }}
+        run: |
+          set -euo pipefail
+          DMG_PATH="build/dmg/$DMG_NAME"
+          hdiutil verify "$DMG_PATH"
+          cp "$DMG_PATH" build/dmg/PicSee.dmg
+          cmp "$DMG_PATH" build/dmg/PicSee.dmg
+          shasum -a 256 "$DMG_PATH" build/dmg/PicSee.dmg
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.version.outputs.dmg_name }}
-          path: build/dmg/${{ steps.version.outputs.dmg_name }}
+          path: |
+            build/dmg/${{ steps.version.outputs.dmg_name }}
+            build/dmg/PicSee.dmg
 
       - name: Prepare release notes
         if: startsWith(github.ref, 'refs/tags/v')
@@ -150,6 +165,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/dmg/${{ steps.version.outputs.dmg_name }}
+          files: |
+            build/dmg/${{ steps.version.outputs.dmg_name }}
+            build/dmg/PicSee.dmg
+          fail_on_unmatched_files: true
           body_path: build/release-notes.md
           generate_release_notes: true

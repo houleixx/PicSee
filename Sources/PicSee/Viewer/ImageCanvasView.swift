@@ -12,6 +12,8 @@ struct ImageCanvasView: NSViewRepresentable {
     @Binding var panOffset: CGSize
     @Binding var rotationDegrees: Int
     @Binding var zoomRequest: ImageZoomRequest?
+    let transformAnimationID: Int
+    let navigationDirection: Int?
     let onPrevious: () -> Void
     let onNext: () -> Void
     let onReset: () -> Void
@@ -66,11 +68,12 @@ struct ImageCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: CanvasNSView, context: Context) {
+        nsView.navigationDirection = navigationDirection
+        let imageChanged = nsView.image !== image
         nsView.imageURL = imageURL
         nsView.image = image
-        nsView.zoomScale = zoomScale
-        nsView.panOffset = panOffset
-        nsView.rotationDegrees = rotationDegrees
+        nsView.updateTransform(zoom: zoomScale, pan: panOffset, rotation: rotationDegrees,
+                               animationID: transformAnimationID, imageChanged: imageChanged)
         nsView.onPrevious = onPrevious
         nsView.onNext = onNext
         nsView.onReset = onReset
@@ -93,7 +96,11 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onTrashImage = onTrashImage
         nsView.onUndoDeletion = onUndoDeletion
         if let zoomRequest {
-            nsView.applyToolbarZoom(request: zoomRequest)
+            // The command writes SwiftUI bindings. Apply it after this representable update.
+            DispatchQueue.main.async { [weak nsView] in
+                guard let nsView, nsView.image === image else { return }
+                nsView.applyToolbarZoom(request: zoomRequest)
+            }
         }
         nsView.needsDisplay = true
     }
@@ -529,6 +536,21 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private static let themeMenuIdentifier = NSUserInterfaceItemIdentifier("PicSee.ThemeMenu")
 
     private let imageView = NSImageView(frame: .zero)
+    // Animate a container, leaving the image's rotation and AppKit layout independent.
+    private let imageMotionView = NSView(frame: .zero)
+    private let outgoingImageView = NSImageView(frame: .zero)
+    private static let transformAnimationKey = "PicSee.ZoomAnimation"
+    private var transformMotion: TransformMotion?
+    private static let navigationAnimationKey = "PicSee.NavigationAnimation"
+    private var handledTransformAnimationID = 0
+    private var navigationToken = 0
+    private var pendingNavigationAnimation = false
+    private var lastNavigationTime: CFTimeInterval?
+    var navigationTime: () -> CFTimeInterval = { CACurrentMediaTime() }
+    var navigationDirection: Int?
+    var motionPreference: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    private var reduceMotion: Bool { motionPreference() }
+
     private let minimapView = ImageMinimapView(frame: .zero)
     private let backend: TextRecognitionBackend
     private let defaults: UserDefaults
@@ -556,6 +578,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         didSet {
             let imageChanged = oldValue !== image
             if imageChanged {
+                prepareImageTransition()
+                imageView.layer?.removeAnimation(forKey: Self.rotationAnimationKey)
+                pendingRotationAnimation = nil
+                rotationDegrees = 0
+                pendingRotationAnimation = nil
                 zoomScale = 1
                 panOffset = .zero
                 resetTextSelectionState()
@@ -705,6 +732,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     deinit {
         analysisTask?.cancel()
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
     override func viewDidMoveToWindow() {
@@ -726,10 +754,20 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     override func layout() {
         super.layout()
         let geometry = currentGeometry()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        imageMotionView.frame = bounds
+        imageMotionView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        imageMotionView.layer?.position = CGPoint(x: bounds.midX, y: bounds.midY)
         imageView.frame = geometry.unrotatedImageRect
         imageView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         imageView.layer?.position = CGPoint(x: geometry.imageRect.midX, y: geometry.imageRect.midY)
         applyImageRotation()
+        CATransaction.commit()
+        if pendingNavigationAnimation {
+            pendingNavigationAnimation = false
+            animateImageTransition()
+        }
         switch backend {
         case .liveText:
             liveTextOverlay.frame = imageView.bounds
@@ -772,6 +810,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
+        // SwiftUI probes the canvas while routing toolbar clicks too. Hit testing
+        // must not change image state; interrupt only when an interaction begins.
         if resizeAnchor(at: point) != nil {
             return self
         }
@@ -787,6 +827,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        interruptMotion()
         let isTrackpad = event.hasPreciseScrollingDeltas && (event.phase != [] || event.momentumPhase != [])
         if isTrackpad, abs(zoomScale - 1) > 0.001 {
             panOffset = constrainPan(
@@ -805,6 +846,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func magnify(with event: NSEvent) {
+        interruptMotion()
         guard event.magnification != 0 else { return }
         applyZoom(multiplier: 1 + event.magnification)
     }
@@ -812,7 +854,12 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     func applyToolbarZoom(request: ImageZoomRequest) {
         guard handledZoomRequestID != request.id else { return }
         handledZoomRequestID = request.id
+        let visual = visualTransform()
+        let velocity = imageMotionView.layer?.animation(forKey: Self.transformAnimationKey) != nil
+            ? transformMotion?.zoomVelocity(at: visual.zoomScale) ?? 0 : 0
+        cancelNavigationAnimation()
         applyZoom(multiplier: request.multiplier)
+        animateTransform(from: visual, duration: 0.18, timing: .easeInEaseOut, initialZoomVelocity: velocity)
         onZoomRequestHandled?(request.id)
     }
 
@@ -832,6 +879,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func mouseDown(with event: NSEvent) {
+        interruptMotion()
         let geometry = currentGeometry()
         let point = convert(event.locationInWindow, from: nil)
 
@@ -861,11 +909,13 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             if isFitted {
                 window?.toggleFullScreen(nil)
             } else {
+                let visual = visualTransform()
                 zoomScale = 1
                 panOffset = .zero
                 onZoomChanged?(1)
                 onPanChanged?(.zero)
                 onReset?()
+                animateTransform(from: visual, duration: 0.20)
             }
             return
         }
@@ -1276,7 +1326,16 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         imageView.imageAlignment = .alignCenter
         imageView.wantsLayer = true
         imageView.layer?.contentsGravity = .resizeAspect
-        addSubview(imageView)
+        outgoingImageView.imageScaling = .scaleProportionallyUpOrDown
+        outgoingImageView.wantsLayer = true
+        outgoingImageView.layer?.opacity = 0
+        addSubview(outgoingImageView)
+        imageMotionView.wantsLayer = true
+        addSubview(imageMotionView)
+        imageMotionView.addSubview(imageView)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(accessibilityDisplayOptionsChanged),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
 
         switch backend {
         case .liveText:
@@ -1287,7 +1346,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             imageView.addSubview(liveTextOverlay)
         case .vision:
             selectionOverlayView.autoresizingMask = [.width, .height]
-            addSubview(selectionOverlayView)
+            imageMotionView.addSubview(selectionOverlayView)
         }
 
         minimapView.isHidden = true
@@ -1468,23 +1527,238 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
         let targetRadians = CGFloat(rotationDegrees) * .pi / 180
         if let pendingRotationAnimation {
-            let fromRadians = targetRadians - Self.shortestRotationDeltaRadians(
+            let previousRadians = targetRadians - Self.shortestRotationDeltaRadians(
                 from: pendingRotationAnimation.from,
                 to: pendingRotationAnimation.to
             )
+            let visualRadians = (layer.presentation()?.value(forKeyPath: "transform.rotation.z") as? CGFloat)
+                ?? previousRadians
+            // Equivalent angles nearest the new target avoid 270° wraparound and resume mid-flight.
+            let fromRadians = targetRadians + atan2(sin(visualRadians - targetRadians),
+                                                     cos(visualRadians - targetRadians))
             let animation = CABasicAnimation(keyPath: "transform.rotation.z")
             animation.fromValue = fromRadians
             animation.toValue = targetRadians
             animation.duration = 0.22
             animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             layer.removeAnimation(forKey: Self.rotationAnimationKey)
-            layer.add(animation, forKey: Self.rotationAnimationKey)
+            if !reduceMotion {
+                layer.add(animation, forKey: Self.rotationAnimationKey)
+            }
             self.pendingRotationAnimation = nil
         }
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         layer.setAffineTransform(CGAffineTransform(rotationAngle: targetRadians))
+        CATransaction.commit()
+    }
+
+    func updateTransform(zoom: CGFloat, pan: CGSize, rotation: Int, animationID: Int, imageChanged: Bool) {
+        let shouldAnimate = animationID != handledTransformAnimationID && !imageChanged
+        let visual = visualTransform()
+        handledTransformAnimationID = animationID
+        zoomScale = zoom
+        panOffset = pan
+        rotationDegrees = rotation
+        if shouldAnimate {
+            cancelNavigationAnimation()
+            animateTransform(from: visual, duration: 0.20)
+        }
+    }
+
+    private func visualTransform() -> ImageZoomAdjustment {
+        guard let layer = imageMotionView.layer,
+              layer.animation(forKey: Self.transformAnimationKey) != nil else {
+            return ImageZoomAdjustment(zoomScale: zoomScale, panOffset: panOffset)
+        }
+        if let presentedContainer = layer.presentation(),
+           let presentedImage = imageView.layer?.presentation(),
+           let image, image.size.width > 0 {
+            // Read geometry and transform from the same presented frame. The model's
+            // zoom/pan may already describe a replacement not yet rendered by CA.
+            let transform = presentedContainer.transform
+            let renderedScale = presentedImage.bounds.width / image.size.width
+            return ImageZoomAdjustment(
+                zoomScale: renderedScale * transform.m11 / currentGeometry().fitScale,
+                panOffset: CGSize(
+                    width: (presentedImage.position.x - presentedContainer.bounds.midX) * transform.m11 + transform.m41,
+                    height: (presentedImage.position.y - presentedContainer.bounds.midY) * transform.m11 + transform.m42))
+        }
+        // An offscreen view has no presented frame; use the pending animation's start.
+        let transform = ((layer.animation(forKey: Self.transformAnimationKey) as? CABasicAnimation)?.fromValue as? CATransform3D)
+            ?? CATransform3DIdentity
+        return ImageZoomAdjustment(
+            zoomScale: max(0.1, zoomScale) * transform.m11,
+            panOffset: CGSize(width: panOffset.width * transform.m11 + transform.m41,
+                              height: panOffset.height * transform.m11 + transform.m42))
+    }
+
+    private struct TransformMotion {
+        let startZoom: CGFloat
+        let targetZoom: CGFloat
+        let duration: CFTimeInterval
+        let timing: CAMediaTimingFunction
+
+        func zoomVelocity(at zoom: CGFloat) -> CGFloat {
+            let distance = targetZoom - startZoom
+            guard abs(distance) > 0.000001 else { return 0 }
+            let progress = min(1, max(0, (zoom - startZoom) / distance))
+            var first: [Float] = [0, 0]
+            var second: [Float] = [0, 0]
+            timing.getControlPoint(at: 1, values: &first)
+            timing.getControlPoint(at: 2, values: &second)
+            let x1 = CGFloat(first[0]), y1 = CGFloat(first[1])
+            let x2 = CGFloat(second[0]), y2 = CGFloat(second[1])
+            // Invert the curve at the displayed position, not wall-clock time:
+            // the presentation layer can lag a pending replacement by one frame.
+            var low: CGFloat = 0
+            var high: CGFloat = 1
+            for _ in 0..<24 {
+                let t = (low + high) / 2
+                let u = 1 - t
+                let y = 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t
+                if y < progress { low = t } else { high = t }
+            }
+            let t = (low + high) / 2
+            let u = 1 - t
+            let dx = 3 * (u * u * x1 + 2 * u * t * (x2 - x1) + t * t * (1 - x2))
+            let dy = 3 * (u * u * y1 + 2 * u * t * (y2 - y1) + t * t * (1 - y2))
+            return dx > 0.000001 ? distance / duration * dy / dx : 0
+        }
+    }
+
+    private func animateTransform(
+        from visual: ImageZoomAdjustment,
+        duration: CFTimeInterval,
+        timing: CAMediaTimingFunctionName = .easeOut,
+        initialZoomVelocity: CGFloat = 0
+    ) {
+        layoutSubtreeIfNeeded()
+        guard let layer = imageMotionView.layer else { return }
+        layer.removeAnimation(forKey: Self.transformAnimationKey)
+        guard !reduceMotion else { return }
+        let ratio = max(0.1, visual.zoomScale) / max(0.1, zoomScale)
+        let transform = CGAffineTransform(a: ratio, b: 0, c: 0, d: ratio,
+                                         tx: visual.panOffset.width - panOffset.width * ratio,
+                                         ty: visual.panOffset.height - panOffset.height * ratio)
+        let animation = CABasicAnimation(keyPath: "transform")
+        animation.fromValue = CATransform3DMakeAffineTransform(transform)
+        animation.toValue = CATransform3DIdentity
+        animation.duration = duration
+        var curve = CAMediaTimingFunction(name: timing)
+        let distance = zoomScale - visual.zoomScale
+        if abs(distance) > 0.000001 {
+            let slope = initialZoomVelocity * duration / distance
+            if slope.isFinite, slope > 0 {
+                // Match incoming speed for same-direction retargets, then ease to rest.
+                // Ordered control points keep the curve monotonic and prevent overshoot.
+                let x1 = min(0.42, 1 / slope)
+                curve = CAMediaTimingFunction(controlPoints: Float(x1), Float(min(1, slope * x1)), 0.58, 1)
+            }
+        }
+        animation.timingFunction = curve
+        transformMotion = TransformMotion(startZoom: visual.zoomScale, targetZoom: zoomScale,
+                                          duration: duration, timing: curve)
+        layer.add(animation, forKey: Self.transformAnimationKey)
+    }
+
+    private func interruptMotion() {
+        let visual = visualTransform()
+        let wasZooming = imageMotionView.layer?.animation(forKey: Self.transformAnimationKey) != nil
+        imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
+        cancelNavigationAnimation()
+        if wasZooming {
+            zoomScale = visual.zoomScale
+            panOffset = visual.panOffset
+            onZoomChanged?(zoomScale)
+            onPanChanged?(panOffset)
+            layoutSubtreeIfNeeded()
+        }
+    }
+
+    @objc private func accessibilityDisplayOptionsChanged() {
+        guard reduceMotion else { return }
+        // Keep committed targets when the system preference changes mid-animation.
+        imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
+        imageView.layer?.removeAnimation(forKey: Self.rotationAnimationKey)
+        cancelNavigationAnimation()
+    }
+
+    private func cancelNavigationAnimation() {
+        navigationToken += 1
+        pendingNavigationAnimation = false
+        imageMotionView.layer?.removeAnimation(forKey: Self.navigationAnimationKey)
+        outgoingImageView.layer?.removeAllAnimations()
+        outgoingImageView.image = nil
+    }
+
+    private func prepareImageTransition() {
+        let wasNavigating = pendingNavigationAnimation
+            || imageMotionView.layer?.animation(forKey: Self.navigationAnimationKey) != nil
+        let visual = visualTransform()
+        cancelNavigationAnimation()
+        imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
+        guard imageView.image != nil, image != nil, navigationDirection != nil else {
+            lastNavigationTime = nil
+            return
+        }
+        let now = navigationTime()
+        let isRapidRepeat = lastNavigationTime.map { now - $0 < 0.22 } ?? false
+        lastNavigationTime = now
+        // Keep the entire burst immediate, including reversals. Testing only whether
+        // an animation exists would restart it on every other repeat after cancellation.
+        guard !wasNavigating, !isRapidRepeat else { return }
+        let geometry = ImageDisplayGeometry(imageSize: imageView.image!.size, viewportSize: bounds.size,
+                                           zoomScale: visual.zoomScale, panOffset: visual.panOffset,
+                                           rotationDegrees: rotationDegrees)
+        outgoingImageView.image = imageView.image
+        outgoingImageView.frame = geometry.unrotatedImageRect
+        outgoingImageView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        outgoingImageView.layer?.position = CGPoint(x: geometry.imageRect.midX, y: geometry.imageRect.midY)
+        outgoingImageView.layer?.transform = imageView.layer?.presentation()?.transform
+            ?? imageView.layer?.transform ?? CATransform3DIdentity
+        pendingNavigationAnimation = true
+    }
+
+    private func animateImageTransition() {
+        guard let incoming = imageMotionView.layer, let outgoing = outgoingImageView.layer else { return }
+        let offset: CGFloat = reduceMotion ? 0 : CGFloat(navigationDirection ?? 0) * 24
+        let duration = reduceMotion ? 0.12 : 0.16
+        let moveIn = CABasicAnimation(keyPath: "transform.translation.x")
+        moveIn.fromValue = offset
+        moveIn.toValue = 0
+        let fadeIn = CABasicAnimation(keyPath: "opacity")
+        fadeIn.fromValue = 0.94
+        fadeIn.toValue = 1
+        let moveOut = CABasicAnimation(keyPath: "position.x")
+        moveOut.fromValue = outgoing.position.x
+        moveOut.toValue = outgoing.position.x - offset
+        let fadeOut = CABasicAnimation(keyPath: "opacity")
+        fadeOut.fromValue = 1
+        fadeOut.toValue = 0
+        let token = navigationToken
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        // Keep the old image invisible after its explicit fade is removed, even
+        // before the asynchronous cleanup runs (especially across different sizes).
+        outgoing.opacity = 0
+        CATransaction.setCompletionBlock { [weak self] in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.navigationToken == token else { return }
+                self.outgoingImageView.image = nil
+            }
+        }
+        for (layer, animations, transitionDuration) in [
+            (incoming, [moveIn, fadeIn], duration),
+            (outgoing, [moveOut, fadeOut], 0.10)
+        ] {
+            let group = CAAnimationGroup()
+            group.animations = animations
+            group.duration = transitionDuration
+            group.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(group, forKey: Self.navigationAnimationKey)
+        }
         CATransaction.commit()
     }
 
@@ -1590,6 +1864,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func navigateWithMinimap(to point: CGPoint) {
+        interruptMotion()
         let geometry = currentGeometry()
         guard geometry.shouldShowMinimap else { return }
 
@@ -1796,7 +2071,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private func reportDisplayScaleIfNeeded(_ displayScale: CGFloat) {
         guard abs(displayScale - lastReportedDisplayScale) > 0.0001 else { return }
         lastReportedDisplayScale = displayScale
-        onDisplayScaleChanged?(displayScale)
+        // Layout may run inside updateNSView; publishing here would re-enter SwiftUI.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, abs(self.lastReportedDisplayScale - displayScale) < 0.0001 else { return }
+            self.onDisplayScaleChanged?(displayScale)
+        }
     }
 
     private func cursorForPoint(_ point: CGPoint) -> NSCursor {
@@ -1831,6 +2110,15 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 }
 
 extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
+    func overlayView(
+        _ overlayView: ImageAnalysisOverlayView,
+        shouldBeginAt point: CGPoint,
+        forAnalysisType analysisType: ImageAnalysisOverlayView.InteractionTypes
+    ) -> Bool {
+        interruptMotion()
+        return true
+    }
+
     func overlayView(_ overlayView: ImageAnalysisOverlayView, liveTextButtonDidChangeToVisible visible: Bool) {
         if visible {
             scheduleLiveTextControlReposition()
@@ -1846,6 +2134,14 @@ extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
 #if DEBUG
 extension CanvasNSView {
     var debugBackend: TextRecognitionBackend { backend }
+    var debugMotionLayer: CALayer? { imageMotionView.layer }
+    var debugLiveTextOverlay: ImageAnalysisOverlayView { liveTextOverlay }
+    var debugRotationLayer: CALayer? { imageView.layer }
+    var debugOutgoingImage: NSImage? { outgoingImageView.image }
+    var debugOutgoingLayer: CALayer? { outgoingImageView.layer }
+    func debugInterruptMotion() { interruptMotion() }
+    func debugMotionPreferenceChanged() { accessibilityDisplayOptionsChanged() }
+    var debugVisualTransform: ImageZoomAdjustment { visualTransform() }
 
     var debugMinimapEnabled: Bool { minimapEnabled }
 

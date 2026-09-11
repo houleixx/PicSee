@@ -10,7 +10,10 @@
 4. Build output directory 填写 `website`。
 5. 保存并部署。
 
-网站中的下载按钮会指向 GitHub 的最新 Release 页面。
+网站的下载与 GitHub 链接均在新窗口/标签页打开。3 个最新版下载入口直接使用固定地址：
+`https://github.com/houleixx/PicSee/releases/latest/download/PicSee.dmg`。
+Release workflow 在最终 DMG 验证后复制并校验 `PicSee.dmg`，与带版本号的 DMG 一同上传。发布新版本无需修改网站下载 URL，也不需要 Worker、Pages Function 或 GitHub API 查询。
+首次部署此链接前，Latest Release 需要已包含 `PicSee.dmg`。
 
 ## 当前配图
 

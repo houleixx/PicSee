@@ -26,6 +26,25 @@ final class ImageCanvasOCRTests: XCTestCase {
         XCTAssertNotNil(view.debugLiveTextAnalysis, "Analysis must persist across zoom and pan changes")
     }
 
+    func testBeginningLiveTextSelectionInterruptsZoomAndPreservesAnalysis() throws {
+        try XCTSkipUnless(ImageAnalyzer.isSupported, "ImageAnalyzer not supported on this host")
+        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 1152, height: 768), backend: .liveText)
+        view.motionPreference = { false }
+        view.image = loadFixtureImage()
+        view.imageURL = fixtureURL
+        view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(view.debugWaitForAnalysis(timeout: 8))
+        let overlay = view.debugLiveTextOverlay
+        let analysis = try XCTUnwrap(overlay.analysis)
+        let delegate = try XCTUnwrap(overlay.delegate)
+        view.applyToolbarZoom(request: ImageZoomRequest(id: 1, multiplier: 1.25))
+        XCTAssertNotNil(view.debugMotionLayer?.animation(forKey: "PicSee.ZoomAnimation"))
+        XCTAssertTrue(delegate.overlayView(overlay, shouldBeginAt: CGPoint(x: 100, y: 100),
+                                           forAnalysisType: .textSelection))
+        XCTAssertNil(view.debugMotionLayer?.animation(forKey: "PicSee.ZoomAnimation"))
+        XCTAssertTrue(overlay.analysis === analysis, "Starting selection must retain OCR results")
+    }
+
     func testVisionFallbackRecognizesAndCopies() {
         let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 1152, height: 768), backend: .vision)
         view.image = loadFixtureImage()
@@ -102,6 +121,7 @@ final class ImageCanvasOCRTests: XCTestCase {
 
     func testChangingRotationSchedulesLayerAnimation() {
         let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
+        view.motionPreference = { false }
         view.image = NSImage(size: NSSize(width: 100, height: 80))
         view.layoutSubtreeIfNeeded()
 
@@ -168,6 +188,6 @@ final class ImageCanvasOCRTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("build/ocr-test.png")
+            .appendingPathComponent("Tests/Fixtures/ocr-test.png")
     }
 }

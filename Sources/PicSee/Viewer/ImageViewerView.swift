@@ -48,6 +48,8 @@ struct ImageViewerView: View {
                     panOffset: $viewModel.panOffset,
                     rotationDegrees: $viewModel.rotationDegrees,
                     zoomRequest: $viewModel.zoomRequest,
+                    transformAnimationID: viewModel.transformAnimationID,
+                    navigationDirection: viewModel.navigationDirection,
                     onPrevious: viewModel.navigateToPrevious,
                     onNext: viewModel.navigateToNext,
                     onReset: viewModel.resetViewTransform,
@@ -127,7 +129,6 @@ struct ImageViewerView: View {
                 .overlay(alignment: .bottom) {
                     if toolbarEffectivelyVisible && screenshotDocument == nil {
                         ImageToolBar(
-                            usesFlatStyle: !titleBarVisible,
                             onFitToWindow: viewModel.fitToWindow,
                             onShowHundredPercent: viewModel.showActualSize,
                             onZoomOut: viewModel.zoomOut,
@@ -138,7 +139,7 @@ struct ImageViewerView: View {
                             onScreenshot: beginScreenshot
                         )
                         .padding(.bottom, hudPadding)
-                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                        .transition(.opacity)
                     }
                 }
                 .overlay(alignment: .trailing) {
@@ -263,8 +264,10 @@ struct ImageViewerView: View {
                         onCopy: { clipboardNoticeID = UUID() }
                     )
                 }
+                .transition(.opacity)
             }
         }
+        .animation(.easeOut(duration: 0.15), value: screenshotDocument != nil)
         .overlay(alignment: .center) {
             if clipboardNoticeID != nil {
                 VStack(spacing: 16) {
@@ -398,7 +401,7 @@ struct ImageViewerView: View {
                     help: "上一张图片",
                     action: viewModel.navigateToPrevious
                 )
-                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                .transition(.opacity)
             }
 
             Spacer(minLength: 0)
@@ -410,7 +413,7 @@ struct ImageViewerView: View {
                     help: "下一张图片",
                     action: viewModel.navigateToNext
                 )
-                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                .transition(.opacity)
             }
         }
         .padding(.horizontal, 14)
@@ -466,8 +469,7 @@ enum ImageParametersPanelLayout {
     }
 }
 
-private struct ImageToolBar: View {
-    let usesFlatStyle: Bool
+struct ImageToolBar: View {
     let onFitToWindow: () -> Void
     let onShowHundredPercent: () -> Void
     let onZoomOut: () -> Void
@@ -478,46 +480,49 @@ private struct ImageToolBar: View {
     let onScreenshot: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
-            toolbarButton(iconName: "corners-out-bold", accessibilityLabel: "适合窗口显示图片", action: onFitToWindow)
-                .help("适合窗口显示图片")
-            toolbarButton(iconName: "number-square-one-bold", accessibilityLabel: "100% 显示图片", action: onShowHundredPercent)
-                .help("100% 显示图片（1:1）")
-            toolbarButton(iconName: "magnifying-glass-minus-bold", accessibilityLabel: "缩小图片", action: onZoomOut)
-                .help("缩小图片")
-            toolbarButton(iconName: "magnifying-glass-plus-bold", accessibilityLabel: "放大图片", action: onZoomIn)
-                .help("放大图片")
-            toolbarButton(iconName: "arrow-counter-clockwise-bold", accessibilityLabel: "向左旋转 90 度", action: onRotateLeft)
-                .help("向左旋转 90 度")
-            toolbarButton(iconName: "arrow-clockwise-bold", accessibilityLabel: "向右旋转 90 度", action: onRotateRight)
-                .help("向右旋转 90 度")
-            toolbarButton(iconName: "copy-bold", accessibilityLabel: "复制图片", action: onCopy)
-                .help("复制图片到剪贴板")
-            Rectangle()
-                .fill(.white.opacity(0.28))
-                .frame(width: 1, height: 18)
-                .padding(.horizontal, 3)
-            toolbarButton(iconName: "crop-bold", accessibilityLabel: "截图与标注", action: onScreenshot)
+        HStack(spacing: ViewerToolbarMetrics.spacing) {
+            // Keep the edit entry visible when a small image opens in a narrow window.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: ViewerToolbarMetrics.spacing) {
+                    toolbarButton(.fit, label: "适合窗口显示图片", action: onFitToWindow)
+                        .help("适合窗口显示图片")
+                    toolbarButton(.actualSize, label: "100% 显示图片", action: onShowHundredPercent)
+                        .help("100% 显示图片（1:1）")
+                    toolbarButton(.zoomOut, label: "缩小图片", action: onZoomOut)
+                        .help("缩小图片")
+                    toolbarButton(.zoomIn, label: "放大图片", action: onZoomIn)
+                        .help("放大图片")
+                    toolbarButton(.rotateLeft, label: "向左旋转 90 度", action: onRotateLeft)
+                        .help("向左旋转 90 度")
+                    toolbarButton(.rotateRight, label: "向右旋转 90 度", action: onRotateRight)
+                        .help("向右旋转 90 度")
+                    toolbarButton(.copy, label: "复制图片", action: onCopy)
+                        .help("复制图片到剪贴板")
+                }
+            }
+            .frame(height: ViewerToolbarMetrics.viewerButtonHeight)
+            ViewerToolbarDivider(color: .white)
+                .padding(.horizontal, ViewerToolbarMetrics.viewerDividerPadding)
+            toolbarButton(.crop, label: "截图与标注", action: onScreenshot)
                 .help("截取图片区域并标注")
         }
-        .padding(.horizontal, 7)
+        .padding(.horizontal, ViewerToolbarMetrics.viewerHorizontalPadding)
         .padding(.vertical, 4)
+        .frame(maxWidth: ViewerToolbarMetrics.viewerWidth)
         .background(.black.opacity(0.46), in: Capsule())
-        .overlay(Capsule().stroke(.white.opacity(usesFlatStyle ? 0 : 0.24), lineWidth: 1))
-        .shadow(color: .black.opacity(usesFlatStyle ? 0 : 0.28), radius: 18, x: 0, y: 8)
+        .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .padding(.horizontal, 12)
     }
 
-    private func toolbarButton(iconName: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
+    private func toolbarButton(_ symbol: ViewerToolbarIcon.Symbol, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            PhosphorToolbarIcon(name: iconName)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 17, height: 17)
-                .foregroundStyle(.white.opacity(0.95))
-                .frame(width: 34, height: 28)
-            .contentShape(Capsule())
+            ViewerToolbarIcon(symbol: symbol)
+                .frame(width: ViewerToolbarMetrics.buttonSize, height: ViewerToolbarMetrics.viewerButtonHeight)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(ImageToolBarButtonStyle(usesFlatStyle: usesFlatStyle))
-        .accessibilityLabel(accessibilityLabel)
+        .buttonStyle(ViewerToolbarButtonStyle(foreground: .white.opacity(0.95)))
+        .accessibilityLabel(label)
     }
 }
 
@@ -558,34 +563,6 @@ private struct ImageParametersPanel: View {
     }
 }
 
-private struct PhosphorToolbarIcon: View {
-    let name: String
-
-    var body: some View {
-        if let image = Self.image(named: name) {
-            Image(nsImage: image)
-                .resizable()
-                .renderingMode(.template)
-                .interpolation(.medium)
-        } else {
-            Image(systemName: "circle")
-                .resizable()
-                .renderingMode(.template)
-        }
-    }
-
-    private static func image(named name: String) -> NSImage? {
-        guard let url = PicSeeResourceBundle.url(
-            forResource: name,
-            withExtension: "svg",
-            subdirectory: "Phosphor.xcassets/\(name).imageset"
-        ) else {
-            return nil
-        }
-        return NSImage(contentsOf: url)
-    }
-}
-
 enum PicSeeResourceBundle {
     static func url(forResource name: String, withExtension fileExtension: String, subdirectory: String) -> URL? {
         candidateBundles.compactMap {
@@ -605,18 +582,6 @@ enum PicSeeResourceBundle {
         bundles.append(.module)
         bundles.append(.main)
         return bundles
-    }
-}
-
-private struct ImageToolBarButtonStyle: ButtonStyle {
-    let usesFlatStyle: Bool
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                (configuration.isPressed ? Color.white.opacity(0.20) : Color.white.opacity(usesFlatStyle ? 0 : 0.08)),
-                in: Capsule()
-            )
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

@@ -185,6 +185,68 @@ final class ScreenshotDocumentTests: XCTestCase {
     }
 
     @MainActor
+    func testSelectionCanStartInBlankSpaceAndClipsToImage() throws {
+        let document = try document()
+        let canvas = ScreenshotCanvasNSView(document: document)
+        canvas.frame = CGRect(x: 0, y: 0, width: 480, height: 320)
+        canvas.displayImageRect = CGRect(x: 200, y: 140, width: 80, height: 40)
+        func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.mouseEvent(with: type,
+                location: CGPoint(x: 200 + point.x, y: 140 + point.y), modifierFlags: [], timestamp: 0,
+                windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        }
+        let cases: [(CGPoint, CGPoint, CGRect)] = [
+            (CGPoint(x: -15, y: -10), CGPoint(x: 30, y: 20), CGRect(x: 0, y: 0, width: 30, height: 20)),
+            (CGPoint(x: 95, y: 50), CGPoint(x: 35, y: 10), CGRect(x: 35, y: 10, width: 45, height: 30)),
+            (CGPoint(x: -10, y: 50), CGPoint(x: 90, y: -10), document.bounds),
+            (CGPoint(x: -15, y: 10), CGPoint(x: 30, y: 30), CGRect(x: 0, y: 10, width: 30, height: 20)),
+            (CGPoint(x: 95, y: 30), CGPoint(x: 50, y: 10), CGRect(x: 50, y: 10, width: 30, height: 20))
+        ]
+        for (start, end, expected) in cases {
+            document.state.selection = nil
+            canvas.mouseDown(with: try event(.leftMouseDown, start))
+            XCTAssertNil(document.state.selection)
+            canvas.mouseDragged(with: try event(.leftMouseDragged, end))
+            XCTAssertEqual(document.state.selection, expected, "Show the clipped selection during the drag")
+            canvas.mouseUp(with: try event(.leftMouseUp, end))
+            XCTAssertEqual(document.state.selection, expected)
+        }
+    }
+
+    @MainActor
+    func testBlankSpaceMissPreservesSelectionToolAndHistory() throws {
+        let document = try document()
+        let original = CGRect(x: 20, y: 10, width: 30, height: 20)
+        document.state.selection = original
+        document.tool = .pen
+        let canvas = ScreenshotCanvasNSView(document: document)
+        canvas.frame = CGRect(x: 0, y: 0, width: 480, height: 320)
+        canvas.displayImageRect = CGRect(x: 200, y: 140, width: 80, height: 40)
+        func event(_ type: NSEvent.EventType, _ x: CGFloat, _ y: CGFloat) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.mouseEvent(with: type, location: CGPoint(x: 200 + x, y: 140 + y),
+                modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                eventNumber: 0, clickCount: 1, pressure: 1))
+        }
+        for end in [CGPoint(x: -5, y: 30), CGPoint(x: -10, y: -5)] {
+            canvas.mouseDown(with: try event(.leftMouseDown, -20, -20))
+            canvas.mouseDragged(with: try event(.leftMouseDragged, end.x, end.y))
+            canvas.mouseUp(with: try event(.leftMouseUp, end.x, end.y))
+            XCTAssertEqual(document.state.selection, original)
+            XCTAssertEqual(document.tool, .pen)
+            XCTAssertTrue(document.undoStates.isEmpty)
+        }
+        canvas.mouseDown(with: try event(.leftMouseDown, -20, -20))
+        canvas.mouseDragged(with: try event(.leftMouseDragged, 60, 35))
+        canvas.mouseUp(with: try event(.leftMouseUp, 60, 35))
+        XCTAssertEqual(document.state.selection, CGRect(x: 0, y: 0, width: 60, height: 35))
+        XCTAssertEqual(document.tool, .crop)
+        XCTAssertTrue(document.state.annotations.isEmpty)
+        XCTAssertEqual(document.undoStates.count, 1)
+        document.undo()
+        XCTAssertEqual(document.state.selection, original)
+    }
+
+    @MainActor
     func testInlineCanvasMapsZoomedPannedImageAndReselectsWhileAnnotating() throws {
         let document = try document()
         let canvas = ScreenshotCanvasNSView(document: document)

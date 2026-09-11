@@ -23,6 +23,8 @@ final class ImageViewerViewModel: ObservableObject {
     @Published var displayScale: CGFloat = 1
     @Published var rotationDegrees: Int = 0
     @Published var zoomRequest: ImageZoomRequest?
+    @Published private(set) var transformAnimationID = 0
+    @Published private(set) var navigationDirection: Int?
     @Published private(set) var isNavigationOrderReady: Bool
 
     @Published private var navigator: FolderImageNavigator?
@@ -219,10 +221,12 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func fitToWindow() {
+        transformAnimationID += 1
         resetViewTransform()
     }
 
     func showActualSize() {
+        transformAnimationID += 1
         guard displayScale > 0 else {
             resetViewTransform()
             return
@@ -271,7 +275,7 @@ final class ImageViewerViewModel: ObservableObject {
 
     private func navigateUsingSnapshot(direction: NavigationDirection) {
         while let candidate = direction == .previous ? navigator?.previousURL() : navigator?.nextURL() {
-            if load(imageURL: candidate, preservesCurrentImageWhenMissing: true) {
+            if load(imageURL: candidate, preservesCurrentImageWhenMissing: true, direction: direction == .next ? 1 : -1) {
                 return
             }
             guard !fileManager.fileExists(atPath: candidate.path) else { return }
@@ -289,7 +293,7 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     @discardableResult
-    private func load(imageURL: URL, preservesCurrentImageWhenMissing: Bool = false) -> Bool {
+    private func load(imageURL: URL, preservesCurrentImageWhenMissing: Bool = false, direction: Int? = nil) -> Bool {
         let standardizedURL = imageURL.standardizedFileURL
         isFolderEmpty = false
         guard let loadedImage = NSImage(contentsOf: standardizedURL), loadedImage.isValid else {
@@ -311,6 +315,7 @@ final class ImageViewerViewModel: ObservableObject {
         resetViewTransform()
         rotationDegrees = 0
         zoomRequest = nil
+        navigationDirection = direction
         image = loadedImage
         errorMessage = nil
         navigator?.move(to: standardizedURL)

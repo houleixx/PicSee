@@ -15,3 +15,7 @@ DerivedData/
 
 # Local installer design previews
 /output/installer-preview/
+
+# Local toolbar design drafts and render checks
+/output/imagegen/
+/output/toolbar-code-preview/

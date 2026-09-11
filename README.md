@@ -6,7 +6,7 @@ PicSee 是一个面向 macOS 的轻量级图片查看器，主打“Finder 双�
 
 未启用固定窗口时，小图按原始像素和当前屏幕倍率换算窗口内容尺寸，不再统一撑到屏幕高度的 80%。大图按比例缩小，窗口宽、高通常不超过可用区域的 80%，预留菜单栏、Dock 和标题栏空间，并居中打开。初始窗口的最小内容尺寸为 800 × 600 点，打开后仍可手动缩小窗口；较小屏幕优先保证初始最小尺寸，但以可用空间为限。启用固定窗口后仍优先恢复已保存的窗口大小和位置。
 
-无标题栏模式仅调整外观：关闭窗口阴影，去掉信息浮层、导航按钮和工具栏的装饰性描边与投影，以及工具栏按钮的常驻底色；保留半透明底色与按下反馈。有标题栏模式保留原有系统窗口控制和浮层样式。
+无标题栏模式仅调整外观：关闭窗口阴影，去掉信息浮层和导航按钮的装饰性描边与投影。有标题栏模式保留原有系统窗口控制和浮层样式。两种模式的看图工具栏统一采用半透明底色、细描边和轻阴影，按钮在悬停或按下时提供反馈。
 
 ## 项目背景
 
@@ -14,12 +14,22 @@ macOS 自带的「预览」在快速看图时有两处常见不便：**鼠标滚
 
 ## 应用预览
 
-PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并通过底部工具栏完成全屏、原始尺寸、缩放、旋转、复制，以及图片裁剪与标注等操作。
+PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并通过底部工具栏完成适合窗口、原始尺寸、缩放、旋转、复制，以及图片裁剪与标注等操作。
 
 点击旋转按钮右侧的复制按钮，可将当前整张图片按原始像素尺寸复制到系统剪贴板，保留当前旋转方向，方便粘贴到其他应用。成功后显示“已复制到剪贴板”，提示约 2 秒后自动消失。
 
 <p align="center">
   <img src="Images/preview.png" alt="PicSee 实际图片查看界面，底部工具栏包含旋转、复制图片和截图按钮" width="800">
+</p>
+
+### 图片截图与标注
+
+点击看图工具栏最右侧的截图按钮，即可在当前图片上框选区域，拖动选区或边角调整位置和大小，也可以输入宽、高进行精确裁剪。
+
+编辑工具栏提供箭头、矩形、椭圆、文字、画笔、荧光笔、直线、马赛克和橡皮擦，可调整颜色、粗细、字号与马赛克直径，并支持撤销 / 重做。完成后点击复制按钮将结果放入剪贴板，或点击绿色对勾保存为 PNG。
+
+<p align="center">
+  <img src="Images/preview-edit.png" alt="PicSee 图片截图与标注界面，显示裁剪选区、标注工具栏和可编辑的宽高尺寸" width="700">
 </p>
 
 ### 设置为默认图片查看器
@@ -73,7 +83,9 @@ Scripts/build-app.sh
 构建完成后会得到：
 
 - App Bundle: `build/PicSee.app`
-- 本地安装副本: `~/Applications/PicSee.app`
+- 本地安装副本: `/Applications/PicSee.app`（与 DMG 拖拽安装位置一致）
+
+本地安装需要对 `/Applications/PicSee.app` 有写入权限；脚本不会自动切换到 `~/Applications`。
 
 如果只想构建，不自动安装到本机应用目录：
 
@@ -84,7 +96,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.53 PICSEE_BUILD_NUMBER=54 Scripts/build-app.sh
+PICSEE_VERSION=0.2.54 PICSEE_BUILD_NUMBER=54 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -101,15 +113,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.53.dmg`
+- DMG: `build/dmg/PicSee-0.2.54.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.53 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.54 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.53.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.54.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -218,14 +230,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.53
-git push origin v0.2.53
+git tag v0.2.54
+git push origin v0.2.54
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.53`
-- Asset: `PicSee-0.2.53.dmg`
+- Release: `v0.2.54`
+- Asset: `PicSee-0.2.54.dmg`
 
 ## Release 说明
 

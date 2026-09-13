@@ -578,6 +578,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         didSet {
             let imageChanged = oldValue !== image
             if imageChanged {
+                cancelImageDragCandidate()
                 prepareImageTransition()
                 imageView.layer?.removeAnimation(forKey: Self.rotationAnimationKey)
                 pendingRotationAnimation = nil
@@ -599,6 +600,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     var imageURL: URL? {
         didSet {
             guard oldValue != imageURL else { return }
+            cancelImageDragCandidate()
             if image != nil {
                 analyzeImageIfPossible()
             }
@@ -656,8 +658,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         case pan
         case textSelection
         case resize(WindowResizeAnchor)
+        case fileExport
     }
 
+    var fileDragController = ImageFileDragController()
+    private var fileDragStartScreenPoint: CGPoint?
     private var dragType: DragType = .none
     private var dragStartPoint: NSPoint?
     private var dragStartWindowFrame: NSRect?
@@ -879,6 +884,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard !fileDragController.isDragging else { return }
         interruptMotion()
         let geometry = currentGeometry()
         let point = convert(event.locationInWindow, from: nil)
@@ -887,6 +893,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         dragStartPoint = nil
         dragStartWindowFrame = nil
         dragStartOffset = .zero
+        fileDragStartScreenPoint = nil
         selectionAnchorLocation = nil
         selectionFocusLocation = nil
 
@@ -933,6 +940,12 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             return
         }
 
+        // Only an ordinary image press can become a file drag. Window movement,
+        // corner resizing and text selection above own their entire gesture.
+        if image != nil, geometry.imageRect.contains(point), let window {
+            fileDragStartScreenPoint = window.convertPoint(toScreen: event.locationInWindow)
+        }
+
         if panImageMode(geometry), geometry.imageRect.contains(point) {
             dragType = .pan
             dragStartPoint = point
@@ -946,8 +959,23 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     override func mouseDragged(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
 
+        if let start = fileDragStartScreenPoint, let window,
+           ImageDragPolicy.shouldExport(start: start,
+                                        current: window.convertPoint(toScreen: event.locationInWindow),
+                                        windowFrame: window.frame), let image {
+            // One attempt per press, including failures. Stop panning before the
+            // native session takes over; its completion replaces mouseUp.
+            fileDragStartScreenPoint = nil
+            dragType = .fileExport
+            if !fileDragController.begin(from: self, event: event, image: image, sourceURL: imageURL,
+                                         onEnded: { [weak self] in self?.resetMouseDrag() }) {
+                resetMouseDrag()
+            }
+            return
+        }
+
         switch dragType {
-        case .none:
+        case .none, .fileExport:
             break
         case .window:
             window?.performDrag(with: event)
@@ -989,15 +1017,27 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func mouseUp(with event: NSEvent) {
-        if case .pan = dragType {
-            cursorForPoint(convert(event.locationInWindow, from: nil)).set()
-        }
+        guard !fileDragController.isDragging else { return }
+        resetMouseDrag()
+    }
+
+    private func cancelImageDragCandidate() {
+        guard fileDragStartScreenPoint != nil else { return }
+        resetMouseDrag()
+    }
+
+    private func resetMouseDrag() {
+        fileDragStartScreenPoint = nil
         dragType = .none
         dragStartPoint = nil
         dragStartWindowFrame = nil
         dragStartOffset = .zero
         selectionAnchorLocation = nil
         selectionFocusLocation = nil
+        if let window {
+            cursorForPoint(convert(window.mouseLocationOutsideOfEventStream, from: nil)).set()
+            window.invalidateCursorRects(for: self)
+        }
     }
 
     override func keyDown(with event: NSEvent) {
@@ -2115,6 +2155,7 @@ extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
         shouldBeginAt point: CGPoint,
         forAnalysisType analysisType: ImageAnalysisOverlayView.InteractionTypes
     ) -> Bool {
+        cancelImageDragCandidate()
         interruptMotion()
         return true
     }

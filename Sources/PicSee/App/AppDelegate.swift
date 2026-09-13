@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var defaultImageAppSettingsWindowController: DefaultImageAppSettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        ImageDragFileProvider().cleanupExpiredFiles()
         let info = Bundle.main.infoDictionary ?? [:]
         NSApp.mainMenu = AppMenu.buildMainMenu(appName: AppMenu.applicationName(from: info))
         NSApp.activate(ignoringOtherApps: true)

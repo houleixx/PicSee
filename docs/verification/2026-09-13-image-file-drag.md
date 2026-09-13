@@ -1,6 +1,6 @@
 # 图片拖出保存验证记录
 
-## 构建与安装
+## 首次本地试用构建与安装（发版前）
 
 已构建 arm64/x86_64 Universal 2 应用，并安装至 `/Applications/PicSee.app`。版本为 `0.2.54`，本地测试构建号为 `55`。构建脚本的默认版本号未修改。
 
@@ -23,7 +23,7 @@
 - `Sources/PicSee/Viewer/ImageCanvasView.swift`：普通图片按下成为导出候选，窗口内沿用原平移；窗口移动、窗口缩放、文字选择优先处理；切图、松开和原生拖拽结束时复位。
 - `Sources/PicSee/Viewer/ImageDragPolicy.swift`：距按下位置移动至少 12 点，且离开整个窗口的 12 点缓冲区后才允许原生导出，坐标采用屏幕逻辑点。
 - `Sources/PicSee/Viewer/ImageFileDragController.swift`：AppKit `NSDraggingItem` + 文件 URL + `NSDraggingSession`，提供缩略图，仅允许应用外复制；失败记录日志，取消不改动原图。
-- `Sources/PicSee/Viewer/ImageDragFileProvider.swift`：本地文件优先直接使用原 URL；系统临时目录来源按原字节复制；仅有 `NSImage` 时使用现有 `ImageExporter` 导出 PNG。
+- `Sources/PicSee/Viewer/ImageDragFileProvider.swift`：本地文件使用解析符号链接后的真实文件 URL；系统临时目录来源按原字节复制；仅有 `NSImage` 时使用现有 `ImageExporter` 导出 PNG。
 - `Sources/PicSee/App/AppDelegate.swift`：启动时清理过期临时导出目录。
 - `README.md`：增加使用方式、手势边界和临时文件说明。
 - 新增 `ImageCanvasFileDragTests.swift`、`ImageDragFileProviderTests.swift`、`ImageDragPolicyTests.swift`。
@@ -32,7 +32,7 @@
 
 使用系统临时目录中的 `PicSee-DragExports/export-<PID>-<UUID>/可读文件名`，每次导出独立目录，避免覆盖。后续启动或导出时，只删除已过 24 小时且所属进程不再运行的导出目录；不在松手或退出时立即删除，以便接收方继续读取。失败写入会移除本次未完成目录。
 
-## 自动检查
+## 首次实现自动检查（符号链接修复前）
 
 执行 `swift test`：共 298 项，297 项通过，1 项失败。新增 18 项全部通过，覆盖：
 

@@ -3,7 +3,23 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Keep document rules separate from assets: Pages combines matching header values.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/robots.txt
   Cache-Control: public, max-age=3600
 
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+
+# Every published asset has a content hash; change the filename when replacing it.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+/README.md
+  X-Robots-Tag: noindex

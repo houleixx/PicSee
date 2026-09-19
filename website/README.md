@@ -24,6 +24,27 @@ Release workflow 在最终 DMG 验证后复制并校验 `PicSee.dmg`，与带版
 
 本地预览：`python3 -m http.server 8765 --bind 127.0.0.1 --directory website`，然后打开 `http://127.0.0.1:8765/`。
 
+## 搜索与分享
+
+正式地址为 `https://picsee.pages.dev/`。首页包含 canonical、Open Graph、Twitter Card，以及 `WebSite` / `SoftwareApplication` JSON-LD。JSON-LD 只提供机器可读数据，不执行页面逻辑。应用信息使用真实功能、免费价格和系统要求，不添加虚构评分，也不承诺获得搜索富结果。
+
+关键词自然分布在页面标题、描述、可见 H1、功能介绍和常见问题中，重点覆盖「Mac 图片查看器」「macOS 看图软件」「OCR 图片文字识别」「图片裁剪标注」「默认图片查看器」以及 HEIC / WebP / RAW 使用场景。不依赖 `meta keywords`：[Google 明确不使用该标签进行索引或排名](https://developers.google.com/search/docs/crawling-indexing/special-tags)。常见问题是直接可读的静态 HTML，没有添加不适用于普通软件官网的 FAQ 富结果声明。
+
+- `robots.txt` 允许抓取，并指向 `sitemap.xml`；站点地图只列出正式首页。
+- `404.html` 提供不存在页面的返回入口，避免 Cloudflare Pages 将未知路径当作单页应用首页返回；错误页带 `noindex`。
+- 分享预览使用 JPEG 版本的首页插画，不额外加载到页面正文中。
+- 正式域名变更时，需要同步修改首页 canonical、`og:url`、分享图片绝对地址、JSON-LD、`robots.txt` 和 `sitemap.xml`。
+
+部署后可在 Google Search Console 和 Bing Webmaster Tools 中验证站点并提交 `https://picsee.pages.dev/sitemap.xml`，随后检查实际抓取与索引结果。文件更新本身不代表搜索引擎已经完成收录。
+
+## 资源与缓存
+
+`assets/` 中发布的资源统一使用 SHA-256 前 8 位作为文件名后缀，并设置一年 `immutable` 缓存；替换内容时必须更换文件名及引用。96×96 favicon 约 10 KB，原始品牌图保存在 `../docs/website/brand-icon-source.png`，不随网页发布。
+
+首页每次使用缓存前重新验证，robots 和 sitemap 缓存一小时。缓存规则使用互不重叠的路径，避免 Cloudflare Pages 将重复的 `Cache-Control` 值合并。[规则说明](https://developers.cloudflare.com/pages/configuration/headers/)。`README.md` 通过响应头设置 `noindex`。
+
+本地 Python 服务器不解析 Cloudflare 的 `_headers`，响应头和线上 404 状态仍需在部署后核实。
+
 ## 功能展示顺序
 
 1. 滚轮缩放与拖动平移

@@ -187,6 +187,7 @@ private final class ImageMinimapView: NSView {
         imagePath.addClip()
         NSColor.white.withAlphaComponent(0.08).setFill()
         contentRect.fill()
+        TransparencyBackground.draw(in: contentRect)
         image.draw(in: contentRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         NSGraphicsContext.current?.restoreGraphicsState()
 
@@ -536,6 +537,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private static let themeMenuIdentifier = NSUserInterfaceItemIdentifier("PicSee.ThemeMenu")
 
     private let imageView = NSImageView(frame: .zero)
+    private let transparencyBackground = TransparencyBackgroundView(frame: .zero)
+    private let outgoingTransparencyBackground = TransparencyBackgroundView(frame: .zero)
     // Animate a container, leaving the image's rotation and AppKit layout independent.
     private let imageMotionView = NSView(frame: .zero)
     private let outgoingImageView = NSImageView(frame: .zero)
@@ -581,6 +584,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 cancelImageDragCandidate()
                 prepareImageTransition()
                 imageView.layer?.removeAnimation(forKey: Self.rotationAnimationKey)
+                transparencyBackground.imageMask.removeAnimation(forKey: Self.rotationAnimationKey)
                 pendingRotationAnimation = nil
                 rotationDegrees = 0
                 pendingRotationAnimation = nil
@@ -589,6 +593,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 resetTextSelectionState()
             }
             imageView.image = image
+            transparencyBackground.isHidden = image == nil
             if imageChanged {
                 analyzeImageIfPossible()
             }
@@ -762,12 +767,17 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         imageMotionView.frame = bounds
+        transparencyBackground.frame = bounds
+        outgoingTransparencyBackground.frame = bounds
         imageMotionView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         imageMotionView.layer?.position = CGPoint(x: bounds.midX, y: bounds.midY)
         imageView.frame = geometry.unrotatedImageRect
         imageView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         imageView.layer?.position = CGPoint(x: geometry.imageRect.midX, y: geometry.imageRect.midY)
         applyImageRotation()
+        if let imageLayer = imageView.layer {
+            transparencyBackground.synchronize(imageLayer: imageLayer, motionLayer: imageMotionView.layer)
+        }
         CATransaction.commit()
         if pendingNavigationAnimation {
             pendingNavigationAnimation = false
@@ -1054,6 +1064,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             onClose?()
         case .toggleImageParameters:
             toggleImageParametersVisibility()
+        case .screenshot:
+            NotificationCenter.default.post(name: ViewerOverlayPreference.beginScreenshotNotification, object: window)
         case .none:
             super.keyDown(with: event)
         }
@@ -1362,6 +1374,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func configureSubviews() {
+        transparencyBackground.isHidden = true
+        outgoingTransparencyBackground.isHidden = true
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.imageAlignment = .alignCenter
         imageView.wantsLayer = true
@@ -1369,7 +1383,9 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         outgoingImageView.imageScaling = .scaleProportionallyUpOrDown
         outgoingImageView.wantsLayer = true
         outgoingImageView.layer?.opacity = 0
+        addSubview(outgoingTransparencyBackground)
         addSubview(outgoingImageView)
+        addSubview(transparencyBackground)
         imageMotionView.wantsLayer = true
         addSubview(imageMotionView)
         imageMotionView.addSubview(imageView)
@@ -1582,8 +1598,10 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             animation.duration = 0.22
             animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             layer.removeAnimation(forKey: Self.rotationAnimationKey)
+            transparencyBackground.imageMask.removeAnimation(forKey: Self.rotationAnimationKey)
             if !reduceMotion {
                 layer.add(animation, forKey: Self.rotationAnimationKey)
+                transparencyBackground.imageMask.add(animation, forKey: Self.rotationAnimationKey)
             }
             self.pendingRotationAnimation = nil
         }
@@ -1677,6 +1695,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         layoutSubtreeIfNeeded()
         guard let layer = imageMotionView.layer else { return }
         layer.removeAnimation(forKey: Self.transformAnimationKey)
+        transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
         guard !reduceMotion else { return }
         let ratio = max(0.1, visual.zoomScale) / max(0.1, zoomScale)
         let transform = CGAffineTransform(a: ratio, b: 0, c: 0, d: ratio,
@@ -1701,12 +1720,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         transformMotion = TransformMotion(startZoom: visual.zoomScale, targetZoom: zoomScale,
                                           duration: duration, timing: curve)
         layer.add(animation, forKey: Self.transformAnimationKey)
+        transparencyBackground.motionMask.add(animation, forKey: Self.transformAnimationKey)
     }
 
     private func interruptMotion() {
         let visual = visualTransform()
         let wasZooming = imageMotionView.layer?.animation(forKey: Self.transformAnimationKey) != nil
         imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
+        transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
         cancelNavigationAnimation()
         if wasZooming {
             zoomScale = visual.zoomScale
@@ -1722,6 +1743,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         // Keep committed targets when the system preference changes mid-animation.
         imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
         imageView.layer?.removeAnimation(forKey: Self.rotationAnimationKey)
+        transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
+        transparencyBackground.imageMask.removeAnimation(forKey: Self.rotationAnimationKey)
         cancelNavigationAnimation()
     }
 
@@ -1729,8 +1752,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         navigationToken += 1
         pendingNavigationAnimation = false
         imageMotionView.layer?.removeAnimation(forKey: Self.navigationAnimationKey)
+        transparencyBackground.motionMask.removeAnimation(forKey: Self.navigationAnimationKey)
         outgoingImageView.layer?.removeAllAnimations()
+        outgoingTransparencyBackground.imageMask.removeAllAnimations()
         outgoingImageView.image = nil
+        outgoingTransparencyBackground.isHidden = true
     }
 
     private func prepareImageTransition() {
@@ -1739,6 +1765,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         let visual = visualTransform()
         cancelNavigationAnimation()
         imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
+        transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
         guard imageView.image != nil, image != nil, navigationDirection != nil else {
             lastNavigationTime = nil
             return
@@ -1758,6 +1785,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         outgoingImageView.layer?.position = CGPoint(x: geometry.imageRect.midX, y: geometry.imageRect.midY)
         outgoingImageView.layer?.transform = imageView.layer?.presentation()?.transform
             ?? imageView.layer?.transform ?? CATransform3DIdentity
+        outgoingTransparencyBackground.frame = bounds
+        if let imageLayer = outgoingImageView.layer {
+            outgoingTransparencyBackground.synchronize(imageLayer: imageLayer)
+        }
+        outgoingTransparencyBackground.isHidden = false
         pendingNavigationAnimation = true
     }
 
@@ -1783,10 +1815,12 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         // Keep the old image invisible after its explicit fade is removed, even
         // before the asynchronous cleanup runs (especially across different sizes).
         outgoing.opacity = 0
+        outgoingTransparencyBackground.imageMask.opacity = 0
         CATransaction.setCompletionBlock { [weak self] in
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.navigationToken == token else { return }
                 self.outgoingImageView.image = nil
+                self.outgoingTransparencyBackground.isHidden = true
             }
         }
         for (layer, animations, transitionDuration) in [
@@ -1798,6 +1832,9 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             group.duration = transitionDuration
             group.timingFunction = CAMediaTimingFunction(name: .easeOut)
             layer.add(group, forKey: Self.navigationAnimationKey)
+            let mask = layer === incoming
+                ? transparencyBackground.motionMask : outgoingTransparencyBackground.imageMask
+            mask.add(group, forKey: Self.navigationAnimationKey)
         }
         CATransaction.commit()
     }

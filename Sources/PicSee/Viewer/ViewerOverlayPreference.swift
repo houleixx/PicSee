@@ -5,6 +5,7 @@ enum ViewerOverlayPreference {
     static let toolbarVisibleDefaultsKey = "PicSee.ToolbarVisible"
     static let imageParametersVisibleDefaultsKey = "PicSee.ImageParametersVisible"
     static let toggleImageParametersNotification = Notification.Name("PicSee.ToggleImageParameters")
+    static let beginScreenshotNotification = Notification.Name("PicSee.BeginScreenshot")
     static let didEnterFullScreenNotification = Notification.Name("PicSee.DidEnterFullScreen")
     static let didExitFullScreenNotification = Notification.Name("PicSee.DidExitFullScreen")
 

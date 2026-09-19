@@ -409,6 +409,9 @@ final class WindowManager {
             case .toggleImageParameters:
                 NotificationCenter.default.post(name: ViewerOverlayPreference.toggleImageParametersNotification, object: window)
                 return nil
+            case .screenshot:
+                NotificationCenter.default.post(name: ViewerOverlayPreference.beginScreenshotNotification, object: window)
+                return nil
             case .none:
                 return event
             }

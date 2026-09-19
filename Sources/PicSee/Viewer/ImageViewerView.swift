@@ -346,6 +346,9 @@ struct ImageViewerView: View {
         .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.didEnterFullScreenNotification)) { _ in
             isFullScreen = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.beginScreenshotNotification)) { _ in
+            beginScreenshot()
+        }
         .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.didExitFullScreenNotification)) { _ in
             isFullScreen = false
         }
@@ -376,7 +379,7 @@ struct ImageViewerView: View {
     }
 
     private func beginScreenshot() {
-        guard let image = viewModel.image else { return }
+        guard screenshotDocument == nil, let image = viewModel.image else { return }
         do {
             screenshotDocument = try ScreenshotDocument(image: image, rotationDegrees: viewModel.rotationDegrees)
             viewModel.isScreenshotEditing = true
@@ -504,7 +507,7 @@ struct ImageToolBar: View {
             ViewerToolbarDivider(color: .white)
                 .padding(.horizontal, ViewerToolbarMetrics.viewerDividerPadding)
             toolbarButton(.crop, label: "截图与标注", action: onScreenshot)
-                .help("截取图片区域并标注")
+                .help("截取图片区域并标注（⌘⇧A）")
         }
         .padding(.horizontal, ViewerToolbarMetrics.viewerHorizontalPadding)
         .padding(.vertical, 4)

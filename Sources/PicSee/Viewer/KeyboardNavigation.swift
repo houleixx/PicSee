@@ -6,6 +6,7 @@ enum KeyboardNavigation {
         case next
         case quit
         case toggleImageParameters
+        case screenshot
         case trash
         case undoDeletion
         case none
@@ -13,6 +14,9 @@ enum KeyboardNavigation {
 
     static func action(for keyCode: UInt16, modifiers: NSEvent.ModifierFlags = [], isRepeat: Bool = false) -> Action {
         let commandModifiers = modifiers.intersection([.command, .control, .option, .shift])
+        if commandModifiers == [.command, .shift], keyCode == 0 {
+            return isRepeat ? .none : .screenshot
+        }
         if commandModifiers == .command {
             if keyCode == 51 { return isRepeat ? .none : .trash }
             if keyCode == 6 { return isRepeat ? .none : .undoDeletion }

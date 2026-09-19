@@ -76,12 +76,40 @@ final class ImageCanvasAnimationTests: XCTestCase {
         }
         let canvas = try XCTUnwrap(findCanvas(host))
         canvas.motionPreference = { false }
-        func clickZoomButton(zoomIn: Bool = true) throws {
+        let motionLayer = try XCTUnwrap(canvas.debugMotionLayer)
+        let imageLayer = try XCTUnwrap(canvas.debugRotationLayer)
+        let animationKey = "PicSee.ZoomAnimation"
+
+        func waitFor(_ description: String, file: StaticString = #filePath, line: UInt = #line,
+                     condition: () -> Bool) throws {
+            let deadline = CACurrentMediaTime() + 2
+            while !condition() {
+                guard CACurrentMediaTime() < deadline else {
+                    XCTFail("Timed out waiting for \(description)", file: file, line: line)
+                    throw NSError(domain: "ImageCanvasAnimationTests.Timeout", code: 1)
+                }
+                // SwiftUI dispatches the command after its representable update, and
+                // CA commits the displayed frame separately. Elapsed click time is
+                // not animation time; explicitly submit changes and await state.
+                CATransaction.flush()
+                RunLoop.current.run(until: Date().addingTimeInterval(0.005))
+            }
+        }
+
+        func isCurrentImagePresented() -> Bool {
+            guard let presentedImage = imageLayer.presentation() else { return false }
+            return abs(presentedImage.bounds.width - imageLayer.bounds.width) < 0.01
+        }
+
+        try waitFor("the initial image presentation") { isCurrentImagePresented() }
+
+        func clickZoomButton(zoomIn: Bool = true) throws -> (start: CGFloat, target: CGFloat) {
+            let target = model.zoomScale * (zoomIn ? 1.25 : 0.8)
             // Share toolbar metrics so spacing changes do not silently turn this
             // mouse-event regression into clicks on empty space.
             let buttonIndex: CGFloat = zoomIn ? 3 : 2
             let x = host.bounds.midX - ViewerToolbarMetrics.viewerWidth / 2
-                + ViewerToolbarMetrics.horizontalPadding + ViewerToolbarMetrics.buttonSize / 2
+                + ViewerToolbarMetrics.viewerHorizontalPadding + ViewerToolbarMetrics.buttonSize / 2
                 + buttonIndex * (ViewerToolbarMetrics.buttonSize + ViewerToolbarMetrics.spacing)
             let point = CGPoint(x: x, y: 40)
             for type: NSEvent.EventType in [.leftMouseDown, .leftMouseUp] {
@@ -93,53 +121,67 @@ final class ImageCanvasAnimationTests: XCTestCase {
                     until: Date().addingTimeInterval(0.1), inMode: .default, dequeue: true))
                 NSApp.sendEvent(queued)
             }
-        }
-        try clickZoomButton()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.055))
-        XCTAssertEqual(model.zoomScale, 1.25, accuracy: 0.001)
-        XCTAssertNotNil(canvas.debugMotionLayer?.animation(forKey: "PicSee.ZoomAnimation"))
-        XCTAssertGreaterThan(canvas.debugVisualTransform.zoomScale, 1.001)
-        XCTAssertLessThan(canvas.debugVisualTransform.zoomScale, 1.249,
-                          "Toolbar zoom must still be visibly between start and target after SwiftUI updates")
-        var previousVisual = canvas.debugVisualTransform.zoomScale
-        for click in 2...4 {
-            try clickZoomButton()
-            for _ in 0..<5 {
-                RunLoop.current.run(until: Date().addingTimeInterval(0.01))
-                let visual = canvas.debugVisualTransform.zoomScale
-                XCTAssertGreaterThanOrEqual(visual + 0.002, previousVisual,
-                    "Repeated zoom-in clicks must never briefly shrink the image")
-                previousVisual = visual
+            try waitFor("the toolbar command to be applied") {
+                model.zoomRequest == nil && abs(model.zoomScale - target) < 0.001
             }
-            XCTAssertEqual(model.zoomScale, pow(1.25, CGFloat(click)), accuracy: 0.001,
-                "A toolbar mouse-down must not cancel the previous target")
+            let animation = try XCTUnwrap(motionLayer.animation(forKey: animationKey) as? CABasicAnimation)
+            let from = try XCTUnwrap(animation.fromValue as? CATransform3D)
+            XCTAssertEqual(canvas.zoomScale, target, accuracy: 0.001,
+                           "A toolbar mouse-down must not cancel the accumulated target")
+            // The old animation keeps moving while SwiftUI delivers this command.
+            // Its actual takeover point is recorded in the new animation, not in
+            // a presentation sample captured before the mouse events were sent.
+            return (start: from.m11 * target, target: target)
         }
-        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        previousVisual = canvas.debugVisualTransform.zoomScale
-        for click in 1...4 {
-            try clickZoomButton(zoomIn: false)
-            for _ in 0..<5 {
-                RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+
+        func observeIntermediateFrames(_ segment: (start: CGFloat, target: CGFloat)) throws {
+            let distance = segment.target - segment.start
+            XCTAssertGreaterThan(abs(distance), 0.001)
+            var previous = segment.start
+            try waitFor("a rendered intermediate zoom frame") {
+                // A queued replacement may still have the previous frame's image
+                // geometry. Only inspect frames that contain the new target size.
+                guard isCurrentImagePresented() else { return false }
                 let visual = canvas.debugVisualTransform.zoomScale
-                XCTAssertLessThanOrEqual(visual - 0.002, previousVisual,
-                    "Repeated zoom-out clicks must never briefly enlarge the image")
-                previousVisual = visual
+                XCTAssertGreaterThanOrEqual(visual, min(segment.start, segment.target) - 0.01)
+                XCTAssertLessThanOrEqual(visual, max(segment.start, segment.target) + 0.01)
+                if distance > 0 {
+                    XCTAssertGreaterThanOrEqual(visual + 0.002, previous,
+                        "Repeated zoom-in clicks must never briefly shrink the image")
+                } else {
+                    XCTAssertLessThanOrEqual(visual - 0.002, previous,
+                        "Repeated zoom-out clicks must never briefly enlarge the image")
+                }
+                previous = visual
+                let progress = (visual - segment.start) / distance
+                return motionLayer.animation(forKey: animationKey) != nil && progress >= 0.25 && progress < 0.99
             }
-            XCTAssertEqual(model.zoomScale, pow(1.25, CGFloat(4 - click)), accuracy: 0.001)
         }
-        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        for zoomIn in [true, false, true, false] {
-            let before = canvas.debugVisualTransform.zoomScale
-            let target = model.zoomScale * (zoomIn ? 1.25 : 0.8)
-            try clickZoomButton(zoomIn: zoomIn)
-            for _ in 0..<5 {
-                RunLoop.current.run(until: Date().addingTimeInterval(0.01))
-                let visual = canvas.debugVisualTransform.zoomScale
-                XCTAssertGreaterThanOrEqual(visual, min(before, target) - 0.01)
-                XCTAssertLessThanOrEqual(visual, max(before, target) + 0.01)
+
+        func finishMotion(at target: CGFloat) throws {
+            try waitFor("zoom to finish at its target") {
+                motionLayer.animation(forKey: animationKey) == nil && isCurrentImagePresented()
             }
+            XCTAssertEqual(canvas.debugVisualTransform.zoomScale, target, accuracy: 0.001)
             XCTAssertEqual(model.zoomScale, target, accuracy: 0.001)
         }
+
+        for click in 1...4 {
+            let segment = try clickZoomButton()
+            XCTAssertEqual(segment.target, pow(1.25, CGFloat(click)), accuracy: 0.001)
+            try observeIntermediateFrames(segment)
+        }
+        try finishMotion(at: pow(1.25, 4))
+        for click in 1...4 {
+            let segment = try clickZoomButton(zoomIn: false)
+            XCTAssertEqual(segment.target, pow(1.25, CGFloat(4 - click)), accuracy: 0.001)
+            try observeIntermediateFrames(segment)
+        }
+        try finishMotion(at: 1)
+        for zoomIn in [true, false, true, false] {
+            try observeIntermediateFrames(clickZoomButton(zoomIn: zoomIn))
+        }
+        try finishMotion(at: 1)
     }
 
     func testRepeatedZoomPreservesSpeedAtTakeover() throws {
@@ -192,6 +234,98 @@ final class ImageCanvasAnimationTests: XCTestCase {
             reversed.timingFunction?.getControlPoint(at: 1, values: &control)
             XCTAssertEqual(control[1], 0)
         }
+    }
+
+    func testRapidZoomInNeverReversesPresentedImageSize() throws {
+        try checkRapidZoom(multiplier: 1.25)
+    }
+
+    func testRapidZoomOutNeverReversesPresentedImageSize() throws {
+        try checkRapidZoom(multiplier: 0.8)
+    }
+
+    private func checkRapidZoom(multiplier: CGFloat) throws {
+        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 800, height: 600), backend: .vision)
+        view.motionPreference = { false }
+        view.image = NSImage(size: NSSize(width: 1254, height: 1254), flipped: false) { rect in
+            NSColor.systemGreen.setFill()
+            rect.fill()
+            return true
+        }
+        view.zoomScale = multiplier < 1 ? pow(1.25, 12) : 1
+        let window = NSWindow(contentRect: view.bounds, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = view
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+        view.layoutSubtreeIfNeeded()
+        view.displayIfNeeded()
+        CATransaction.flush()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        var previous = view.debugVisualTransform.zoomScale
+        for id in 1...12 {
+            view.applyToolbarZoom(request: ImageZoomRequest(id: id, multiplier: multiplier))
+            CATransaction.flush()
+            for _ in 0..<8 {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.004))
+                let visual = view.debugVisualTransform.zoomScale
+                if multiplier > 1 {
+                    XCTAssertGreaterThanOrEqual(visual + 0.003, previous,
+                        "The image must not shrink during rapid zoom-in, request \(id)")
+                } else {
+                    XCTAssertLessThanOrEqual(visual - 0.003, previous,
+                        "The image must not grow during rapid zoom-out, request \(id)")
+                }
+                XCTAssertEqual(view.debugVisualTransform.panOffset.width, 0, accuracy: 0.5)
+                XCTAssertEqual(view.debugVisualTransform.panOffset.height, 0, accuracy: 0.5)
+                previous = visual
+            }
+        }
+    }
+
+    func testTransparencyMaskTracksImageWithoutScalingCheckerboard() throws {
+        let view = canvas()
+        let window = NSWindow(contentRect: view.bounds, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = view
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+        let background = try XCTUnwrap(view.subviews.compactMap { $0 as? TransparencyBackgroundView }.last)
+        func checkPresentedGeometry(_ stage: String) throws {
+            CATransaction.flush()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.04))
+            let motion = try XCTUnwrap(view.debugMotionLayer?.presentation())
+            let image = try XCTUnwrap(view.debugRotationLayer?.presentation())
+            let maskMotion = try XCTUnwrap(background.motionMask.presentation())
+            let maskImage = try XCTUnwrap(background.imageMask.presentation())
+            XCTAssertEqual(maskMotion.transform.m11, motion.transform.m11, accuracy: 0.002)
+            XCTAssertEqual(maskMotion.transform.m41, motion.transform.m41, accuracy: 0.1)
+            XCTAssertEqual(maskImage.bounds.width, image.bounds.width, accuracy: 0.1)
+            // AppKit may normalize a newly attached image layer to a zero anchor
+            // on its first commit. Compare rendered corners, not raw positions.
+            for corner in [CGPoint.zero, CGPoint(x: image.bounds.width, y: image.bounds.height)] {
+                let imagePoint = image.convert(corner, to: motion)
+                let maskPoint = maskImage.convert(corner, to: maskMotion)
+                XCTAssertEqual(maskPoint.x, imagePoint.x, accuracy: 0.1, stage)
+                XCTAssertEqual(maskPoint.y, imagePoint.y, accuracy: 0.1, stage)
+            }
+            XCTAssertEqual(maskImage.transform.m11, image.transform.m11, accuracy: 0.002)
+            XCTAssertEqual(maskImage.transform.m12, image.transform.m12, accuracy: 0.002)
+            XCTAssertEqual(background.bounds.size, view.bounds.size)
+            XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(background.layer?.presentation()).transform))
+        }
+        view.applyToolbarZoom(request: ImageZoomRequest(id: 1, multiplier: 1.25))
+        try checkPresentedGeometry("zoom1")
+        view.applyToolbarZoom(request: ImageZoomRequest(id: 2, multiplier: 1.25))
+        try checkPresentedGeometry("zoom2")
+        view.applyToolbarZoom(request: ImageZoomRequest(id: 3, multiplier: 0.8))
+        try checkPresentedGeometry("shrink")
+        view.rotationDegrees = 90
+        view.layoutSubtreeIfNeeded()
+        try checkPresentedGeometry("rotate")
+        view.debugInterruptMotion()
+        XCTAssertNil(background.motionMask.animation(forKey: "PicSee.ZoomAnimation"))
+        view.motionPreference = { true }
+        view.debugMotionPreferenceChanged()
+        XCTAssertNil(background.imageMask.animation(forKey: "PicSee.RotationAnimation"))
     }
 
     func testRapidZoomRetargetBeforeNextFramePreservesVisualScale() throws {

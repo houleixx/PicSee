@@ -36,7 +36,7 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 ### 图片截图与标注
 
-点击看图工具栏最右侧的截图按钮，即可在当前图片上框选区域，拖动选区或边角调整位置和大小，也可以输入宽、高进行精确裁剪。
+点击看图工具栏最右侧的截图按钮，或按 `⌘⇧A`，即可在当前图片上框选区域，拖动选区或边角调整位置和大小，也可以输入宽、高进行精确裁剪。
 
 编辑工具栏提供箭头、矩形、椭圆、文字、画笔、荧光笔、直线、马赛克和橡皮擦，可调整颜色、粗细、字号与马赛克直径，并支持撤销 / 重做。完成后点击复制按钮将结果放入剪贴板，或点击绿色对勾保存为 PNG。
 
@@ -69,6 +69,7 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 - 双击图片进入或退出 macOS 原生全屏
 - `Esc` 关闭当前图片并退出应用
 - 右键菜单支持复制图片路径、切换跟随系统 / 浅色 / 深色主题
+- 透明图片始终显示 Photoshop 风格的灰白棋盘格，方便辨认透明区域和半透明边缘。棋盘格仅用于预览，不会写入导出的图片。
 - 右键「移到废纸篓」或 `⌘⌫` 删除当前图片，自动切到下一张（末尾则切到上一张）；支持 `⌘Z` 或右键「撤销移到废纸篓」逐次恢复。本次窗口关闭前均可撤销，恢复时不会覆盖同名文件。删完后显示空文件夹提示，可撤销或退出
 - 删除前默认显示确认框，回车或 Escape 取消；确认删除时勾选「以后不再询问」可关闭后续确认，重启应用后仍生效
 
@@ -108,7 +109,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.55 PICSEE_BUILD_NUMBER=55 Scripts/build-app.sh
+PICSEE_VERSION=0.2.56 PICSEE_BUILD_NUMBER=56 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -125,15 +126,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.55.dmg`
+- DMG: `build/dmg/PicSee-0.2.56.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.55 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.56 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.55.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.56.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -170,7 +171,7 @@ Finder 能通过系统脚本接口返回可靠顺序时，PicSee 会按该顺序
 
 ### 4. 图片裁剪与标注
 
-点击底部工具栏右侧的截图按钮，即可直接在当前图片窗口裁剪和标注。
+点击底部工具栏右侧的截图按钮，或在看图窗口按 `⌘⇧A`，即可直接在当前图片窗口裁剪和标注。工具栏隐藏时快捷键仍有效；截图编辑过程中重复触发不会清空已有内容。
 
 **裁剪选区**
 
@@ -242,14 +243,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.55
-git push origin v0.2.55
+git tag v0.2.56
+git push origin v0.2.56
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.55`
-- Asset: `PicSee-0.2.55.dmg`
+- Release: `v0.2.56`
+- Asset: `PicSee-0.2.56.dmg`
 
 ## Release 说明
 

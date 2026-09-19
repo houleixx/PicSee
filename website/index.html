@@ -150,14 +150,6 @@
       margin-bottom: 20px;
     }
 
-    .hero-title-kind {
-      display: block;
-      margin-top: 16px;
-      font-size: clamp(22px, 2.4vw, 32px);
-      line-height: 1.35;
-      letter-spacing: -0.01em;
-    }
-
     .hero-badge {
       font-size: 16px;
       font-weight: 600;
@@ -503,10 +495,6 @@
       gap: clamp(24px, 3vw, 48px);
     }
 
-    .system-title {
-      margin-bottom: 32px;
-    }
-
     .system-item {
       display: flex;
       flex-direction: column;
@@ -525,42 +513,6 @@
       font-size: 15px;
       font-weight: 500;
       color: var(--ink);
-    }
-
-    /* ========== FAQ ========== */
-    .faq {
-      padding: clamp(48px, 7vw, 96px) 0;
-      border-top: 1px solid var(--border);
-    }
-
-    .faq-list {
-      max-width: 820px;
-      margin-top: 32px;
-    }
-
-    .faq-item + .faq-item {
-      margin-top: 28px;
-      padding-top: 28px;
-      border-top: 1px solid var(--border);
-    }
-
-    .faq-item h3 {
-      margin-bottom: 10px;
-      font-size: 18px;
-      font-weight: 600;
-      line-height: 1.5;
-    }
-
-    .faq-item p {
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.8;
-    }
-
-    .faq-item a {
-      color: var(--primary);
-      text-decoration: underline;
-      text-underline-offset: 3px;
     }
 
     /* ========== Footer ========== */
@@ -706,7 +658,7 @@
       <div class="hero-grid">
         <div class="hero-text">
           <div class="hero-title-row">
-            <h1 class="display-title" id="hero-title">PicSee<span class="hero-title-kind">免费的 Mac 图片查看器</span></h1>
+            <h1 class="display-title" id="hero-title">PicSee</h1>
             <span class="hero-badge">免费开源 · 无广告</span>
           </div>
           <p class="hero-tagline"><strong>Finder 双击即开，看完即退。</strong>轻量、原生的 macOS 看图工具，支持图片缩放、裁剪标注与 OCR 文字识别复制。关闭看图窗口即退出，无需再手动结束应用。</p>
@@ -834,9 +786,8 @@
   </section>
 
   <!-- ========== System Info ========== -->
-  <section class="system" aria-labelledby="system-title">
+  <section class="system" aria-label="系统信息">
     <div class="container">
-      <h2 class="section-title system-title" id="system-title">Mac 系统与芯片支持</h2>
       <div class="system-grid">
         <div class="system-item">
           <div class="label">系统要求</div>
@@ -854,38 +805,6 @@
     </div>
   </section>
 
-  <!-- ========== FAQ ========== -->
-  <section class="faq" id="faq" aria-labelledby="faq-title">
-    <div class="container">
-      <h2 class="section-title" id="faq-title">下载与使用常见问题</h2>
-      <div class="faq-list">
-        <div class="faq-item">
-          <h3>PicSee 是免费的 Mac 看图软件吗？</h3>
-          <p>是的。PicSee 免费、开源、无广告，使用 MIT 许可证。可以通过本页的下载按钮获取 macOS 安装包，也可以在 <a href="https://github.com/houleixx/PicSee" target="_blank" rel="noopener">GitHub 项目仓库</a>查看源码和使用说明。</p>
-        </div>
-        <div class="faq-item">
-          <h3>PicSee 与 macOS 自带的「预览」有什么不同？</h3>
-          <p>PicSee 专注于快速看图：支持鼠标滚轮缩放、方向键浏览同文件夹图片，关闭看图窗口即退出当前应用实例，并提供图片裁剪、标注和 OCR 选字复制功能。适合希望从 Finder 打开图片、看完就关的使用习惯。</p>
-        </div>
-        <div class="faq-item">
-          <h3>如何在 Mac 上提取图片中的文字？</h3>
-          <p>用 PicSee 打开图片，将鼠标移到可识别的文字区域，拖动选择文字，再按 ⌘C 复制。OCR 图片文字识别适用于截图、照片或扫描文档中可识别的文字。</p>
-        </div>
-        <div class="faq-item">
-          <h3>如何将 PicSee 设置为 Mac 默认图片查看器？</h3>
-          <p>在 PicSee 的默认打开方式设置窗口中，选择 JPEG、PNG、HEIC 等希望关联的图片格式。设置后，在 Finder 中双击对应图片，就会使用 PicSee 打开。</p>
-        </div>
-        <div class="faq-item">
-          <h3>可以打开 HEIC、WebP 和 RAW 图片吗？</h3>
-          <p>PicSee 支持 HEIC、WebP、JPEG、PNG、GIF 等常见图片格式，也支持浏览常见 RAW 和其他专业格式。专业格式能否完整解码，取决于当前 macOS 的 ImageIO 支持及文件内嵌预览。</p>
-        </div>
-        <div class="faq-item">
-          <h3>支持哪些 Mac？下载安装后如何使用？</h3>
-          <p>需要 macOS 14 或更高版本，同时支持 Apple 芯片和 Intel 芯片。下载并打开 DMG，将 PicSee 拖入 Applications 文件夹，然后用 PicSee 打开图片即可开始使用。</p>
-        </div>
-      </div>
-    </div>
-  </section>
   </main>
 
   <!-- ========== Footer ========== -->
@@ -898,7 +817,6 @@
           <span>© 2026 holly</span>
         </div>
         <div class="footer-links">
-          <a href="#faq">常见问题</a>
           <a href="https://github.com/houleixx/PicSee" target="_blank" rel="noopener">GitHub</a>
           <a href="https://github.com/houleixx/PicSee/releases/latest/download/PicSee.dmg" target="_blank" rel="noopener">下载最新版本</a>
           <a href="https://github.com/houleixx/PicSee/blob/master/LICENSE" target="_blank" rel="noopener">License</a>

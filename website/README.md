@@ -28,7 +28,7 @@ Release workflow 在最终 DMG 验证后复制并校验 `PicSee.dmg`，与带版
 
 正式地址为 `https://picsee.pages.dev/`。首页包含 canonical、Open Graph、Twitter Card，以及 `WebSite` / `SoftwareApplication` JSON-LD。JSON-LD 只提供机器可读数据，不执行页面逻辑。应用信息使用真实功能、免费价格和系统要求，不添加虚构评分，也不承诺获得搜索富结果。
 
-关键词自然分布在页面标题、描述、可见 H1、功能介绍和常见问题中，重点覆盖「Mac 图片查看器」「macOS 看图软件」「OCR 图片文字识别」「图片裁剪标注」「默认图片查看器」以及 HEIC / WebP / RAW 使用场景。不依赖 `meta keywords`：[Google 明确不使用该标签进行索引或排名](https://developers.google.com/search/docs/crawling-indexing/special-tags)。常见问题是直接可读的静态 HTML，没有添加不适用于普通软件官网的 FAQ 富结果声明。
+关键词自然分布在页面标题、描述和原有功能介绍中，围绕 Mac 图片查看、OCR 图片文字识别、图片裁剪标注和默认打开方式展开；H1 保持产品名 PicSee。不为 SEO 增加副标题、系统信息标题或 FAQ 板块。不依赖 `meta keywords`：[Google 明确不使用该标签进行索引或排名](https://developers.google.com/search/docs/crawling-indexing/special-tags)。
 
 - `robots.txt` 允许抓取，并指向 `sitemap.xml`；站点地图只列出正式首页。
 - `404.html` 提供不存在页面的返回入口，避免 Cloudflare Pages 将未知路径当作单页应用首页返回；错误页带 `noindex`。

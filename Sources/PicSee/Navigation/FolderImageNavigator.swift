@@ -65,26 +65,31 @@ final class FolderImageNavigator {
     }
 
     func previousURL() -> URL? {
-        while currentIndex > 0 {
-            let candidateIndex = currentIndex - 1
+        while images.count > 1 {
+            let candidateIndex = (currentIndex + images.count - 1) % images.count
             let candidate = images[candidateIndex]
             if fileManager.fileExists(atPath: candidate.path) {
                 return candidate
             }
             images.remove(at: candidateIndex)
-            currentIndex -= 1
+            if candidateIndex < currentIndex {
+                currentIndex -= 1
+            }
         }
         return nil
     }
 
     func nextURL() -> URL? {
-        while currentIndex + 1 < images.count {
-            let candidateIndex = currentIndex + 1
+        while images.count > 1 {
+            let candidateIndex = (currentIndex + 1) % images.count
             let candidate = images[candidateIndex]
             if fileManager.fileExists(atPath: candidate.path) {
                 return candidate
             }
             images.remove(at: candidateIndex)
+            if candidateIndex < currentIndex {
+                currentIndex -= 1
+            }
         }
         return nil
     }

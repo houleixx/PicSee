@@ -50,7 +50,7 @@ final class FolderImageNavigatorTests: XCTestCase {
         XCTAssertEqual(navigator.currentIndex, 1)
     }
 
-    func testPreviousAndNextRespectBoundaries() throws {
+    func testPreviousAndNextWrapAtBoundaries() throws {
         let first = try createFile(named: "001.jpg")
         let second = try createFile(named: "002.jpg")
         let third = try createFile(named: "003.jpg")
@@ -60,12 +60,12 @@ final class FolderImageNavigatorTests: XCTestCase {
         XCTAssertEqual(middleNavigator.nextURL(), third)
 
         let firstNavigator = try FolderImageNavigator(currentImageURL: first)
-        XCTAssertNil(firstNavigator.previousURL())
+        XCTAssertEqual(firstNavigator.previousURL(), third)
         XCTAssertEqual(firstNavigator.nextURL(), second)
 
         let lastNavigator = try FolderImageNavigator(currentImageURL: third)
         XCTAssertEqual(lastNavigator.previousURL(), second)
-        XCTAssertNil(lastNavigator.nextURL())
+        XCTAssertEqual(lastNavigator.nextURL(), first)
     }
 
     func testPreferredOrderDeterminesCurrentPreviousAndNextPositions() throws {
@@ -155,7 +155,7 @@ final class FolderImageNavigatorTests: XCTestCase {
         )
         try FileManager.default.removeItem(at: deleted)
 
-        XCTAssertNil(navigator.previousURL())
+        XCTAssertEqual(navigator.previousURL(), third)
         XCTAssertEqual(navigator.images, [second, third])
         XCTAssertEqual(navigator.currentIndex, 0)
     }

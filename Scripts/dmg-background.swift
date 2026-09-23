@@ -17,7 +17,8 @@ for scale in [1, 2] {
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
 
-    NSColor(srgbRed: 0.95, green: 0.96, blue: 0.97, alpha: 1).setFill()
+    // Match Finder's exposed canvas when the installer window is enlarged.
+    NSColor.white.setFill()
     NSRect(origin: .zero, size: canvas).fill()
 
     func centeredText(_ text: String, top: CGFloat, size: CGFloat, weight: NSFont.Weight, color: NSColor) {

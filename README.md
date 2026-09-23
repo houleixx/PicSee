@@ -46,7 +46,7 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 ### 设置为默认图片查看器
 
-内置的默认打开方式设置窗口支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP 及常见 RAW 格式，可按需选择希望交给 PicSee 打开的图片类型。文件夹浏览也支持 AVIF、SVG、ICO/ICNS、JPEG 2000、PSD/PSB、TGA、DDS、EXR/HDR 和 JPEG XL；专业格式是否能完整解码取决于当前 macOS 的 ImageIO 解码器及文件内嵌预览。
+内置的默认打开方式设置窗口和文件夹浏览支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP、常见 RAW、AVIF、SVG、ICO/ICNS、JPEG 2000、PSD/PSB、TGA、DDS、EXR/HDR 和 JPEG XL，可按需选择希望交给 PicSee 打开的图片类型。批量设置会跳过已是默认的格式；个别格式失败时继续处理其他格式，并显示具体错误及实际设置结果。专业格式是否能完整解码取决于当前 macOS 的 ImageIO 解码器及文件内嵌预览。
 
 <p align="center">
   <img src="Images/preview-default.png" alt="PicSee 设置默认图片打开方式窗口" width="700">
@@ -109,7 +109,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.56 PICSEE_BUILD_NUMBER=56 Scripts/build-app.sh
+PICSEE_VERSION=0.2.57 PICSEE_BUILD_NUMBER=57 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -126,15 +126,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.56.dmg`
+- DMG: `build/dmg/PicSee-0.2.57.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.56 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.57 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.56.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.57.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -157,7 +157,9 @@ PICSEE_VERSION=0.2.56 Scripts/build-dmg.sh
 - `←` / `↑`：上一张
 - `→` / `↓`：下一张
 
-Finder 能通过系统脚本接口返回可靠顺序时，PicSee 会按该顺序切图。首次查询时，系统会弹出一次自动化授权请求；无法可靠读取时，PicSee 会立即使用文件名顺序，不阻塞翻页。
+左右翻页支持双向循环：最后一张继续向后会回到第一张，第一张继续向前会回到最后一张，不显示循环提示。目录中只有一张图片时不翻页，左右箭头隐藏。
+
+Finder 能通过系统脚本接口返回可靠顺序时，PicSee 会按该顺序切图。首次查询且尚未决定权限时，系统会弹出自动化授权请求。授权等待与排序查询的超时分开处理；等待授权或无法可靠读取时，PicSee 使用文件名顺序，不阻塞翻页。若已拒绝或手动关闭权限，系统不会重复询问，可在“系统设置 → 隐私与安全性 → 自动化 → PicSee”中重新启用 Finder 权限。
 
 **回退到文件名排序的情况：**
 - 未授权自动化权限
@@ -243,14 +245,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.56
-git push origin v0.2.56
+git tag v0.2.57
+git push origin v0.2.57
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.56`
-- Asset: `PicSee-0.2.56.dmg`
+- Release: `v0.2.57`
+- Asset: `PicSee-0.2.57.dmg`
 
 ## Release 说明
 

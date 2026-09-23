@@ -109,7 +109,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.57 PICSEE_BUILD_NUMBER=57 Scripts/build-app.sh
+PICSEE_VERSION=0.2.58 PICSEE_BUILD_NUMBER=58 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -126,15 +126,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.57.dmg`
+- DMG: `build/dmg/PicSee-0.2.58.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.57 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.58 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.57.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.58.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -159,7 +159,7 @@ PICSEE_VERSION=0.2.57 Scripts/build-dmg.sh
 
 左右翻页支持双向循环：最后一张继续向后会回到第一张，第一张继续向前会回到最后一张，不显示循环提示。目录中只有一张图片时不翻页，左右箭头隐藏。
 
-Finder 能通过系统脚本接口返回可靠顺序时，PicSee 会按该顺序切图。首次查询且尚未决定权限时，系统会弹出自动化授权请求。授权等待与排序查询的超时分开处理；等待授权或无法可靠读取时，PicSee 使用文件名顺序，不阻塞翻页。若已拒绝或手动关闭权限，系统不会重复询问，可在“系统设置 → 隐私与安全性 → 自动化 → PicSee”中重新启用 Finder 权限。
+Finder 能通过系统脚本接口返回可靠顺序时，PicSee 会按该顺序切图。首次查询且尚未决定权限时，系统会弹出自动化授权请求。授权弹窗结束后会恢复原看图窗口的焦点，已有授权决定时不会额外恢复焦点。授权等待与排序查询的超时分开处理；等待授权或无法可靠读取时，PicSee 使用文件名顺序，不阻塞翻页。若已拒绝或手动关闭权限，系统不会重复询问，可在“系统设置 → 隐私与安全性 → 自动化 → PicSee”中重新启用 Finder 权限。
 
 **回退到文件名排序的情况：**
 - 未授权自动化权限
@@ -245,14 +245,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.57
-git push origin v0.2.57
+git tag v0.2.58
+git push origin v0.2.58
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.57`
-- Asset: `PicSee-0.2.57.dmg`
+- Release: `v0.2.58`
+- Asset: `PicSee-0.2.58.dmg`
 
 ## Release 说明
 

@@ -19,7 +19,9 @@ hide_extensions = []
 
 # Finder includes its title/status chrome in WindowBounds; leave enough height
 # for the 340 point background so the installation instruction is never clipped.
-window_rect = ((240, 180), (560, 390))
+# Finder's saved Y coordinate runs upward from the screen bottom.
+# On a 1080-point-high display, y=540 places the window top at 150.
+window_rect = ((400, 540), (560, 390))
 default_view = "icon-view"
 show_status_bar = False
 show_tab_view = False

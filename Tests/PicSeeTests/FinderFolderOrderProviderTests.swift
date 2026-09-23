@@ -93,7 +93,8 @@ final class FinderFolderOrderProviderTests: XCTestCase {
             directoryReader: { _ in
                 directoryWasRead.set()
                 return []
-            }
+            },
+            permissionRequester: { true }
         )
 
         XCTAssertTrue(provider.isOrderingAvailableImmediately)
@@ -113,15 +114,18 @@ final class FinderFolderOrderProviderTests: XCTestCase {
             { _ in
                 "ORDERED\nfile:///tmp/photos/readme.txt\n\(two.absoluteString)\n\(one.absoluteString)"
             },
-            directoryReader: { _ in [one, two] }
+            directoryReader: { _ in [one, two] },
+            permissionRequester: { true }
         )
         let partial = FinderFolderOrderProvider(
             { _ in "ORDERED\n\(one.absoluteString)" },
-            directoryReader: { _ in [one, two] }
+            directoryReader: { _ in [one, two] },
+            permissionRequester: { true }
         )
         let duplicate = FinderFolderOrderProvider(
             { _ in "ORDERED\n\(one.absoluteString)\n\(one.absoluteString)\n\(two.absoluteString)" },
-            directoryReader: { _ in [one, two] }
+            directoryReader: { _ in [one, two] },
+            permissionRequester: { true }
         )
 
         let completeResult = await complete.orderedURLs(for: folder)
@@ -137,11 +141,13 @@ final class FinderFolderOrderProviderTests: XCTestCase {
         let item = imageURL(folder: folder, name: "1.png")
         let noSystemResult = FinderFolderOrderProvider(
             { _ in nil },
-            directoryReader: { _ in [item] }
+            directoryReader: { _ in [item] },
+            permissionRequester: { true }
         )
         let noDirectory = FinderFolderOrderProvider(
             { _ in "ORDERED\n\(item.absoluteString)" },
-            directoryReader: { _ in nil }
+            directoryReader: { _ in nil },
+            permissionRequester: { true }
         )
 
         let noSystemResultValue = await noSystemResult.orderedURLs(for: folder)

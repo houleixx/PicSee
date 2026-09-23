@@ -1,5 +1,7 @@
 import AppKit
+import CoreServices
 import Foundation
+import OSLog
 
 protocol FinderFolderOrderProviding: Sendable {
     var isOrderingAvailableImmediately: Bool { get }
@@ -26,21 +28,32 @@ private enum FinderOrderInstruction: Equatable {
 struct FinderFolderOrderProvider: FinderFolderOrderProviding {
     typealias ScriptRunner = @Sendable (String) -> String?
     typealias DirectoryReader = @Sendable (URL) -> [URL]?
+    typealias PermissionRequester = @Sendable () async -> Bool
 
     private let scriptRunner: ScriptRunner
     private let directoryReader: DirectoryReader
+    private let permissionRequester: PermissionRequester
+    private static let logger = Logger(subsystem: "local.picsee.viewer", category: "FinderOrder")
 
     var isOrderingAvailableImmediately: Bool { true }
 
     init(
         _ scriptRunner: ScriptRunner? = nil,
-        directoryReader: DirectoryReader? = nil
+        directoryReader: DirectoryReader? = nil,
+        permissionRequester: @escaping PermissionRequester = FinderFolderOrderProvider.requestPermission
     ) {
         self.scriptRunner = scriptRunner ?? Self.execute
         self.directoryReader = directoryReader ?? Self.directoryImageURLs
+        self.permissionRequester = permissionRequester
     }
 
     func orderedURLs(for folderURL: URL) async -> [URL]? {
+        // macOS can apply an Apple event's timeout to its consent prompt too.
+        // Resolve consent before sending any of the one-second sorting events.
+        guard !Task.isCancelled, await permissionRequester(), !Task.isCancelled else {
+            return nil
+        }
+
         guard
             let output = scriptRunner(Self.scriptSource(folderURL: folderURL)),
             let instruction = Self.parseInstruction(output)
@@ -256,11 +269,31 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
         return lhs.absoluteString < rhs.absoluteString
     }
 
+    static func requestPermission() async -> Bool {
+        // This synchronous system API can wait indefinitely for user consent.
+        // Keep it off both the main thread and Swift's cooperative executor.
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                logger.notice("Checking Finder automation authorization")
+                let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.finder")
+                let status = AEDeterminePermissionToAutomateTarget(
+                    target.aeDesc, AEEventClass(typeWildCard), AEEventID(typeWildCard), true
+                )
+                logger.notice("Finder automation authorization completed: status=\(status)")
+                continuation.resume(returning: status == noErr)
+            }
+        }
+    }
+
     private static func execute(_ source: String) -> String? {
         guard let script = NSAppleScript(source: source) else { return nil }
         var error: NSDictionary?
         let result = script.executeAndReturnError(&error)
-        guard error == nil else { return nil }
+        if let error {
+            let code = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue ?? 0
+            logger.error("Finder order script failed: code=\(code)")
+            return nil
+        }
         return result.stringValue
     }
 

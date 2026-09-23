@@ -14,7 +14,7 @@ ICON_ICNS="$ROOT_DIR/build/AppIcon.icns"
 cd "$ROOT_DIR"
 ARM64_BUILD_DIR="$ROOT_DIR/.build-arm64"
 X64_BUILD_DIR="$ROOT_DIR/.build-x86_64"
-APP_VERSION="${PICSEE_VERSION:-0.2.56}"
+APP_VERSION="${PICSEE_VERSION:-0.2.57}"
 APP_BUILD_NUMBER="${PICSEE_BUILD_NUMBER:-1}"
 SKIP_LOCAL_INSTALL="${PICSEE_SKIP_LOCAL_INSTALL:-0}"
 CODESIGN_IDENTITY="${PICSEE_CODESIGN_IDENTITY:--}"
@@ -126,11 +126,17 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
                 <string>com.microsoft.bmp</string>
                 <string>org.webmproject.webp</string>
                 <string>public.camera-raw-image</string>
+                <string>public.avif</string>
                 <string>public.svg-image</string>
-                <string>public.ico</string>
+                <string>com.microsoft.ico</string>
                 <string>com.apple.icns</string>
                 <string>public.jpeg-2000</string>
                 <string>com.adobe.photoshop-image</string>
+                <string>com.truevision.tga-image</string>
+                <string>com.microsoft.dds</string>
+                <string>com.ilm.openexr-image</string>
+                <string>public.radiance</string>
+                <string>public.jpeg-xl</string>
             </array>
             <key>CFBundleTypeExtensions</key>
             <array>

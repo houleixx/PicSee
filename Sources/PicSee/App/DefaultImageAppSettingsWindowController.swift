@@ -462,15 +462,23 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
             return
         }
 
-        do {
-            for format in selectedFormats {
-                try handler.setDefaultViewer(for: format)
-            }
-            statusLabel.stringValue = "已设置 \(selectedFormats.count) 种格式。"
-        } catch {
-            let alert = NSAlert(error: error)
-            alert.messageText = "设置默认打开方式失败"
-            alert.runModal()
+        let result = DefaultImageAppSettings.apply(selectedFormats, using: handler)
+        statusLabel.stringValue = result.statusMessage
+        for checkbox in checkboxes {
+            checkbox.button.state = handler.isDefaultViewer(for: checkbox.format) ? .on : .off
         }
+        if !result.failures.isEmpty {
+            Self.makeFailureAlert(for: result).runModal()
+        }
+    }
+
+    static func makeFailureAlert(for result: DefaultImageAppApplyResult) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = result.completed.isEmpty ? "设置默认打开方式失败" : "部分格式设置失败"
+        alert.informativeText = result.statusMessage + "\n\n" + result.failureDetails
+            + "\n\n可在 Finder 的“显示简介”→“打开方式”中选择 PicSee，并点“全部更改…”。"
+        alert.addButton(withTitle: "好")
+        return alert
     }
 }

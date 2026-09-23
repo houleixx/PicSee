@@ -1,5 +1,6 @@
 import CoreServices
 import Foundation
+import OSLog
 
 struct DefaultImageFormat: Equatable, Identifiable {
     let id: String
@@ -32,7 +33,7 @@ enum DefaultImageAppSettings {
         DefaultImageFormat(label: "JPEG 2000", contentType: "public.jpeg-2000", extensions: "jp2, j2k, jpf, jpx"),
         DefaultImageFormat(label: "Photoshop", contentType: "com.adobe.photoshop-image", extensions: "psd, psb"),
         DefaultImageFormat(label: "TGA", contentType: "com.truevision.tga-image", extensions: "tga"),
-        DefaultImageFormat(label: "DDS", contentType: "com.microsoft.directdraw-surface", extensions: "dds"),
+        DefaultImageFormat(label: "DDS", contentType: "com.microsoft.dds", extensions: "dds"),
         DefaultImageFormat(label: "OpenEXR", contentType: "com.ilm.openexr-image", extensions: "exr"),
         DefaultImageFormat(label: "Radiance HDR", contentType: "public.radiance", extensions: "hdr"),
         DefaultImageFormat(label: "JPEG XL", contentType: "public.jpeg-xl", extensions: "jxl")
@@ -42,6 +43,46 @@ enum DefaultImageAppSettings {
 
     static func shouldShowSettingsWindowAfterLaunch(didReceiveOpenRequest: Bool, hasOpenViewer: Bool) -> Bool {
         !didReceiveOpenRequest && !hasOpenViewer
+    }
+
+    static func apply(
+        _ formats: [DefaultImageFormat],
+        using handler: any DefaultImageAppHandling
+    ) -> DefaultImageAppApplyResult {
+        var completed: [DefaultImageFormat] = []
+        var failures: [DefaultImageAppApplyResult.Failure] = []
+        for format in formats {
+            do {
+                if !handler.isDefaultViewer(for: format) {
+                    try handler.setDefaultViewer(for: format)
+                }
+                completed.append(format)
+            } catch {
+                failures.append(.init(format: format, message: error.localizedDescription))
+            }
+        }
+        return DefaultImageAppApplyResult(completed: completed, failures: failures)
+    }
+}
+
+struct DefaultImageAppApplyResult {
+    struct Failure {
+        let format: DefaultImageFormat
+        let message: String
+    }
+
+    let completed: [DefaultImageFormat]
+    let failures: [Failure]
+
+    var statusMessage: String {
+        if failures.isEmpty {
+            return "已设置 \(completed.count) 种格式。"
+        }
+        return "已完成 \(completed.count) 种，\(failures.count) 种失败。"
+    }
+
+    var failureDetails: String {
+        failures.map { "\($0.format.label)：\($0.message)" }.joined(separator: "\n")
     }
 }
 
@@ -66,6 +107,7 @@ enum DefaultImageAppError: LocalizedError {
 
 struct LaunchServicesDefaultImageAppHandler: DefaultImageAppHandling {
     private let bundleIdentifier: String
+    private static let logger = Logger(subsystem: "local.picsee.viewer", category: "DefaultImageApp")
 
     init(bundleIdentifier: String? = Bundle.main.bundleIdentifier) throws {
         guard let bundleIdentifier, !bundleIdentifier.isEmpty else {
@@ -95,6 +137,7 @@ struct LaunchServicesDefaultImageAppHandler: DefaultImageAppHandling {
         )
 
         guard status == noErr else {
+            Self.logger.error("Setting default viewer failed: type=\(format.contentType, privacy: .public), status=\(status)")
             throw DefaultImageAppError.launchServicesFailed(status, format.contentType)
         }
     }

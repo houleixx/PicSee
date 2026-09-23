@@ -40,11 +40,18 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
     init(
         _ scriptRunner: ScriptRunner? = nil,
         directoryReader: DirectoryReader? = nil,
-        permissionRequester: @escaping PermissionRequester = FinderFolderOrderProvider.requestPermission
+        permissionRequester: PermissionRequester? = nil,
+        onAuthorizationPromptWillBegin: @escaping @MainActor @Sendable () -> Void = {},
+        onAuthorizationPromptFinished: @escaping @MainActor @Sendable () -> Void = {}
     ) {
         self.scriptRunner = scriptRunner ?? Self.execute
         self.directoryReader = directoryReader ?? Self.directoryImageURLs
-        self.permissionRequester = permissionRequester
+        self.permissionRequester = permissionRequester ?? {
+            await Self.requestPermission(
+                onPromptWillBegin: onAuthorizationPromptWillBegin,
+                onPromptFinished: onAuthorizationPromptFinished
+            )
+        }
     }
 
     func orderedURLs(for folderURL: URL) async -> [URL]? {
@@ -269,18 +276,42 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
         return lhs.absoluteString < rhs.absoluteString
     }
 
-    static func requestPermission() async -> Bool {
+    typealias AuthorizationCheck = @Sendable (_ askUser: Bool) async -> OSStatus
+
+    static func requestPermission(
+        check: AuthorizationCheck = checkPermission,
+        onPromptWillBegin: @MainActor @Sendable () -> Void = {},
+        onPromptFinished: @MainActor @Sendable () -> Void = {}
+    ) async -> Bool {
+        guard !Task.isCancelled else { return false }
+        let status = await check(false)
+        guard !Task.isCancelled else { return false }
+        guard status == errAEEventWouldRequireUserConsent else { return status == noErr }
+
+        await onPromptWillBegin()
+        guard !Task.isCancelled else { return false }
+        let response = await check(true)
+        guard !Task.isCancelled else { return false }
+        // A preflight with no decision was followed by an interactive response.
+        // Return focus for both Allow and Don't Allow, never for ordinary checks.
+        if response == noErr || response == errAEEventNotPermitted {
+            await onPromptFinished()
+        }
+        return response == noErr
+    }
+
+    private static func checkPermission(askUser: Bool) async -> OSStatus {
         // This synchronous system API can wait indefinitely for user consent.
         // Keep it off both the main thread and Swift's cooperative executor.
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                logger.notice("Checking Finder automation authorization")
+                logger.notice("Checking Finder automation authorization: askUser=\(askUser)")
                 let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.finder")
                 let status = AEDeterminePermissionToAutomateTarget(
-                    target.aeDesc, AEEventClass(typeWildCard), AEEventID(typeWildCard), true
+                    target.aeDesc, AEEventClass(typeWildCard), AEEventID(typeWildCard), askUser
                 )
                 logger.notice("Finder automation authorization completed: status=\(status)")
-                continuation.resume(returning: status == noErr)
+                continuation.resume(returning: status)
             }
         }
     }

@@ -141,6 +141,9 @@ final class WindowManager {
     private var keyEventMonitor: Any?
     private let deletionConfirmation = ImageDeletionConfirmation()
     private let minimumWindowSize = NSSize(width: 320, height: 220)
+    private lazy var authorizationFocusRecovery = ViewerAuthorizationFocusRecovery { [weak self] window in
+        self?.bringViewerToFront(window)
+    }
 
     var hasOpenViewer: Bool {
         currentWindow != nil
@@ -151,7 +154,15 @@ final class WindowManager {
 
         let viewModel = ImageViewerViewModel(
             imageURL: url,
-            finderOrderProvider: FinderFolderOrderProvider()
+            finderOrderProvider: FinderFolderOrderProvider(
+                onAuthorizationPromptWillBegin: { [weak self] in
+                    guard let self else { return }
+                    self.authorizationFocusRecovery.begin(for: self.currentWindow)
+                },
+                onAuthorizationPromptFinished: { [weak self] in
+                    self?.authorizationFocusRecovery.finish()
+                }
+            )
         )
         let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
@@ -302,7 +313,7 @@ final class WindowManager {
         window.makeKey()
 
         DispatchQueue.main.async { [weak window] in
-            guard let window else { return }
+            guard let window, ViewerAuthorizationFocusRecovery.canRestore(window) else { return }
             NSApp.activate(ignoringOtherApps: true)
             NSRunningApplication.current.activate(options: [.activateAllWindows])
             window.orderFrontRegardless()

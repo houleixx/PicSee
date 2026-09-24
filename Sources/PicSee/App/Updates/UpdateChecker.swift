@@ -18,6 +18,7 @@ final class UpdateChecker: ObservableObject {
     @Published private(set) var availableUpdate: GitHubRelease?
     @Published private(set) var status: UpdateStatus = .idle
     @Published private(set) var downloadProgress: Double?
+    @Published private(set) var checkError: String?
 
     private let currentVersion: AppVersion
     private let defaults: UserDefaults
@@ -91,6 +92,8 @@ final class UpdateChecker: ObservableObject {
 
     @discardableResult
     private func performUpdateCheck(ignoresSkippedVersion: Bool = false) async -> Bool {
+        guard status != .checking, status != .downloading else { return false }
+        checkError = nil
         status = .checking
         downloadProgress = nil
 
@@ -108,6 +111,7 @@ final class UpdateChecker: ObservableObject {
         } catch {
             availableUpdate = nil
             status = .idle
+            checkError = "检查更新失败，请检查网络后重试。"
             return false
         }
     }
@@ -121,7 +125,7 @@ final class UpdateChecker: ObservableObject {
     }
 
     func downloadAvailableUpdate() async {
-        guard let availableUpdate else { return }
+        guard let availableUpdate, status != .checking, status != .downloading else { return }
         status = .downloading
         downloadProgress = 0
 

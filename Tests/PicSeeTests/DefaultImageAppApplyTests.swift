@@ -38,7 +38,7 @@ struct DefaultImageAppApplyTests {
         let handler = RecordingDefaultHandler(failures: [dds.id: -50])
         let result = DefaultImageAppSettings.apply([dds], using: handler)
 
-        let alert = DefaultImageAppSettingsWindowController.makeFailureAlert(for: result)
+        let alert = DefaultImageAppSettingsViewController.makeFailureAlert(for: result)
 
         #expect(alert.messageText == "设置默认打开方式失败")
         #expect(alert.informativeText.contains("DDS"))

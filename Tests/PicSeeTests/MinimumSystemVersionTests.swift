@@ -53,7 +53,7 @@ final class MinimumSystemVersionTests: XCTestCase {
     func testAppDoesNotRequestAccessibilityPermission() throws {
         let delegate = try repositoryFile("Sources/PicSee/App/AppDelegate.swift")
         let settingsWindow = try repositoryFile(
-            "Sources/PicSee/App/DefaultImageAppSettingsWindowController.swift"
+            "Sources/PicSee/App/DefaultImageAppSettingsViewController.swift"
         )
         let finderProvider = try repositoryFile(
             "Sources/PicSee/Navigation/FinderFolderOrderProvider.swift"

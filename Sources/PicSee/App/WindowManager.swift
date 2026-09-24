@@ -136,8 +136,10 @@ final class ViewerWindow: NSWindow {
 
 @MainActor
 final class WindowManager {
+    let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
     private var currentWindow: NSWindow?
     private var titleObserver: AnyCancellable?
+    private var appearanceObserver: AnyCancellable?
     private var keyEventMonitor: Any?
     private let deletionConfirmation = ImageDeletionConfirmation()
     private let minimumWindowSize = NSSize(width: 320, height: 220)
@@ -164,7 +166,6 @@ final class WindowManager {
                 }
             )
         )
-        let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
         let styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
         let initialContentFrame = initialWindowContentFrame(for: viewModel.image, styleMask: styleMask)
@@ -193,9 +194,6 @@ final class WindowManager {
             },
             onFixedWindowChanged: { [weak self, weak window] fixed in
                 guard let self, let window else { return }
-                if fixed {
-                    WindowFramePreference.saveFixedFrame(window.frame)
-                }
                 self.applyFixedWindowState(fixed, to: window)
             },
             onRequestDeletion: { [weak self, weak window, weak viewModel] in
@@ -206,6 +204,8 @@ final class WindowManager {
         let hostingController = NSHostingController(rootView: rootView)
 
         currentWindow = window
+        appearanceObserver = ViewerPreferences.shared.$snapshot.map(\.theme).removeDuplicates()
+            .sink { [weak window] theme in window?.appearance = theme.appearance }
         window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
         titleObserver = viewModel.$currentURL
             .combineLatest(viewModel.$displayScale, viewModel.$image)
@@ -249,6 +249,7 @@ final class WindowManager {
                     self.saveWindowFrame(window)
                 }
                 self?.titleObserver = nil
+                self?.appearanceObserver = nil
                 if let monitor = self?.keyEventMonitor {
                     NSEvent.removeMonitor(monitor)
                     self?.keyEventMonitor = nil
@@ -275,6 +276,12 @@ final class WindowManager {
         let availableContentFrame = NSWindow.contentRect(forFrameRect: screen.visibleFrame, styleMask: styleMask)
         return WindowPlacement.frame(for: image.flatMap { ImageExporter.pixelSize(of: $0) },
                                      in: availableContentFrame, backingScale: screen.backingScaleFactor)
+    }
+
+    func captureFixedWindowFrame() {
+        guard let window = currentWindow as? ViewerWindow,
+              let frame = window.persistableFrame else { return }
+        WindowFramePreference.saveFixedFrame(frame)
     }
 
     private func initialWindowFrame(contentFrame: NSRect, styleMask: NSWindow.StyleMask) -> NSRect {

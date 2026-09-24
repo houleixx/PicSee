@@ -29,7 +29,9 @@ enum WindowFramePreference {
     }
 
     static func setFixedEnabled(_ enabled: Bool, in defaults: UserDefaults = .standard) {
+        guard enabled != isFixedEnabled(in: defaults) else { return }
         defaults.set(enabled, forKey: fixedEnabledDefaultsKey)
+        ViewerPreferenceChange.post(in: defaults)
     }
 
     static func isFixedEnabled(in defaults: UserDefaults = .standard) -> Bool {

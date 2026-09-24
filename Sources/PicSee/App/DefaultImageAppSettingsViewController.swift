@@ -1,10 +1,12 @@
 import AppKit
 
+/// Native file-association form embedded in the unified settings window.
 @MainActor
-final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindowDelegate {
-    private static let formatRowHeight: CGFloat = 38
+final class DefaultImageAppSettingsViewController: NSViewController {
+    private static let formatRowHeight: CGFloat = 33
     private static let formatColumnCount = 3
-    private static let formatColumnWidth: CGFloat = 210
+    private static let formatColumnWidth: CGFloat = 203
+    private static let extensionSpacing: CGFloat = 6
     private static let optionLeadingInset: CGFloat = 15
 
     private let handler: DefaultImageAppHandling
@@ -13,44 +15,18 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
     private var secondaryLabels: [NSTextField] = []
     private weak var contentBackgroundLayer: CALayer?
     private var cardLayers: [CALayer] = []
-    private var escapeKeyMonitor: Any?
     private let statusLabel = NSTextField(labelWithString: "")
 
     init(handler: DefaultImageAppHandling) {
         self.handler = handler
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 730, height: 430),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "设置默认图片打开方式"
-        window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 730, height: 410)
-        window.center()
-
-        super.init(window: window)
-
-        window.appearance = ViewerTheme.current().appearance
-        window.delegate = self
-        window.contentView = buildContentView()
-        applyTheme()
+        super.init(nibName: nil, bundle: nil)
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
-    }
+    required init?(coder: NSCoder) { nil }
 
-    func show() {
-        // Refresh the setting when the user has changed it since this
-        // controller was created. A nil appearance follows the system setting.
-        applyTheme()
-        installEscapeKeyMonitor()
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+    override func loadView() {
+        view = buildContentView()
     }
 
     private func buildContentView() -> NSView {
@@ -61,23 +37,27 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 18
+        stack.spacing = 16
         stack.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(stack)
 
         let header = buildHeaderView()
         let settingsCard = buildSettingsCard()
+        let footer = buildFooterView()
 
         stack.addArrangedSubview(header)
+        stack.setCustomSpacing(20, after: header)
         stack.addArrangedSubview(settingsCard)
+        stack.addArrangedSubview(footer)
 
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 28),
-            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -28),
-            stack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 26),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -24),
+            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -16),
             header.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            settingsCard.widthAnchor.constraint(equalTo: stack.widthAnchor)
+            settingsCard.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            footer.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
 
         return contentView
@@ -86,8 +66,8 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
     private func buildHeaderView() -> NSView {
         let header = NSStackView()
         header.orientation = .horizontal
-        header.alignment = .top
-        header.spacing = 14
+        header.alignment = .centerY
+        header.spacing = 16
 
         let icon = NSImageView()
         icon.image = NSApp.applicationIconImage
@@ -99,10 +79,10 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         let textStack = NSStackView()
         textStack.orientation = .vertical
         textStack.alignment = .leading
-        textStack.spacing = 5
+        textStack.spacing = 8
 
         let title = NSTextField(labelWithString: "默认图片打开方式")
-        title.font = .boldSystemFont(ofSize: 22)
+        title.font = .systemFont(ofSize: 22, weight: .semibold)
         primaryLabels.append(title)
 
         let subtitle = wrappingLabel("选择双击图片时交给 PicSee 打开的格式，已是 PicSee 默认打开的格式会自动勾选。")
@@ -126,23 +106,34 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         let cardContent = NSStackView()
         cardContent.orientation = .vertical
         cardContent.alignment = .width
-        cardContent.spacing = 16
+        cardContent.spacing = 12
 
-        cardContent.addArrangedSubview(buildCardHeaderView(title: "支持的图片格式"))
+        let header = buildCardHeaderView(title: "支持的图片格式")
+        cardContent.addArrangedSubview(header)
         cardContent.addArrangedSubview(buildFormatGridView())
-        cardContent.addArrangedSubview(buildTipView())
-        cardContent.addArrangedSubview(buildSeparatorView())
-        cardContent.addArrangedSubview(buildFormatActionsView())
 
-        return insetCard(cardContent, horizontal: 16, vertical: 16)
+        return insetCard(cardContent, horizontal: 18, vertical: 18)
+    }
+
+    private func buildFooterView() -> NSView {
+        let footer = NSStackView()
+        footer.orientation = .vertical
+        footer.alignment = .width
+        footer.spacing = 14
+        let tip = buildTipView()
+        footer.addArrangedSubview(tip)
+        tip.widthAnchor.constraint(equalTo: footer.widthAnchor).isActive = true
+        footer.addArrangedSubview(buildSeparatorView())
+        footer.addArrangedSubview(buildFormatActionsView())
+        return footer
     }
 
     private func buildCardHeaderView(title: String = "常用图片格式") -> NSView {
         let row = NSView()
 
         let sectionTitle = NSTextField(labelWithString: title)
-        sectionTitle.font = .boldSystemFont(ofSize: 13)
-        secondaryLabels.append(sectionTitle)
+        sectionTitle.font = .systemFont(ofSize: 12, weight: .semibold)
+        primaryLabels.append(sectionTitle)
         sectionTitle.translatesAutoresizingMaskIntoConstraints = false
 
         row.addSubview(sectionTitle)
@@ -163,7 +154,7 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         grid.xPlacement = .fill
         grid.yPlacement = .fill
         grid.rowSpacing = 2
-        grid.columnSpacing = 6
+        grid.columnSpacing = 12
 
         let hasExistingDefaults = DefaultImageAppSettings.formats.contains { handler.isDefaultViewer(for: $0) }
         let rows = stride(
@@ -198,7 +189,8 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         container.addSubview(grid)
 
         NSLayoutConstraint.activate([
-            grid.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            grid.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            grid.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
             grid.topAnchor.constraint(equalTo: container.topAnchor),
             grid.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         ])
@@ -218,7 +210,8 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
             action: nil
         )
         button.state = (hasExistingDefaults ? handler.isDefaultViewer(for: format) : true) ? .on : .off
-        button.font = .systemFont(ofSize: 13, weight: .semibold)
+        button.controlSize = .small
+        button.font = .systemFont(ofSize: 13, weight: .medium)
         button.lineBreakMode = .byTruncatingTail
         button.toolTip = "\(format.label): \(dottedExtensions(format.extensions))"
         checkboxes.append((format, button))
@@ -280,9 +273,11 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
     private func buildTipView() -> NSView {
         let label = wrappingLabel(DefaultImageAppSettings.fallbackInstructions)
+        label.font = .systemFont(ofSize: 11)
+        label.alignment = .left
         secondaryLabels.append(label)
 
-        let tip = insetView(label, horizontal: 0, vertical: 4)
+        let tip = insetView(label, horizontal: 0, vertical: 0)
 
         NSLayoutConstraint.activate([
             tip.widthAnchor.constraint(greaterThanOrEqualToConstant: 1)
@@ -295,7 +290,7 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         let card = NSView()
         card.wantsLayer = true
         card.layer?.cornerRadius = 10
-        card.layer?.borderWidth = 1
+        card.layer?.borderWidth = 0.5
         if let layer = card.layer {
             cardLayers.append(layer)
         }
@@ -332,17 +327,19 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         var backgroundColor: NSColor?
         appearance.performAsCurrentDrawingAppearance {
             backgroundColor = NSColor.windowBackgroundColor.blended(
-                withFraction: 0.35,
-                of: .controlBackgroundColor
+                withFraction: 0.035,
+                of: .labelColor
             ) ?? .windowBackgroundColor
         }
         return backgroundColor ?? .windowBackgroundColor
     }
 
-    private func cgColor(for color: NSColor, appearance: NSAppearance) -> CGColor {
+    private func cgColor(for color: NSColor, appearance: NSAppearance, alpha: CGFloat? = nil) -> CGColor {
         var resolvedColor: CGColor?
         appearance.performAsCurrentDrawingAppearance {
-            resolvedColor = color.cgColor
+            // Adding alpha resolves semantic colors immediately, so do it
+            // inside the target appearance rather than the system appearance.
+            resolvedColor = (alpha.map { color.withAlphaComponent($0) } ?? color).cgColor
         }
         return resolvedColor ?? color.cgColor
     }
@@ -364,7 +361,7 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
 
     private func wrappingLabel(_ string: String) -> NSTextField {
         let label = NSTextField(wrappingLabelWithString: string)
-        label.font = .systemFont(ofSize: 13)
+        label.font = .systemFont(ofSize: 12)
         label.textColor = .labelColor
         return label
     }
@@ -376,66 +373,49 @@ final class DefaultImageAppSettingsWindowController: NSWindowController, NSWindo
         return spacer
     }
 
-    private func installEscapeKeyMonitor() {
-        guard escapeKeyMonitor == nil else { return }
-
-        escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard
-                event.keyCode == 53,
-                event.window === self?.window
-            else {
-                return event
-            }
-
-            self?.window?.performClose(nil)
-            return nil
-        }
-    }
-
-    private func removeEscapeKeyMonitor() {
-        guard let escapeKeyMonitor else { return }
-        NSEvent.removeMonitor(escapeKeyMonitor)
-        self.escapeKeyMonitor = nil
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        removeEscapeKeyMonitor()
-    }
-
-    private func applyTheme() {
-        let theme = ViewerTheme.current()
-        window?.appearance = theme.appearance
-        let appearance = window?.effectiveAppearance ?? NSApp.effectiveAppearance
+    func applyTheme(_ theme: ViewerTheme) {
+        view.appearance = theme.appearance
+        let appearance = view.effectiveAppearance
 
         contentBackgroundLayer?.backgroundColor = cgColor(for: .windowBackgroundColor, appearance: appearance)
         let cardBackground = cgColor(for: cardBackgroundColor(for: appearance), appearance: appearance)
-        let cardBorder = cgColor(for: .separatorColor, appearance: appearance)
+        let cardBorder = cgColor(for: .labelColor, appearance: appearance, alpha: 0.10)
         for layer in cardLayers {
             layer.backgroundColor = cardBackground
             layer.borderColor = cardBorder
         }
 
-        let primaryColor: NSColor
-        let secondaryColor: NSColor
-        switch theme {
-        case .dark:
-            primaryColor = .white
-            secondaryColor = NSColor(calibratedWhite: 0.72, alpha: 1)
-        case .light, .system:
-            primaryColor = .labelColor
-            secondaryColor = .secondaryLabelColor
-        }
+        let primaryColor = NSColor.labelColor
+        let secondaryColor = NSColor.secondaryLabelColor
 
         primaryLabels.forEach { $0.textColor = primaryColor }
         secondaryLabels.forEach { $0.textColor = secondaryColor }
+        let extensionFont = NSFont.systemFont(ofSize: 12)
+        let spaceWidth = (" " as NSString).size(withAttributes: [.font: extensionFont]).width
         for checkbox in checkboxes {
-            checkbox.button.attributedTitle = NSAttributedString(
-                string: checkbox.button.title,
+            let title = NSMutableAttributedString(
+                string: checkbox.format.label,
                 attributes: [
-                    .font: checkbox.button.font ?? .systemFont(ofSize: 13),
+                    .font: NSFont.systemFont(ofSize: 13, weight: .medium),
                     .foregroundColor: primaryColor
                 ]
             )
+            // Use a measured six-point gap while keeping the whole label clickable.
+            title.append(NSAttributedString(
+                string: " ",
+                attributes: [
+                    .font: extensionFont,
+                    .kern: Self.extensionSpacing - spaceWidth
+                ]
+            ))
+            title.append(NSAttributedString(
+                string: dottedExtensions(displayExtensions(for: checkbox.format)),
+                attributes: [
+                    .font: extensionFont,
+                    .foregroundColor: secondaryColor
+                ]
+            ))
+            checkbox.button.attributedTitle = title
         }
     }
 

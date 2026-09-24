@@ -34,6 +34,52 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(checker.status, .available)
     }
 
+    func testFailedManualCheckReportsErrorAndCanRetryWithoutFalseSuccess() async throws {
+        var shouldFail = true
+        let latest = release("0.2.11")
+        let checker = UpdateChecker(
+            currentVersion: latest.version, defaults: defaults,
+            fetchLatestRelease: {
+                if shouldFail { throw URLError(.notConnectedToInternet) }
+                return latest
+            }, downloadAndOpen: { _, _ in }
+        )
+        let firstResult = await checker.checkForUpdatesManually()
+        XCTAssertFalse(firstResult)
+        XCTAssertNotNil(checker.checkError)
+
+        shouldFail = false
+        let secondResult = await checker.checkForUpdatesManually()
+        XCTAssertTrue(secondResult)
+        XCTAssertNil(checker.checkError)
+    }
+
+    func testConcurrentManualCheckDoesNotStartAnotherRequest() async throws {
+        var continuation: CheckedContinuation<GitHubRelease, any Error>?
+        var fetchCount = 0
+        let started = expectation(description: "Check started")
+        let latest = release("0.2.11")
+        let checker = UpdateChecker(
+            currentVersion: latest.version, defaults: defaults,
+            fetchLatestRelease: {
+                fetchCount += 1
+                return try await withCheckedThrowingContinuation {
+                    continuation = $0
+                    started.fulfill()
+                }
+            }, downloadAndOpen: { _, _ in }
+        )
+        let firstCheck = Task { await checker.checkForUpdatesManually() }
+        await fulfillment(of: [started], timeout: 2)
+        let duplicateResult = await checker.checkForUpdatesManually()
+        XCTAssertFalse(duplicateResult)
+        XCTAssertEqual(checker.status, .checking)
+        XCTAssertEqual(fetchCount, 1)
+        continuation?.resume(returning: latest)
+        let result = await firstCheck.value
+        XCTAssertTrue(result)
+    }
+
     func testDoesNotShowSameOrOlderRelease() async throws {
         let current = try XCTUnwrap(AppVersion("0.2.11"))
         let checker = UpdateChecker(

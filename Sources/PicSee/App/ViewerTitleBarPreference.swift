@@ -9,7 +9,9 @@ struct ViewerTitleBarPreference {
     }
 
     static func setVisible(_ visible: Bool, in defaults: UserDefaults = .standard) {
+        guard visible != isVisible(in: defaults) else { return }
         defaults.set(visible, forKey: defaultsKey)
+        ViewerPreferenceChange.post(in: defaults)
     }
 
     static func styleMask(titleBarVisible: Bool) -> NSWindow.StyleMask {

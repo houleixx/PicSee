@@ -13,6 +13,9 @@ enum AppMenu {
         appMenuItem.submenu = appMenu
 
         appMenu.addItem(buildAboutMenuItem(appName: appName))
+        appMenu.addItem(NSMenuItem(
+            title: "设置…", action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ","
+        ))
         appMenu.addItem(
             NSMenuItem(
                 title: "设置默认图片打开方式...",
@@ -35,13 +38,13 @@ enum AppMenu {
     static func buildAboutMenuItem(appName: String) -> NSMenuItem {
         NSMenuItem(
             title: "关于 \(appName)",
-            action: #selector(AppDelegate.showAboutPanel(_:)),
+            action: #selector(AppDelegate.showAboutSettings(_:)),
             keyEquivalent: ""
         )
     }
 
     static func appendAboutItem(to menu: NSMenu, appName: String = "PicSee", includeSeparator: Bool = true) {
-        guard menu.items.first(where: { $0.action == #selector(AppDelegate.showAboutPanel(_:)) }) == nil else {
+        guard menu.items.first(where: { $0.action == #selector(AppDelegate.showAboutSettings(_:)) }) == nil else {
             return
         }
 
@@ -61,42 +64,7 @@ enum AppMenu {
 
     static func versionSummary(from info: [String: Any]) -> String {
         let shortVersion = stringValue(for: "CFBundleShortVersionString", in: info) ?? "未知"
-        guard let build = stringValue(for: "CFBundleVersion", in: info), !build.isEmpty else {
-            return "版本 \(shortVersion)"
-        }
-
-        return "版本 \(shortVersion) (\(build))"
-    }
-
-    static func aboutPanelVersion(from info: [String: Any]) -> String {
-        stringValue(for: "CFBundleShortVersionString", in: info) ?? "未知"
-    }
-
-    static func aboutPanelCredits(from info: [String: Any]) -> NSAttributedString {
-        let releaseURL = releasePageURL(from: info)
-        let releaseLine = "下载地址：https://picsee.pages.dev"
-        let thanksLine = "感谢“大脑袋范同学”提出的优化建议"
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .center
-        paragraphStyle.lineSpacing = 4
-        paragraphStyle.paragraphSpacing = 6
-
-        let credits = NSMutableAttributedString(
-            string: "\(releaseLine)\n\(thanksLine)",
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 12),
-                .foregroundColor: NSColor.labelColor,
-                .paragraphStyle: paragraphStyle
-            ]
-        )
-
-        let range = (credits.string as NSString).range(of: "https://picsee.pages.dev")
-        if range.location != NSNotFound {
-            credits.addAttribute(.link, value: releaseURL, range: range)
-            credits.addAttribute(.underlineStyle, value: 0, range: range)
-        }
-
-        return credits
+        return "版本 \(shortVersion)"
     }
 
     static func releasePageURL(from info: [String: Any]) -> URL {

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
@@ -532,7 +533,6 @@ enum TextRecognitionBackend {
 }
 
 final class CanvasNSView: NSView, NSMenuItemValidation {
-    private static let minimapEnabledDefaultsKey = "PicSee.MinimapEnabled"
     private static let rotationAnimationKey = "PicSee.RotationAnimation"
     private static let themeMenuIdentifier = NSUserInterfaceItemIdentifier("PicSee.ThemeMenu")
 
@@ -557,6 +557,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private let minimapView = ImageMinimapView(frame: .zero)
     private let backend: TextRecognitionBackend
     private let defaults: UserDefaults
+    private let preferences: ViewerPreferences
+    private var preferenceObservation: AnyCancellable?
 
     // Live Text path
     private let liveTextOverlay = ImageAnalysisOverlayView()
@@ -705,6 +707,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     init(frame frameRect: NSRect, backend: TextRecognitionBackend, defaults: UserDefaults = .standard) {
         self.backend = backend
         self.defaults = defaults
+        self.preferences = defaults === UserDefaults.standard ? .shared : ViewerPreferences(defaults: defaults)
         self.minimapEnabled = Self.defaultMinimapEnabled(in: defaults)
         self.titleBarVisible = ViewerTitleBarPreference.isVisible(in: defaults)
         self.fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible(in: defaults)
@@ -713,6 +716,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         self.fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: defaults)
         super.init(frame: frameRect)
         configureSubviews()
+        observePreferences()
     }
 
     override convenience init(frame frameRect: NSRect) {
@@ -722,6 +726,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     required init?(coder: NSCoder) {
         self.backend = .preferred
         self.defaults = .standard
+        self.preferences = .shared
         self.minimapEnabled = Self.defaultMinimapEnabled(in: .standard)
         self.titleBarVisible = ViewerTitleBarPreference.isVisible(in: .standard)
         self.fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible(in: .standard)
@@ -730,10 +735,29 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         self.fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: .standard)
         super.init(coder: coder)
         configureSubviews()
+        observePreferences()
     }
 
     private static func defaultMinimapEnabled(in defaults: UserDefaults) -> Bool {
-        defaults.object(forKey: minimapEnabledDefaultsKey) as? Bool ?? true
+        ViewerOverlayPreference.isMinimapEnabled(in: defaults)
+    }
+
+    private func observePreferences() {
+        preferenceObservation = preferences.$snapshot.dropFirst().sink { [weak self] snapshot in
+            self?.applyPreferences(snapshot)
+        }
+    }
+
+    private func applyPreferences(_ snapshot: ViewerPreferencesSnapshot) {
+        titleBarVisible = snapshot.titleBarVisible
+        minimapEnabled = snapshot.minimapEnabled
+        fileInfoVisible = snapshot.fileInfoVisible
+        toolbarVisible = snapshot.toolbarVisible
+        imageParametersVisible = snapshot.imageParametersVisible
+        fixedWindowEnabled = snapshot.fixedWindowEnabled
+        window?.appearance = snapshot.theme.appearance
+        needsLayout = true
+        window?.invalidateCursorRects(for: self)
     }
 
     private static func normalizedRotationDegrees(_ degrees: Int) -> Int {
@@ -1116,8 +1140,24 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        let snapshot = ViewerPreferencesSnapshot(defaults: defaults)
+        let toggles: [Selector: Bool] = [
+            #selector(toggleTitleBarForMenu(_:)): snapshot.titleBarVisible,
+            #selector(toggleMinimapForMenu(_:)): snapshot.minimapEnabled,
+            #selector(toggleFileInfoForMenu(_:)): snapshot.fileInfoVisible,
+            #selector(toggleToolbarForMenu(_:)): snapshot.toolbarVisible,
+            #selector(toggleImageParametersForMenu(_:)): snapshot.imageParametersVisible,
+            #selector(toggleFixedWindowForMenu(_:)): snapshot.fixedWindowEnabled
+        ]
+        if let action = menuItem.action, let enabled = toggles[action] {
+            menuItem.state = enabled ? .on : .off
+        }
+        if menuItem.action == #selector(selectTheme(_:)) {
+            menuItem.state = menuItem.representedObject as? Int == snapshot.theme.rawValue ? .on : .off
+        }
         if menuItem.action == #selector(trashImageForMenu(_:)) { return canTrashImage }
         if menuItem.action == #selector(undoDeletionForMenu(_:)) { return canUndoDeletion }
+        if menuItem.action == #selector(checkForUpdatesForMenu(_:)) { return onCheckForUpdates != nil }
         return true
     }
 
@@ -1150,25 +1190,25 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     @objc func toggleMinimapForMenu(_ sender: Any?) {
-        minimapEnabled.toggle()
-        defaults.set(minimapEnabled, forKey: Self.minimapEnabledDefaultsKey)
+        minimapEnabled = !ViewerOverlayPreference.isMinimapEnabled(in: defaults)
+        ViewerOverlayPreference.setMinimapEnabled(minimapEnabled, in: defaults)
         needsLayout = true
     }
 
     @objc func toggleTitleBarForMenu(_ sender: Any?) {
-        titleBarVisible.toggle()
+        titleBarVisible = !ViewerTitleBarPreference.isVisible(in: defaults)
         ViewerTitleBarPreference.setVisible(titleBarVisible, in: defaults)
         onTitleBarVisibilityChanged?(titleBarVisible)
     }
 
     @objc func toggleFileInfoForMenu(_ sender: Any?) {
-        fileInfoVisible.toggle()
+        fileInfoVisible = !ViewerOverlayPreference.isFileInfoVisible(in: defaults)
         ViewerOverlayPreference.setFileInfoVisible(fileInfoVisible, in: defaults)
         onFileInfoVisibilityChanged?(fileInfoVisible)
     }
 
     @objc func toggleToolbarForMenu(_ sender: Any?) {
-        toolbarVisible.toggle()
+        toolbarVisible = !ViewerOverlayPreference.isToolbarVisible(in: defaults)
         ViewerOverlayPreference.setToolbarVisible(toolbarVisible, in: defaults)
         onToolbarVisibilityChanged?(toolbarVisible)
     }
@@ -1178,7 +1218,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     @objc func toggleFixedWindowForMenu(_ sender: Any?) {
-        fixedWindowEnabled.toggle()
+        fixedWindowEnabled = !WindowFramePreference.isFixedEnabled(in: defaults)
         WindowFramePreference.setFixedEnabled(fixedWindowEnabled, in: defaults)
         if fixedWindowEnabled, let window {
             WindowFramePreference.saveFixedFrame(window.frame, in: defaults)
@@ -1209,7 +1249,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func toggleImageParametersVisibility() {
-        imageParametersVisible.toggle()
+        imageParametersVisible = !ViewerOverlayPreference.isImageParametersVisible(in: defaults)
         ViewerOverlayPreference.setImageParametersVisible(imageParametersVisible, in: defaults)
         onImageParametersVisibilityChanged?(imageParametersVisible)
     }
@@ -1219,6 +1259,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func appendPicSeeContextMenuItems(to menu: NSMenu) {
+        applyPreferences(ViewerPreferencesSnapshot(defaults: defaults))
         let shouldAddTitleBarItem = menu.items.first(where: { $0.action == #selector(toggleTitleBarForMenu(_:)) }) == nil
         let shouldAddMinimapItem = menu.items.first(where: { $0.action == #selector(toggleMinimapForMenu(_:)) }) == nil
         let shouldAddFileInfoItem = menu.items.first(where: { $0.action == #selector(toggleFileInfoForMenu(_:)) }) == nil
@@ -1318,6 +1359,13 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             undoItem.target = self
             undoItem.isEnabled = canUndoDeletion
             menu.addItem(undoItem)
+        }
+
+        if !menu.items.contains(where: { $0.action == #selector(AppDelegate.showSettings(_:)) }) {
+            menu.addItem(.separator())
+            let settingsItem = NSMenuItem(title: "设置…", action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ",")
+            settingsItem.target = NSApplication.shared.delegate
+            menu.addItem(settingsItem)
         }
 
         if menu.items.first(where: { $0.action == #selector(AppDelegate.showDefaultImageAppSettings(_:)) }) == nil {

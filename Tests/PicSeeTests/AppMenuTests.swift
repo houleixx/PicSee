@@ -18,7 +18,7 @@ final class AppMenuTests: XCTestCase {
         }
 
         XCTAssertEqual(submenu.items.first?.title, "关于 PicSee")
-        XCTAssertEqual(submenu.items.first?.action, #selector(AppDelegate.showAboutPanel(_:)))
+        XCTAssertEqual(submenu.items.first?.action, #selector(AppDelegate.showAboutSettings(_:)))
         XCTAssertNotNil(submenu.items.first { $0.title == "设置默认图片打开方式..." })
         XCTAssertEqual(
             submenu.items.first { $0.title == "设置默认图片打开方式..." }?.action,
@@ -36,23 +36,7 @@ final class AppMenuTests: XCTestCase {
         ]
 
         XCTAssertEqual(AppMenu.applicationName(from: info), "PicSee")
-        XCTAssertEqual(AppMenu.versionSummary(from: info), "版本 0.2.5 (7)")
-        XCTAssertEqual(AppMenu.aboutPanelVersion(from: info), "0.2.5")
-    }
-
-    func testAboutPanelCreditsIncludeReleaseLinkAndThanks() {
-        let info: [String: Any] = [:]
-
-        let credits = AppMenu.aboutPanelCredits(from: info)
-        let text = credits.string
-        let releaseURL = URL(string: "https://picsee.pages.dev/")!
-
-        XCTAssertTrue(text.contains("下载地址：https://picsee.pages.dev\n"))
-        XCTAssertTrue(text.contains("感谢“大脑袋范同学”提出的优化建议"))
-
-        let urlRange = (text as NSString).range(of: "https://picsee.pages.dev")
-        XCTAssertNotEqual(urlRange.location, NSNotFound)
-        XCTAssertEqual(credits.attribute(.link, at: urlRange.location, effectiveRange: nil) as? URL, releaseURL)
+        XCTAssertEqual(AppMenu.versionSummary(from: info), "版本 0.2.5")
     }
 
     func testReleasePageURLUsesWebsite() {
@@ -80,7 +64,7 @@ final class AppMenuTests: XCTestCase {
         )
         XCTAssertEqual(
             menu?.items.first { $0.title == "关于 PicSee" }?.action,
-            #selector(AppDelegate.showAboutPanel(_:))
+            #selector(AppDelegate.showAboutSettings(_:))
         )
     }
 
@@ -473,7 +457,7 @@ final class AppMenuTests: XCTestCase {
 
         let aboutItems = menu.items.filter { $0.title == "关于 PicSee" }
         XCTAssertEqual(aboutItems.count, 1)
-        XCTAssertEqual(aboutItems.first?.action, #selector(AppDelegate.showAboutPanel(_:)))
+        XCTAssertEqual(aboutItems.first?.action, #selector(AppDelegate.showAboutSettings(_:)))
     }
 
     private func rightClickEvent() -> NSEvent {

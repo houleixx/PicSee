@@ -4,7 +4,12 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowManager = WindowManager()
     private var didReceiveOpenRequest = false
-    private var defaultImageAppSettingsWindowController: DefaultImageAppSettingsWindowController?
+    private var settingsWindowController: SettingsWindowController?
+
+    init(settingsWindowController: SettingsWindowController? = nil) {
+        self.settingsWindowController = settingsWindowController
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ImageDragFileProvider().cleanupExpiredFiles()
@@ -17,33 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc func showAboutPanel(_ sender: Any?) {
-        let info = Bundle.main.infoDictionary ?? [:]
-        let credits = AppMenu.aboutPanelCredits(from: info)
-        NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: AppMenu.applicationName(from: info),
-            .applicationVersion: AppMenu.aboutPanelVersion(from: info),
-            .credits: credits
-        ])
-        for window in NSApp.windows {
-            if let contentView = window.contentView {
-                removeAboutLinkUnderlines(in: contentView, credits: credits.string)
-            }
-        }
-    }
-
-    private func removeAboutLinkUnderlines(in view: NSView, credits: String) {
-        if let textView = view as? NSTextView, textView.string.contains(credits) {
-            // NSTextView applies linkTextAttributes over the attributed string.
-            // Keep its link color and cursor, but override the default underline.
-            var attributes = textView.linkTextAttributes ?? [:]
-            attributes[.underlineStyle] = 0
-            textView.linkTextAttributes = attributes
-            textView.needsDisplay = true
-        }
-        for subview in view.subviews {
-            removeAboutLinkUnderlines(in: subview, credits: credits)
-        }
+    @objc func showAboutSettings(_ sender: Any?) {
+        showSettings(page: .about)
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -95,15 +75,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showDefaultImageAppSettings(_ sender: Any?) {
+        showSettings(page: .defaultApps)
+    }
+
+    @objc func showSettings(_ sender: Any?) {
+        showSettings(page: .browsing)
+    }
+
+    private func showSettings(page: SettingsPage) {
         do {
-            let controller = try defaultImageAppSettingsWindowController ?? DefaultImageAppSettingsWindowController(
-                handler: LaunchServicesDefaultImageAppHandler()
+            let controller = try settingsWindowController ?? SettingsWindowController(
+                updateChecker: windowManager.updateChecker,
+                defaultAppHandler: LaunchServicesDefaultImageAppHandler(),
+                captureFixedWindowFrame: { [weak self] in self?.windowManager.captureFixedWindowFrame() }
             )
-            defaultImageAppSettingsWindowController = controller
-            controller.show()
+            settingsWindowController = controller
+            controller.show(page: page)
         } catch {
             let alert = NSAlert(error: error)
-            alert.messageText = "无法打开默认图片设置"
+            alert.messageText = "无法打开设置"
             alert.runModal()
         }
     }
@@ -116,6 +106,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        showDefaultImageAppSettings(nil)
+        showSettings(page: .defaultApps)
     }
 }

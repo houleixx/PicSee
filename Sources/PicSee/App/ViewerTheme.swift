@@ -29,6 +29,8 @@ enum ViewerTheme: Int, CaseIterable {
     }
 
     static func set(_ theme: ViewerTheme, in defaults: UserDefaults = .standard) {
+        guard theme != current(in: defaults) else { return }
         defaults.set(theme.rawValue, forKey: defaultsKey)
+        ViewerPreferenceChange.post(in: defaults)
     }
 }

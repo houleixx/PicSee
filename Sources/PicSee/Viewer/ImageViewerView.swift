@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ImageViewerView: View {
+    @ObservedObject private var preferences = ViewerPreferences.shared
     @ObservedObject var viewModel: ImageViewerViewModel
     let updateChecker: UpdateChecker?
     let onTitleBarVisibilityChanged: (Bool) -> Void
@@ -279,7 +280,7 @@ struct ImageViewerView: View {
         .overlay(alignment: .center) {
             if clipboardNoticeID != nil || latestVersionNoticeID != nil {
                 VStack(spacing: 16) {
-                    Image(nsImage: Self.successNoticeIcon)
+                    Image(nsImage: PhosphorImages.check)
                         .resizable()
                         .renderingMode(.template)
                         .scaledToFit()
@@ -360,6 +361,21 @@ struct ImageViewerView: View {
             imageParametersVisible.toggle()
             ViewerOverlayPreference.setImageParametersVisible(imageParametersVisible)
         }
+        // Initial @State values are read directly from defaults. A cached shared
+        // snapshot must not overwrite newer values when a viewer first opens.
+        .onReceive(preferences.$snapshot.dropFirst()) { snapshot in
+            if titleBarVisible != snapshot.titleBarVisible {
+                titleBarVisible = snapshot.titleBarVisible
+                onTitleBarVisibilityChanged(snapshot.titleBarVisible)
+            }
+            if fixedWindowEnabled != snapshot.fixedWindowEnabled {
+                fixedWindowEnabled = snapshot.fixedWindowEnabled
+                onFixedWindowChanged(snapshot.fixedWindowEnabled)
+            }
+            fileInfoVisible = snapshot.fileInfoVisible
+            toolbarVisible = snapshot.toolbarVisible
+            imageParametersVisible = snapshot.imageParametersVisible
+        }
         .onReceive(NotificationCenter.default.publisher(for: ViewerOverlayPreference.didEnterFullScreenNotification)) { _ in
             isFullScreen = true
         }
@@ -370,17 +386,6 @@ struct ImageViewerView: View {
             isFullScreen = false
         }
     }
-
-    private static let successNoticeIcon: NSImage = {
-        guard let url = PicSeeResourceBundle.url(
-            forResource: "check-bold",
-            withExtension: "svg",
-            subdirectory: "Phosphor.xcassets/check-bold.imageset"
-        ), let image = NSImage(contentsOf: url) else {
-            preconditionFailure("Missing Phosphor check-bold icon")
-        }
-        return image
-    }()
 
     private func copyCurrentImage() {
         guard let image = viewModel.image else { return }

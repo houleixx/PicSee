@@ -123,7 +123,7 @@ final class ViewerPreferencesTests: XCTestCase {
         canvas.debugAppendPicSeeContextMenuItems(to: menu)
         canvas.debugAppendPicSeeContextMenuItems(to: menu)
         XCTAssertEqual(menu.items.filter { $0.action == #selector(AppDelegate.showSettings(_:)) }.count, 1)
-        for title in ["设置图片默认打开方式", "检查更新", "关于 PicSee", "主题", "显示缩略图"] {
+        for title in ["默认打开方式…", "检查更新", "关于 PicSee", "主题", "显示缩略图"] {
             XCTAssertNotNil(menu.items.first { $0.title == title })
         }
         let main = AppMenu.buildMainMenu(appName: "PicSee")

@@ -18,7 +18,7 @@ enum AppMenu {
         ))
         appMenu.addItem(
             NSMenuItem(
-                title: "设置默认图片打开方式...",
+                title: "默认打开方式…",
                 action: #selector(AppDelegate.showDefaultImageAppSettings(_:)),
                 keyEquivalent: ""
             )

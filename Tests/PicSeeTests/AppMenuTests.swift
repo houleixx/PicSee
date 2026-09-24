@@ -19,9 +19,9 @@ final class AppMenuTests: XCTestCase {
 
         XCTAssertEqual(submenu.items.first?.title, "关于 PicSee")
         XCTAssertEqual(submenu.items.first?.action, #selector(AppDelegate.showAboutSettings(_:)))
-        XCTAssertNotNil(submenu.items.first { $0.title == "设置默认图片打开方式..." })
+        XCTAssertNotNil(submenu.items.first { $0.title == "默认打开方式…" })
         XCTAssertEqual(
-            submenu.items.first { $0.title == "设置默认图片打开方式..." }?.action,
+            submenu.items.first { $0.title == "默认打开方式…" }?.action,
             #selector(AppDelegate.showDefaultImageAppSettings(_:))
         )
         XCTAssertEqual(submenu.items.last?.title, "退出 PicSee")
@@ -55,11 +55,11 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(menu?.items.first { $0.title == "显示图片参数" })
         XCTAssertNotNil(menu?.items.first { $0.title == "固定窗口大小和位置" })
         XCTAssertNotNil(menu?.items.first { $0.title == "图片另存为..." })
-        XCTAssertNotNil(menu?.items.first { $0.title == "设置图片默认打开方式" })
+        XCTAssertNotNil(menu?.items.first { $0.title == "默认打开方式…" })
         XCTAssertNotNil(menu?.items.first { $0.title == "检查更新" })
         XCTAssertNotNil(menu?.items.first { $0.title == "关于 PicSee" })
         XCTAssertEqual(
-            menu?.items.first { $0.title == "设置图片默认打开方式" }?.action,
+            menu?.items.first { $0.title == "默认打开方式…" }?.action,
             #selector(AppDelegate.showDefaultImageAppSettings(_:))
         )
         XCTAssertEqual(
@@ -183,7 +183,7 @@ final class AppMenuTests: XCTestCase {
         XCTAssertTrue(items[updateIndex].isEnabled)
     }
 
-    func testImageContextMenuShowsDefaultImageSettingsAboveCheckForUpdates() {
+    func testImageContextMenuGroupsSettingsAndApplicationInfo() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
         view.onCheckForUpdates = {}
 
@@ -191,14 +191,17 @@ final class AppMenuTests: XCTestCase {
 
         guard
             let items = menu?.items,
-            let defaultSettingsIndex = items.firstIndex(where: { $0.title == "设置图片默认打开方式" }),
+            let settingsIndex = items.firstIndex(where: { $0.title == "设置…" }),
+            let defaultSettingsIndex = items.firstIndex(where: { $0.title == "默认打开方式…" }),
             let updateIndex = items.firstIndex(where: { $0.title == "检查更新" })
         else {
             return XCTFail("Expected default image settings and update menu items")
         }
 
-        XCTAssertEqual(defaultSettingsIndex + 2, updateIndex)
-        XCTAssertTrue(items[defaultSettingsIndex + 1].isSeparatorItem)
+        XCTAssertGreaterThan(settingsIndex, 0)
+        if settingsIndex > 0 { XCTAssertTrue(items[settingsIndex - 1].isSeparatorItem) }
+        XCTAssertEqual(settingsIndex + 1, defaultSettingsIndex)
+        XCTAssertEqual(defaultSettingsIndex + 1, updateIndex)
         XCTAssertEqual(items[defaultSettingsIndex].action, #selector(AppDelegate.showDefaultImageAppSettings(_:)))
         XCTAssertFalse(items[defaultSettingsIndex].isSeparatorItem)
     }
@@ -443,7 +446,7 @@ final class AppMenuTests: XCTestCase {
         XCTAssertNotNil(menu.items.first { $0.title == "显示底部工具栏" })
         XCTAssertNotNil(menu.items.first { $0.title == "显示图片参数" })
         XCTAssertNotNil(menu.items.first { $0.title == "固定窗口大小和位置" })
-        XCTAssertNotNil(menu.items.first { $0.title == "设置图片默认打开方式" })
+        XCTAssertNotNil(menu.items.first { $0.title == "默认打开方式…" })
         XCTAssertNotNil(menu.items.first { $0.title == "检查更新" })
         XCTAssertNotNil(menu.items.first { $0.title == "关于 PicSee" })
     }

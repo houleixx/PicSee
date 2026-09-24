@@ -1369,11 +1369,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         }
 
         if menu.items.first(where: { $0.action == #selector(AppDelegate.showDefaultImageAppSettings(_:)) }) == nil {
-            if !menu.items.isEmpty {
-                menu.addItem(.separator())
-            }
             let defaultSettingsItem = NSMenuItem(
-                title: "设置图片默认打开方式",
+                title: "默认打开方式…",
                 action: #selector(AppDelegate.showDefaultImageAppSettings(_:)),
                 keyEquivalent: ""
             )
@@ -1382,10 +1379,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         }
 
         if menu.items.first(where: { $0.action == #selector(checkForUpdatesForMenu(_:)) }) == nil {
-            if !menu.items.isEmpty {
-                menu.addItem(.separator())
-            }
-
             let updateItem = NSMenuItem(title: "检查更新", action: #selector(checkForUpdatesForMenu(_:)), keyEquivalent: "")
             updateItem.target = self
             updateItem.isEnabled = onCheckForUpdates != nil

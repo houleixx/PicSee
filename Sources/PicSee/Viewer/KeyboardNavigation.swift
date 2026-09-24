@@ -23,6 +23,8 @@ enum KeyboardNavigation {
         }
         guard commandModifiers.isEmpty else { return .none }
         switch keyCode {
+        case 51, 117:
+            return isRepeat ? .none : .trash
         case 123, 126:
             return .previous
         case 124, 125:

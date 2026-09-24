@@ -269,6 +269,26 @@ final class ImageDeletionTests: XCTestCase {
         XCTAssertEqual(model.nextURL, second)
     }
 
+    func testDeleteKeysUseExistingTrashActionAndRespectAvailability() throws {
+        let canvas = CanvasNSView(frame: .zero, backend: .vision)
+        var calls = 0
+        canvas.onTrashImage = { calls += 1 }
+        for keyCode: UInt16 in [51, 117] {
+            let event = try XCTUnwrap(NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                windowNumber: 0, context: nil, characters: "\u{8}",
+                charactersIgnoringModifiers: "\u{8}", isARepeat: false, keyCode: keyCode
+            ))
+            canvas.canTrashImage = false
+            let before = calls
+            canvas.keyDown(with: event)
+            XCTAssertEqual(calls, before)
+            canvas.canTrashImage = true
+            canvas.keyDown(with: event)
+            XCTAssertEqual(calls, before + 1)
+        }
+    }
+
     func testContextMenuRoutesActionsAndValidatesAvailability() {
         let canvas = CanvasNSView(frame: .zero, backend: .vision)
         let menu = NSMenu()

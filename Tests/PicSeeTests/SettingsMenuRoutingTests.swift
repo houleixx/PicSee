@@ -38,11 +38,11 @@ final class SettingsMenuRoutingTests: XCTestCase {
         let menu = try XCTUnwrap(view.menu(for: event))
         let entries: [(String, SettingsPage)] = [
             ("设置…", .browsing),
-            ("设置图片默认打开方式", .defaultApps),
+            ("默认打开方式…", .defaultApps),
             ("关于 PicSee", .about),
             ("设置…", .browsing),
             ("关于 PicSee", .about),
-            ("设置图片默认打开方式", .defaultApps)
+            ("默认打开方式…", .defaultApps)
         ]
         controller.navigation.page = .about
         for (index, entry) in entries.enumerated() {

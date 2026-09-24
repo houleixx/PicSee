@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import PicSee
 
@@ -24,8 +25,18 @@ final class KeyboardNavigationTests: XCTestCase {
         XCTAssertEqual(KeyboardNavigation.action(for: 34), .toggleImageParameters)
     }
 
-    func testTrashRequiresCommandAndDoesNotRepeat() {
-        XCTAssertEqual(KeyboardNavigation.action(for: 51), .none)
+    func testDeleteAndForwardDeleteTrashWithoutRepeating() {
+        for keyCode: UInt16 in [51, 117] {
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode), .trash)
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode, isRepeat: true), .none)
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: .function), .trash)
+            for modifiers: NSEvent.ModifierFlags in [.shift, .option, .control] {
+                XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: modifiers), .none)
+            }
+        }
+    }
+
+    func testCommandDeleteStillTrashesWithoutRepeating() {
         XCTAssertEqual(KeyboardNavigation.action(for: 51, modifiers: .command), .trash)
         XCTAssertEqual(KeyboardNavigation.action(for: 51, modifiers: [.command, .shift]), .none)
         XCTAssertEqual(KeyboardNavigation.action(for: 51, modifiers: .command, isRepeat: true), .none)

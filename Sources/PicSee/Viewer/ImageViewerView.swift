@@ -306,18 +306,6 @@ struct ImageViewerView: View {
                 .padding(.top, 56)
             }
         }
-        .overlay(alignment: .topTrailing) {
-            if screenshotDocument == nil && (!viewModel.isNavigationOrderReady || viewModel.sortStatus.contains("当前按名称")) {
-                Text(viewModel.sortStatus)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .padding(10)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                    .frame(maxWidth: 300)
-                    .padding(12)
-                    .allowsHitTesting(false)
-            }
-        }
         .task(id: viewModel.deletionNoticeID) {
             deletionNoticeVisible = viewModel.deletionNoticeID != nil
             guard deletionNoticeVisible else { return }

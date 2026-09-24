@@ -26,7 +26,6 @@ final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var transformAnimationID = 0
     @Published private(set) var navigationDirection: Int?
     @Published private(set) var isNavigationOrderReady: Bool
-    @Published private(set) var sortStatus = "正在读取 Finder 排序…"
     private let finderOrderProvider: any FinderFolderOrderProviding
 
     @Published private var navigator: FolderImageNavigator?
@@ -68,14 +67,12 @@ final class ImageViewerViewModel: ObservableObject {
         let folderURL = initialURL.deletingLastPathComponent()
         let provider = finderOrderProvider
         isNavigationOrderReady = !waitForResult && provider.isOrderingAvailableImmediately
-        sortStatus = "正在读取 Finder 排序…"
         finderOrderTask = Task { [weak self] in
             let result = await provider.ordering(for: folderURL)
             guard !Task.isCancelled, let self,
                   self.navigationRevision == initialRevision,
                   self.currentURL == initialURL else { return }
             self.establishNavigator(for: initialURL, preferredOrder: result.urls)
-            self.sortStatus = result.status
             self.isNavigationOrderReady = true
             self.applyPendingNavigation()
         }

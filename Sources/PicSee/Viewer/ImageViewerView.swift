@@ -21,6 +21,7 @@ struct ImageViewerView: View {
     @State private var screenshotDocument: ScreenshotDocument?
     @State private var screenshotError: String?
     @State private var clipboardNoticeID: UUID?
+    @State private var latestVersionNoticeID: UUID?
     @State private var clipboardError: String?
     @State private var deletionNoticeVisible = false
     private let hudPadding: CGFloat = 12
@@ -84,7 +85,11 @@ struct ImageViewerView: View {
                     },
                     onCheckForUpdates: {
                         Task {
-                            await updateChecker?.checkForUpdatesManually()
+                            latestVersionNoticeID = nil
+                            if await updateChecker?.checkForUpdatesManually() == true {
+                                clipboardNoticeID = nil
+                                latestVersionNoticeID = UUID()
+                            }
                         }
                     },
                     canTrashImage: viewModel.canTrashCurrentImage,
@@ -261,7 +266,10 @@ struct ImageViewerView: View {
                             rotationDegrees: viewModel.rotationDegrees
                         ).imageRect,
                         onClose: closeScreenshot,
-                        onCopy: { clipboardNoticeID = UUID() }
+                        onCopy: {
+                            latestVersionNoticeID = nil
+                            clipboardNoticeID = UUID()
+                        }
                     )
                 }
                 .transition(.opacity)
@@ -269,12 +277,16 @@ struct ImageViewerView: View {
         }
         .animation(.easeOut(duration: 0.15), value: screenshotDocument != nil)
         .overlay(alignment: .center) {
-            if clipboardNoticeID != nil {
+            if clipboardNoticeID != nil || latestVersionNoticeID != nil {
                 VStack(spacing: 16) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 34, weight: .medium))
+                    Image(nsImage: Self.successNoticeIcon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                        .foregroundStyle(Color.green)
                         .accessibilityHidden(true)
-                    Text("已复制到剪贴板")
+                    Text(latestVersionNoticeID != nil ? "已经是最新版本了" : "已复制到剪贴板")
                         .font(.system(size: 14, weight: .medium))
                 }
                 .foregroundStyle(.white)
@@ -286,7 +298,7 @@ struct ImageViewerView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.18), value: clipboardNoticeID != nil)
+        .animation(.easeInOut(duration: 0.18), value: clipboardNoticeID != nil || latestVersionNoticeID != nil)
         .overlay(alignment: .top) {
             if deletionNoticeVisible && !viewModel.isFolderEmpty && screenshotDocument == nil {
                 HStack(spacing: 14) {
@@ -319,6 +331,11 @@ struct ImageViewerView: View {
             guard clipboardNoticeID != nil else { return }
             do { try await Task.sleep(for: .seconds(2)) } catch { return }
             clipboardNoticeID = nil
+        }
+        .task(id: latestVersionNoticeID) {
+            guard latestVersionNoticeID != nil else { return }
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            latestVersionNoticeID = nil
         }
         .alert("无法复制图片", isPresented: Binding(
             get: { clipboardError != nil }, set: { if !$0 { clipboardError = nil } }
@@ -354,8 +371,20 @@ struct ImageViewerView: View {
         }
     }
 
+    private static let successNoticeIcon: NSImage = {
+        guard let url = PicSeeResourceBundle.url(
+            forResource: "check-bold",
+            withExtension: "svg",
+            subdirectory: "Phosphor.xcassets/check-bold.imageset"
+        ), let image = NSImage(contentsOf: url) else {
+            preconditionFailure("Missing Phosphor check-bold icon")
+        }
+        return image
+    }()
+
     private func copyCurrentImage() {
         guard let image = viewModel.image else { return }
+        latestVersionNoticeID = nil
         clipboardNoticeID = nil
         do {
             let copiedImage = viewModel.rotationDegrees == 0

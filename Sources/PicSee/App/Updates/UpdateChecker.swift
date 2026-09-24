@@ -82,8 +82,11 @@ final class UpdateChecker: ObservableObject {
         _ = await performUpdateCheck()
     }
 
-    func checkForUpdatesManually() async {
-        _ = await performUpdateCheck(ignoresSkippedVersion: true)
+    /// Returns whether the check succeeded and the app is already up to date.
+    @discardableResult
+    func checkForUpdatesManually() async -> Bool {
+        let succeeded = await performUpdateCheck(ignoresSkippedVersion: true)
+        return succeeded && availableUpdate == nil
     }
 
     @discardableResult

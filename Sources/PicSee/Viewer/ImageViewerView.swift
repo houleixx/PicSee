@@ -302,18 +302,20 @@ struct ImageViewerView: View {
         .animation(.easeInOut(duration: 0.18), value: clipboardNoticeID != nil || latestVersionNoticeID != nil)
         .overlay(alignment: .top) {
             if deletionNoticeVisible && !viewModel.isFolderEmpty && screenshotDocument == nil {
-                HStack(spacing: 14) {
-                    Text("已移到废纸篓")
-                    if viewModel.canUndoDeletion {
-                        Button("撤销", action: viewModel.undoDeletion)
-                            .buttonStyle(.bordered)
-                            .help("撤销移到废纸篓（⌘Z）")
-                    }
-                }
-                .font(.system(size: 13))
-                .padding(12)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                DeletionNoticeView(canUndo: viewModel.canUndoDeletion, onUndo: viewModel.undoDeletion)
                 .padding(.top, 56)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if screenshotDocument == nil && (!viewModel.isNavigationOrderReady || viewModel.sortStatus.contains("当前按名称")) {
+                Text(viewModel.sortStatus)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .padding(10)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .frame(maxWidth: 300)
+                    .padding(12)
+                    .allowsHitTesting(false)
             }
         }
         .task(id: viewModel.deletionNoticeID) {

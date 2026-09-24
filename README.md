@@ -113,7 +113,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.58 PICSEE_BUILD_NUMBER=58 Scripts/build-app.sh
+PICSEE_VERSION=0.2.59 PICSEE_BUILD_NUMBER=59 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -130,15 +130,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.58.dmg`
+- DMG: `build/dmg/PicSee-0.2.59.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.58 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.59 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.58.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.59.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -163,17 +163,18 @@ PICSEE_VERSION=0.2.58 Scripts/build-dmg.sh
 
 左右翻页支持双向循环：最后一张继续向后会回到第一张，第一张继续向前会回到最后一张，不显示循环提示。目录中只有一张图片时不翻页，左右箭头隐藏。
 
-Finder 能通过系统脚本接口返回可靠顺序时，PicSee 会按该顺序切图。首次查询且尚未决定权限时，系统会弹出自动化授权请求。授权弹窗结束后会恢复原看图窗口的焦点，已有授权决定时不会额外恢复焦点。授权等待与排序查询的超时分开处理；等待授权或无法可靠读取时，PicSee 使用文件名顺序，不阻塞翻页。若已拒绝或手动关闭权限，系统不会重复询问，可在“系统设置 → 隐私与安全性 → 自动化 → PicSee”中重新启用 Finder 权限。
+默认“跟随 Finder”：普通列表视图只读取排序字段和升降序，再批量读取本地文件信息排序，避免逐项向 Finder 查询导致超时。分栏视图读取 Finder 保存的排列规则；相同日期字段的降序分组也可使用。保存的设置可能晚于 Finder 当前状态。图标手动排列仍按位置读取。不会申请辅助功能权限。
 
-**回退到文件名排序的情况：**
-- 未授权自动化权限
-- Finder 窗口未打开或找不到对应文件夹
-- 列视图（Column View）或画廊视图（Gallery View）
-- 列表视图按"日期添加"排序
-- Finder 使用分组或其他脚本接口无法可靠描述的排列方式
-- 查询超时或失败
+图片立即显示，排序查询在后台执行；完成前的翻页按键会排队，完成后依次处理，避免过早翻页锁定错误的文件名顺序。查询失败时使用名称自然升序，并显示提示，不会在浏览中途自行换序。
 
-回退时使用文件名的自然排序（localized standard compare），与 Finder 的"按名称排序"一致。
+翻页只自动跟随 Finder，不提供手动排序或文件夹排序偏好。在 Finder 改变排列后，重新打开看图窗口即可读取最新规则。相同字段值以名称自然升序确定稳定顺序。
+
+首次使用 Finder 自动化且尚未决定权限时，系统会弹出授权请求；等待授权与脚本查询超时分别处理。授权结束后恢复看图窗口焦点。若已拒绝授权，可在“系统设置 → 隐私与安全性 → 自动化 → PicSee”中重新启用 Finder。
+
+**自动读取的限制：**
+- 找不到对应 Finder 窗口、未授权、查询失败或必要元数据缺失时，显示回退提示。
+- 画廊、自动排列的图标视图、无法识别的保存规则，以及不同分组字段和组内排序字段的组合，暂不能保证还原显示顺序，读取失败时显示回退提示。
+- 已保存的 Finder 视图信息可能滞后，自动读取不保证所有视图和系统版本完全一致。
 
 ### 4. 图片裁剪与标注
 
@@ -249,14 +250,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.58
-git push origin v0.2.58
+git tag v0.2.59
+git push origin v0.2.59
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.58`
-- Asset: `PicSee-0.2.58.dmg`
+- Release: `v0.2.59`
+- Asset: `PicSee-0.2.59.dmg`
 
 ## Release 说明
 

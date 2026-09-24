@@ -43,10 +43,11 @@ final class FinderFolderOrderProviderTests: XCTestCase {
         XCTAssertFalse(source.contains("iconArrangement is arranged by size"))
     }
 
-    func testColumnAndGroupedViewsUseDefaultFallbackWithoutChangingFinderSelection() {
+    func testColumnViewRequestsSavedRuleWithoutChangingFinderSelection() {
         let source = scriptSource()
 
-        XCTAssertTrue(source.contains("else if viewMode is column view or viewMode is group view then"))
+        XCTAssertTrue(source.contains("else if viewMode is column view then"))
+        XCTAssertTrue(source.contains("return \"COLUMN\""))
         XCTAssertTrue(source.contains("return \"\""))
         XCTAssertFalse(source.contains("set savedSelection to selection"))
         XCTAssertFalse(source.contains("set selection to folderItems"))
@@ -86,7 +87,7 @@ final class FinderFolderOrderProviderTests: XCTestCase {
         XCTAssertNil(FinderFolderOrderProvider.parseOutput("NO_MATCHING_WINDOW"))
     }
 
-    func testUnavailableSystemOrderUsesImmediateFallbackWithoutReadingDirectory() async {
+    func testUnavailableSystemOrderFinishesWithoutReadingDirectory() async {
         let directoryWasRead = ThreadSafeFlag()
         let provider = FinderFolderOrderProvider(
             { _ in nil },
@@ -97,7 +98,7 @@ final class FinderFolderOrderProviderTests: XCTestCase {
             permissionRequester: { true }
         )
 
-        XCTAssertTrue(provider.isOrderingAvailableImmediately)
+        XCTAssertFalse(provider.isOrderingAvailableImmediately)
         let result = await provider.orderedURLs(
             for: URL(fileURLWithPath: "/tmp/photos", isDirectory: true)
         )

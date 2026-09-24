@@ -26,6 +26,8 @@ final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var transformAnimationID = 0
     @Published private(set) var navigationDirection: Int?
     @Published private(set) var isNavigationOrderReady: Bool
+    @Published private(set) var sortStatus = "正在读取 Finder 排序…"
+    private let finderOrderProvider: any FinderFolderOrderProviding
 
     @Published private var navigator: FolderImageNavigator?
     private let fileManager: FileManager
@@ -46,6 +48,7 @@ final class ImageViewerViewModel: ObservableObject {
         fileManager: FileManager = .default,
         imageTrash: any ImageTrashing = ImageTrash()
     ) {
+        self.finderOrderProvider = finderOrderProvider
         self.currentURL = imageURL.standardizedFileURL
         self.fileManager = fileManager
         self.imageTrash = imageTrash
@@ -53,18 +56,26 @@ final class ImageViewerViewModel: ObservableObject {
         establishNavigator(for: imageURL, preferredOrder: nil)
         _ = load(imageURL: imageURL)
 
-        let initialURL = imageURL.standardizedFileURL
+        startImageOrder(waitForResult: false)
+    }
+
+    private func startImageOrder(waitForResult: Bool) {
+        finderOrderTask?.cancel()
+        navigationRevision += 1
+        pendingNavigationDirections.removeAll()
+        let initialURL = currentURL
         let initialRevision = navigationRevision
         let folderURL = initialURL.deletingLastPathComponent()
+        let provider = finderOrderProvider
+        isNavigationOrderReady = !waitForResult && provider.isOrderingAvailableImmediately
+        sortStatus = "正在读取 Finder 排序…"
         finderOrderTask = Task { [weak self] in
-            let preferredOrder = await finderOrderProvider.orderedURLs(for: folderURL)
-            guard let self,
+            let result = await provider.ordering(for: folderURL)
+            guard !Task.isCancelled, let self,
                   self.navigationRevision == initialRevision,
-                  self.currentURL == initialURL
-            else {
-                return
-            }
-            self.establishNavigator(for: initialURL, preferredOrder: preferredOrder)
+                  self.currentURL == initialURL else { return }
+            self.establishNavigator(for: initialURL, preferredOrder: result.urls)
+            self.sortStatus = result.status
             self.isNavigationOrderReady = true
             self.applyPendingNavigation()
         }
@@ -205,14 +216,14 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func navigate(to url: URL) {
+        let standardizedURL = url.standardizedFileURL
+        let changedFolder = standardizedURL.deletingLastPathComponent() != currentURL.deletingLastPathComponent()
+        let needsOrder = changedFolder || !isNavigationOrderReady || navigator?.images.contains(standardizedURL) != true
         navigationRevision += 1
         pendingNavigationDirections.removeAll()
-        isNavigationOrderReady = true
-        let standardizedURL = url.standardizedFileURL
-        if navigator?.images.contains(standardizedURL) != true {
-            establishNavigator(for: standardizedURL, preferredOrder: nil)
-        }
+        if needsOrder { establishNavigator(for: standardizedURL, preferredOrder: nil) }
         _ = load(imageURL: standardizedURL)
+        if needsOrder { startImageOrder(waitForResult: true) }
     }
 
     func resetViewTransform() {

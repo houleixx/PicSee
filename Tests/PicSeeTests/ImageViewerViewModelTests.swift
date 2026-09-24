@@ -105,6 +105,42 @@ final class ImageViewerViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testProductionProviderQueuesEarlyNavigationUntilRuleIsReady() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        _ = try writePNG(named: "002.png", color: .blue)
+        let third = try writePNG(named: "003.png", color: .green)
+        let provider = FinderFolderOrderProvider(
+            { _ in
+                Thread.sleep(forTimeInterval: 0.1)
+                return "RULE\tname\tDESC"
+            }, permissionRequester: { true },
+            settingsReader: { _ in FinderStoredViewSettings(records: [:], columnOptions: [:]) }
+        )
+        let model = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        XCTAssertFalse(model.isNavigationOrderReady)
+        model.navigateToNext()
+        XCTAssertEqual(model.currentURL, first)
+        try await waitUntil { model.isNavigationOrderReady }
+        XCTAssertEqual(model.currentURL, third)
+    }
+
+    @MainActor
+    func testReopeningViewerReadsCurrentFinderOrderAgain() async throws {
+        let first = try writePNG(named: "001.png", color: .red)
+        let second = try writePNG(named: "002.png", color: .blue)
+        let third = try writePNG(named: "003.png", color: .green)
+        let provider = StubFinderOrderProvider(orderedURLs: [first, third, second])
+        let original = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        try await waitUntil { original.isNavigationOrderReady }
+        XCTAssertEqual(original.nextURL, third)
+        provider.orderedURLs = [first, second, third]
+        let reopened = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        try await waitUntil { reopened.isNavigationOrderReady }
+        XCTAssertEqual(reopened.nextURL, second)
+        XCTAssertEqual(provider.requestedFolders.count, 2)
+    }
+
+    @MainActor
     func testFinderOrderIsReadOnlyOnceAndRemainsStableForSession() async throws {
         let first = try writePNG(named: "001.png", color: .red)
         let second = try writePNG(named: "002.png", color: .blue)

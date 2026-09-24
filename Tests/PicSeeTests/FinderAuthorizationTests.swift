@@ -20,8 +20,8 @@ struct FinderAuthorizationTests {
         let result = await provider.orderedURLs(for: URL(fileURLWithPath: "/tmp/photos"))
 
         #expect(result == nil)
-        #expect(provider.isOrderingAvailableImmediately)
-        #expect(calls.values.isEmpty, "Unauthorized scripts would start the one-second permission timeout")
+        #expect(!provider.isOrderingAvailableImmediately)
+        #expect(calls.values.isEmpty, "Unauthorized scripts would start the sorting timeout while requesting permission")
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -32,7 +32,7 @@ struct FinderAuthorizationTests {
         let provider = FinderFolderOrderProvider(
             { source in
                 calls.record("script")
-                #expect(source.contains("with timeout of 1 second"))
+                #expect(source.contains("with timeout of 3 seconds"))
                 return "ORDERED\n\(image.absoluteString)"
             },
             directoryReader: { _ in [image] },
@@ -41,9 +41,9 @@ struct FinderAuthorizationTests {
         let lookup = Task { await provider.orderedURLs(for: image.deletingLastPathComponent()) }
         await permission.waitUntilRequested()
 
-        // Reproduce a person taking more than the old one-second limit to respond.
-        try await Task.sleep(for: .milliseconds(1200))
-        #expect(provider.isOrderingAvailableImmediately)
+        // Reproduce a person taking more than the three-second query limit to respond.
+        try await Task.sleep(for: .milliseconds(3200))
+        #expect(!provider.isOrderingAvailableImmediately)
         #expect(calls.values.isEmpty)
 
         await permission.resolve(true)

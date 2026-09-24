@@ -6,10 +6,15 @@ import OSLog
 protocol FinderFolderOrderProviding: Sendable {
     var isOrderingAvailableImmediately: Bool { get }
     func orderedURLs(for folderURL: URL) async -> [URL]?
+    func ordering(for folderURL: URL) async -> FolderOrderingResult
 }
 
 extension FinderFolderOrderProviding {
     var isOrderingAvailableImmediately: Bool { false }
+    func ordering(for folderURL: URL) async -> FolderOrderingResult {
+        let urls = await orderedURLs(for: folderURL)
+        return FolderOrderingResult(urls: urls, status: urls == nil ? FolderOrderingResult.unavailable.status : "跟随 Finder")
+    }
 }
 
 struct FilenameFolderOrderProvider: FinderFolderOrderProviding {
@@ -23,6 +28,9 @@ struct FilenameFolderOrderProvider: FinderFolderOrderProviding {
 private enum FinderOrderInstruction: Equatable {
     case exact([URL])
     case positions([PositionedURL])
+    case rule(ImageSortOrder)
+    case column
+    case savedList(ascending: Bool)
 }
 
 struct FinderFolderOrderProvider: FinderFolderOrderProviding {
@@ -33,19 +41,22 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
     private let scriptRunner: ScriptRunner
     private let directoryReader: DirectoryReader
     private let permissionRequester: PermissionRequester
+    private let settingsReader: @Sendable (URL) -> FinderStoredViewSettings
     private static let logger = Logger(subsystem: "local.picsee.viewer", category: "FinderOrder")
 
-    var isOrderingAvailableImmediately: Bool { true }
+    var isOrderingAvailableImmediately: Bool { false }
 
     init(
         _ scriptRunner: ScriptRunner? = nil,
         directoryReader: DirectoryReader? = nil,
         permissionRequester: PermissionRequester? = nil,
+        settingsReader: @escaping @Sendable (URL) -> FinderStoredViewSettings = { FinderStoredViewSettings(folder: $0) },
         onAuthorizationPromptWillBegin: @escaping @MainActor @Sendable () -> Void = {},
         onAuthorizationPromptFinished: @escaping @MainActor @Sendable () -> Void = {}
     ) {
         self.scriptRunner = scriptRunner ?? Self.execute
         self.directoryReader = directoryReader ?? Self.directoryImageURLs
+        self.settingsReader = settingsReader
         self.permissionRequester = permissionRequester ?? {
             await Self.requestPermission(
                 onPromptWillBegin: onAuthorizationPromptWillBegin,
@@ -55,39 +66,69 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
     }
 
     func orderedURLs(for folderURL: URL) async -> [URL]? {
-        // macOS can apply an Apple event's timeout to its consent prompt too.
-        // Resolve consent before sending any of the one-second sorting events.
+        await ordering(for: folderURL).urls
+    }
+
+    func ordering(for folderURL: URL) async -> FolderOrderingResult {
         guard !Task.isCancelled, await permissionRequester(), !Task.isCancelled else {
-            return nil
+            return .unavailable
         }
-
-        guard
-            let output = scriptRunner(Self.scriptSource(folderURL: folderURL)),
-            let instruction = Self.parseInstruction(output)
-        else {
-            return nil
+        // AppleScript/file metadata are blocking. A dedicated serial queue also
+        // prevents simultaneous viewer windows from issuing competing scripts.
+        return await withCheckedContinuation { continuation in
+            Self.readQueue.async {
+                continuation.resume(returning: self.readOrdering(for: folderURL))
+            }
         }
+    }
 
-        guard let directoryURLs = directoryReader(folderURL), !directoryURLs.isEmpty else {
-            return nil
+    private static let readQueue = DispatchQueue(label: "PicSee.FinderOrder", qos: .userInitiated)
+
+    private func readOrdering(for folderURL: URL) -> FolderOrderingResult {
+        guard let output = scriptRunner(Self.scriptSource(folderURL: folderURL)),
+              let instruction = Self.parseInstruction(output) else {
+            Self.logger.notice("Finder sorting rule unavailable")
+            return .unavailable
         }
-
+        guard let directoryURLs = directoryReader(folderURL), !directoryURLs.isEmpty else { return .unavailable }
+        let urls: [URL]?
+        let status: String
         switch instruction {
-        case let .exact(urls):
-            return Self.validatedImageOrder(urls, directoryURLs: directoryURLs)
-        case let .positions(positionedURLs):
-            let urls = positionedURLs.sorted {
+        case .rule(let rule):
+            guard settingsReader(folderURL).supportsGrouping(for: rule) else {
+                return FolderOrderingResult(urls: nil, status: "暂不支持此分组组合，当前按名称升序")
+            }
+            urls = rule.sorted(directoryURLs)
+            status = "跟随 Finder：" + rule.title
+        case .savedList(let ascending):
+            guard let rule = settingsReader(folderURL).listOrder(ascending: ascending) else { return .unavailable }
+            urls = rule.sorted(directoryURLs)
+            status = "按 Finder 保存的排列：" + rule.title
+        case .column:
+            guard let rule = settingsReader(folderURL).columnOrder else { return .unavailable }
+            urls = rule.sorted(directoryURLs)
+            status = "按 Finder 保存的排列：" + rule.title
+        case .exact(let ordered):
+            guard !settingsReader(folderURL).hasGrouping else { return .unavailable }
+            urls = Self.validatedImageOrder(ordered, directoryURLs: directoryURLs)
+            status = "跟随 Finder"
+        case .positions(let positioned):
+            guard !settingsReader(folderURL).hasGrouping else { return .unavailable }
+            let ordered = positioned.sorted {
                 if $0.y != $1.y { return $0.y < $1.y }
                 if $0.x != $1.x { return $0.x < $1.x }
                 return Self.nameComesBefore($0.url, $1.url)
             }.map(\.url)
-            return Self.validatedImageOrder(urls, directoryURLs: directoryURLs)
+            urls = Self.validatedImageOrder(ordered, directoryURLs: directoryURLs)
+            status = "按 Finder 图标位置"
         }
+        return urls.map { FolderOrderingResult(urls: $0, status: status) } ?? .unavailable
     }
 
     static func parseOutput(_ output: String) -> [URL]? {
         guard let instruction = parseInstruction(output) else { return nil }
         switch instruction {
+        case .rule, .column, .savedList: return nil
         case let .exact(urls):
             return urls
         case let .positions(positionedURLs):
@@ -132,7 +173,7 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
         end encodePositions
 
         set requestedFolderURL to "\(folderLiteral)"
-        with timeout of 1 second
+        with timeout of 3 seconds
             tell application "Finder"
                 set finderWindowCount to count of Finder windows
                 repeat with finderWindowIndex from 1 to finderWindowCount
@@ -140,30 +181,29 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
                         set finderWindow to Finder window finderWindowIndex
                         if (URL of target of finderWindow) is requestedFolderURL then
                             set viewMode to current view of finderWindow
-                            set folderItems to every item of target of finderWindow
-                            set orderedItems to folderItems
-
                             if viewMode is list view then
                                 set activeColumn to sort column of list view options of finderWindow
                                 set activeColumnName to name of activeColumn
+                                set directionName to "ASC"
+                                if (sort direction of activeColumn) is reversed then set directionName to "DESC"
                                 if activeColumnName is name column then
-                                    set orderedItems to sort folderItems by name
+                                    return "RULE" & tab & "name" & tab & directionName
                                 else if activeColumnName is modification date column then
-                                    set orderedItems to sort folderItems by modification date
+                                    return "RULE" & tab & "modificationDate" & tab & directionName
                                 else if activeColumnName is creation date column then
-                                    set orderedItems to sort folderItems by creation date
+                                    return "RULE" & tab & "creationDate" & tab & directionName
                                 else if activeColumnName is size column then
-                                    set orderedItems to sort folderItems by size
+                                    return "RULE" & tab & "size" & tab & directionName
                                 else if activeColumnName is kind column then
-                                    set orderedItems to sort folderItems by kind
+                                    return "RULE" & tab & "kind" & tab & directionName
                                 else if activeColumnName is label column then
-                                    set orderedItems to sort folderItems by label index
+                                    set orderedItems to sort (every item of target of finderWindow) by label index
                                 else if activeColumnName is version column then
-                                    set orderedItems to sort folderItems by version
+                                    set orderedItems to sort (every item of target of finderWindow) by version
                                 else if activeColumnName is comment column then
-                                    set orderedItems to sort folderItems by comment
+                                    set orderedItems to sort (every item of target of finderWindow) by comment
                                 else
-                                    return ""
+                                    return "LIST_SAVED" & tab & directionName
                                 end if
                                 if (sort direction of activeColumn) is reversed then
                                     set orderedItems to my reversedItems(orderedItems)
@@ -172,19 +212,17 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
                             else if viewMode is icon view then
                                 set iconArrangement to arrangement of icon view options of finderWindow
                                 if iconArrangement is not arranged or iconArrangement is snap to grid then
-                                    return my encodePositions(folderItems)
+                                    return my encodePositions(every item of target of finderWindow)
                                 else
                                     -- Finder does not expose the sort direction for
                                     -- arranged icon views. Do not guess an ascending
                                     -- order when the visible order may be descending.
                                     return ""
                                 end if
-                            else if viewMode is column view or viewMode is group view then
-                                -- Finder exposes neither column-view order nor grouped
-                                -- visual order through its standard scripting interface.
-                                -- Returning no system result keeps PicSee's immediate
-                                -- filename fallback instead of accepting a guessed order.
-                                return ""
+                            else if viewMode is column view then
+                                return "COLUMN"
+                            else if viewMode is group view then
+                                return "UNSUPPORTED_VIEW"
                             else
                                 return ""
                             end if
@@ -206,6 +244,14 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
         guard let mode = header.first else { return nil }
 
         switch mode {
+        case "RULE":
+            guard header.count == 3, let field = ImageSortOrder.Field(rawValue: header[1]),
+                  ["ASC", "DESC"].contains(header[2]) else { return nil }
+            return .rule(ImageSortOrder(field: field, ascending: header[2] == "ASC"))
+        case "LIST_SAVED":
+            guard header.count == 2, ["ASC", "DESC"].contains(header[1]) else { return nil }
+            return .savedList(ascending: header[1] == "ASC")
+        case "COLUMN": return .column
         case "ORDERED":
             let urls = lines.dropFirst().compactMap(fileURL)
             guard urls.count == lines.count - 1, !urls.isEmpty else { return nil }

@@ -51,7 +51,7 @@ struct SlideshowControls: View {
         } label: {
             HStack(spacing: 4) {
                 Text(isReady ? "\(slideshow.interval) 秒" : "准备中…")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
                     .accessibilityHidden(true)

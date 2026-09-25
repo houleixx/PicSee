@@ -4,6 +4,8 @@ enum KeyboardNavigation {
     enum Action: Equatable {
         case previous
         case next
+        case toggleSlideshowPause
+        case endSlideshow
         case quit
         case toggleImageParameters
         case screenshot
@@ -12,7 +14,7 @@ enum KeyboardNavigation {
         case none
     }
 
-    static func action(for keyCode: UInt16, modifiers: NSEvent.ModifierFlags = [], isRepeat: Bool = false) -> Action {
+    static func action(for keyCode: UInt16, modifiers: NSEvent.ModifierFlags = [], isRepeat: Bool = false, slideshowActive: Bool = false) -> Action {
         let commandModifiers = modifiers.intersection([.command, .control, .option, .shift])
         if commandModifiers == [.command, .shift], keyCode == 0 {
             return isRepeat ? .none : .screenshot
@@ -29,8 +31,10 @@ enum KeyboardNavigation {
             return .previous
         case 124, 125:
             return .next
-        case 49, 53:
-            return .quit
+        case 49:
+            return isRepeat ? .none : (slideshowActive ? .toggleSlideshowPause : .quit)
+        case 53:
+            return isRepeat ? .none : (slideshowActive ? .endSlideshow : .quit)
         case 34:
             return .toggleImageParameters
         default:

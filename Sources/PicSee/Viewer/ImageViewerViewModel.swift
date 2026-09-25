@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import ImageIO
 import SwiftUI
@@ -17,7 +18,11 @@ final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var deletionNoticeID: UUID?
     @Published var fileOperationError: String?
     @Published private var deletions: [DeletedImage] = []
-    @Published var isScreenshotEditing = false
+    @Published var isScreenshotEditing = false {
+        didSet { if isScreenshotEditing { slideshow.pause() } }
+    }
+    let slideshow: SlideshowController
+    private var slideshowObservation: AnyCancellable?
     @Published var zoomScale: CGFloat = 1
     @Published var panOffset: CGSize = .zero
     @Published var displayScale: CGFloat = 1
@@ -45,8 +50,10 @@ final class ImageViewerViewModel: ObservableObject {
         imageURL: URL,
         finderOrderProvider: any FinderFolderOrderProviding = FilenameFolderOrderProvider(),
         fileManager: FileManager = .default,
-        imageTrash: any ImageTrashing = ImageTrash()
+        imageTrash: any ImageTrashing = ImageTrash(),
+        slideshow: SlideshowController = SlideshowController()
     ) {
+        self.slideshow = slideshow
         self.finderOrderProvider = finderOrderProvider
         self.currentURL = imageURL.standardizedFileURL
         self.fileManager = fileManager
@@ -55,10 +62,18 @@ final class ImageViewerViewModel: ObservableObject {
         establishNavigator(for: imageURL, preferredOrder: nil)
         _ = load(imageURL: imageURL)
 
+        slideshow.onAdvance = { [weak self] in
+            guard let self else { return false }
+            return self.advanceSlideshow(forward: true, wrapping: self.slideshow.loops)
+        }
+        slideshowObservation = slideshow.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
         startImageOrder(waitForResult: false)
     }
 
     private func startImageOrder(waitForResult: Bool) {
+        slideshow.setReady(false)
         finderOrderTask?.cancel()
         navigationRevision += 1
         pendingNavigationDirections.removeAll()
@@ -75,6 +90,7 @@ final class ImageViewerViewModel: ObservableObject {
             self.establishNavigator(for: initialURL, preferredOrder: result.urls)
             self.isNavigationOrderReady = true
             self.applyPendingNavigation()
+            self.slideshow.setReady(true)
         }
     }
 
@@ -132,6 +148,7 @@ final class ImageViewerViewModel: ObservableObject {
 
     func trashCurrentImage() {
         guard canTrashCurrentImage else { return }
+        slideshow.pause()
         let originalURL = currentURL
         let order = navigator?.images ?? [originalURL]
         let index = order.firstIndex(of: originalURL) ?? 0
@@ -163,6 +180,7 @@ final class ImageViewerViewModel: ObservableObject {
                     return
                 }
             }
+            slideshow.stop()
             navigator = nil
             currentURL = originalURL
             isFolderEmpty = true
@@ -178,6 +196,7 @@ final class ImageViewerViewModel: ObservableObject {
 
     func undoDeletion() {
         guard canUndoDeletion, let deletion = deletions.last else { return }
+        slideshow.pause()
         do {
             try imageTrash.restore(deletion.trashedURL, to: deletion.originalURL)
             deletions.removeLast()
@@ -201,6 +220,7 @@ final class ImageViewerViewModel: ObservableObject {
         }
         navigationRevision += 1
         navigateUsingSnapshot(direction: .previous)
+        slideshow.restartInterval()
     }
 
     func navigateToNext() {
@@ -210,9 +230,11 @@ final class ImageViewerViewModel: ObservableObject {
         }
         navigationRevision += 1
         navigateUsingSnapshot(direction: .next)
+        slideshow.restartInterval()
     }
 
     func navigate(to url: URL) {
+        slideshow.stop()
         let standardizedURL = url.standardizedFileURL
         let changedFolder = standardizedURL.deletingLastPathComponent() != currentURL.deletingLastPathComponent()
         let needsOrder = changedFolder || !isNavigationOrderReady || navigator?.images.contains(standardizedURL) != true
@@ -229,11 +251,13 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func fitToWindow() {
+        slideshow.pause()
         transformAnimationID += 1
         resetViewTransform()
     }
 
     func showActualSize() {
+        slideshow.pause()
         transformAnimationID += 1
         guard displayScale > 0 else {
             resetViewTransform()
@@ -258,11 +282,13 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func rotateLeft() {
+        slideshow.pause()
         rotationDegrees = (rotationDegrees + 90) % 360
         panOffset = .zero
     }
 
     func rotateRight() {
+        slideshow.pause()
         rotationDegrees = (rotationDegrees + 270) % 360
         panOffset = .zero
     }
@@ -282,6 +308,10 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     private func navigateUsingSnapshot(direction: NavigationDirection) {
+        if slideshow.isActive {
+            if !advanceSlideshow(forward: direction == .next, wrapping: true) { slideshow.stop() }
+            return
+        }
         while let candidate = direction == .previous ? navigator?.previousURL() : navigator?.nextURL() {
             if load(imageURL: candidate, preservesCurrentImageWhenMissing: true, direction: direction == .next ? 1 : -1) {
                 return
@@ -300,11 +330,44 @@ final class ImageViewerViewModel: ObservableObject {
         }
     }
 
+    func startSlideshow() {
+        guard image != nil, !isFolderEmpty, !isScreenshotEditing else { return }
+        resetViewTransform()
+        slideshow.start(ready: isNavigationOrderReady)
+    }
+
+    /// A bounded snapshot avoids wrapping forever when every remaining file is bad.
+    private func advanceSlideshow(forward: Bool, wrapping: Bool) -> Bool {
+        guard isNavigationOrderReady, !isScreenshotEditing, let navigator else { return false }
+        let images = navigator.images
+        guard let index = images.firstIndex(of: currentURL) else { return false }
+        let candidates: [URL]
+        if forward {
+            candidates = Array(images.dropFirst(index + 1)) + (wrapping ? Array(images.prefix(index)) : [])
+        } else {
+            candidates = Array(images.prefix(index).reversed()) + (wrapping ? Array(images.dropFirst(index + 1).reversed()) : [])
+        }
+        for candidate in candidates {
+            if load(imageURL: candidate, preservesCurrentImageOnFailure: true, direction: forward ? 1 : -1) {
+                navigationRevision += 1
+                return true
+            }
+            navigator.removeFromSnapshot(candidate)
+        }
+        return false
+    }
+
     @discardableResult
-    private func load(imageURL: URL, preservesCurrentImageWhenMissing: Bool = false, direction: Int? = nil) -> Bool {
+    private func load(
+        imageURL: URL,
+        preservesCurrentImageWhenMissing: Bool = false,
+        preservesCurrentImageOnFailure: Bool = false,
+        direction: Int? = nil
+    ) -> Bool {
         let standardizedURL = imageURL.standardizedFileURL
         isFolderEmpty = false
         guard let loadedImage = NSImage(contentsOf: standardizedURL), loadedImage.isValid else {
+            if preservesCurrentImageOnFailure { return false }
             if preservesCurrentImageWhenMissing,
                !fileManager.fileExists(atPath: standardizedURL.path) {
                 return false
@@ -331,6 +394,7 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     private func requestZoom(multiplier: CGFloat) {
+        slideshow.pause()
         nextZoomRequestID += 1
         zoomRequest = ImageZoomRequest(id: nextZoomRequestID, multiplier: multiplier)
     }

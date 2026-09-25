@@ -7,13 +7,14 @@ enum ViewerToolbarMetrics {
     static let buttonSize: CGFloat = 34
     static let buttonHeight: CGFloat = buttonSize
     static let viewerButtonHeight: CGFloat = 30
+    static let viewerVerticalPadding: CGFloat = 4
     static let spacing: CGFloat = 6
     static let editorSpacing: CGFloat = 2
     static let editorGroupSpacing: CGFloat = 6
     static let horizontalPadding: CGFloat = 8
     static let viewerHorizontalPadding: CGFloat = 7
     static let viewerDividerPadding: CGFloat = 3
-    static let viewerWidth = buttonSize * 8 + spacing * 8 + 1
+    static let viewerWidth = buttonSize * 9 + spacing * 9 + 1
         + viewerDividerPadding * 2 + viewerHorizontalPadding * 2
     static let editorWidth = buttonSize * 15 + editorSpacing * 12
         + editorGroupSpacing * 4 + 2 + horizontalPadding * 2
@@ -25,6 +26,8 @@ struct ViewerToolbarIcon: View {
     enum Symbol {
         case fit, actualSize, zoomOut, zoomIn, rotateLeft, rotateRight
         case copy, crop, undo, redo, cancel, confirm
+        case play, pause, previous, next, repeatImages, exitSlideshow
+        case enterFullScreen, exitFullScreen
     }
 
     let symbol: Symbol
@@ -34,6 +37,8 @@ struct ViewerToolbarIcon: View {
         case .copy, .zoomOut, .zoomIn: return 0.94
         case .actualSize: return 0.96
         case .fit, .cancel: return 1.05
+        case .repeatImages: return 0.90
+        case .enterFullScreen, .exitFullScreen: return 0.945
         default: return 1
         }
     }
@@ -98,6 +103,43 @@ struct ViewerToolbarIcon: View {
                 line([(19, 5), (5, 19)])
             case .confirm:
                 line([(3, 12), (9, 18), (21, 6)])
+            case .play:
+                line([(7, 3), (21, 12), (7, 21), (7, 3)])
+            case .pause:
+                path.addRoundedRect(in: CGRect(x: 5, y: 4, width: 4, height: 16),
+                                    cornerSize: CGSize(width: 1, height: 1))
+                path.addRoundedRect(in: CGRect(x: 15, y: 4, width: 4, height: 16),
+                                    cornerSize: CGSize(width: 1, height: 1))
+            case .previous, .next:
+                if symbol == .next {
+                    context.translateBy(x: 24, y: 0)
+                    context.scaleBy(x: -1, y: 1)
+                }
+                line([(4, 4), (4, 20)])
+                line([(20, 4), (8, 12), (20, 20), (20, 4)])
+            case .repeatImages:
+                line([(16, 2), (20, 6), (16, 10)])
+                path.move(to: CGPoint(x: 20, y: 6))
+                path.addLine(to: CGPoint(x: 7, y: 6))
+                path.addQuadCurve(to: CGPoint(x: 3, y: 10), control: CGPoint(x: 3, y: 6))
+                line([(8, 14), (4, 18), (8, 22)])
+                path.move(to: CGPoint(x: 4, y: 18))
+                path.addLine(to: CGPoint(x: 17, y: 18))
+                path.addQuadCurve(to: CGPoint(x: 21, y: 14), control: CGPoint(x: 21, y: 18))
+            case .exitSlideshow:
+                line([(11, 4), (4, 4), (4, 20), (11, 20)])
+                line([(10, 12), (20, 12)])
+                line([(16, 8), (20, 12), (16, 16)])
+            case .enterFullScreen:
+                line([(3, 9), (3, 3), (9, 3)])
+                line([(3, 3), (10, 10)])
+                line([(15, 21), (21, 21), (21, 15)])
+                line([(14, 14), (21, 21)])
+            case .exitFullScreen:
+                line([(3, 10), (10, 10), (10, 3)])
+                line([(3, 3), (10, 10)])
+                line([(14, 21), (14, 14), (21, 14)])
+                line([(14, 14), (21, 21)])
             }
             // Adjust the outline around its center while preserving stroke weight
             // and the shared icon frame / button hit area.
@@ -114,6 +156,22 @@ struct ViewerToolbarIcon: View {
     }
 }
 
+/// The browsing and slideshow bars use the same height, material and outline.
+struct ViewerToolbarSurface: ViewModifier {
+    var maxWidth: CGFloat? = nil
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, ViewerToolbarMetrics.viewerHorizontalPadding)
+            .padding(.vertical, ViewerToolbarMetrics.viewerVerticalPadding)
+            .frame(maxWidth: maxWidth)
+            .background(.black.opacity(0.46), in: Capsule())
+            .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+            .padding(.horizontal, 12)
+    }
+}
+
 struct ViewerToolbarDivider: View {
     var color: Color = .primary
 
@@ -127,13 +185,14 @@ struct ViewerToolbarButtonStyle: ButtonStyle {
     var selected = false
     var tint: Color?
     var foreground: Color = .primary
+    var selectedTint: Color = .accentColor
     var cornerRadius: CGFloat = 8
     @Environment(\.isEnabled) private var isEnabled
     @State private var hovered = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(selected ? Color.accentColor : (tint ?? foreground))
+            .foregroundStyle(selected ? selectedTint : (tint ?? foreground))
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(backgroundColor(isPressed: configuration.isPressed))
@@ -150,7 +209,7 @@ struct ViewerToolbarButtonStyle: ButtonStyle {
         let pressed = isEnabled && isPressed
         let hovering = isEnabled && hovered
         if selected {
-            return Color.accentColor.opacity(pressed ? 0.22 : (hovering ? 0.17 : 0.12))
+            return selectedTint.opacity(pressed ? 0.22 : (hovering ? 0.17 : 0.12))
         }
         return foreground.opacity(pressed ? 0.14 : (hovering ? 0.07 : 0))
     }

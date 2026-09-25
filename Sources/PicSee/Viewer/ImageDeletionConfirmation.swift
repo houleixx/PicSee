@@ -30,6 +30,7 @@ final class ImageDeletionConfirmation {
 
     func requestDeletion(for viewModel: ImageViewerViewModel, in window: NSWindow) {
         guard viewModel.canTrashCurrentImage, !isPresenting, window.attachedSheet == nil else { return }
+        viewModel.slideshow.pause()
         guard defaults.object(forKey: Self.asksBeforeDeletingKey) as? Bool ?? true else {
             viewModel.trashCurrentImage()
             return

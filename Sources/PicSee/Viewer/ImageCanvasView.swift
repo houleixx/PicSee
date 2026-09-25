@@ -36,6 +36,8 @@ struct ImageCanvasView: NSViewRepresentable {
     var canUndoDeletion = false
     var onTrashImage: (() -> Void)?
     var onUndoDeletion: (() -> Void)?
+    var slideshow: SlideshowController?
+    var onStartSlideshow: (() -> Void)?
 
     func makeNSView(context: Context) -> CanvasNSView {
         let view = CanvasNSView()
@@ -65,6 +67,8 @@ struct ImageCanvasView: NSViewRepresentable {
         view.canUndoDeletion = canUndoDeletion
         view.onTrashImage = onTrashImage
         view.onUndoDeletion = onUndoDeletion
+        view.slideshow = slideshow
+        view.onStartSlideshow = onStartSlideshow
         return view
     }
 
@@ -96,6 +100,8 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.canUndoDeletion = canUndoDeletion
         nsView.onTrashImage = onTrashImage
         nsView.onUndoDeletion = onUndoDeletion
+        nsView.slideshow = slideshow
+        nsView.onStartSlideshow = onStartSlideshow
         if let zoomRequest {
             // The command writes SwiftUI bindings. Apply it after this representable update.
             DispatchQueue.main.async { [weak nsView] in
@@ -167,8 +173,14 @@ private final class ImageMinimapView: NSView {
     static let contentInset: CGFloat = 5
 
     var image: NSImage? {
-        didSet { needsDisplay = true }
+        didSet {
+            if oldValue !== image {
+                showsTransparencyBackground = image.map { TransparencyBackground.needsCheckerboard(for: $0) } ?? false
+            }
+            needsDisplay = true
+        }
     }
+    private var showsTransparencyBackground = false
 
     var minimapGeometry: MinimapGeometry? {
         didSet { needsDisplay = true }
@@ -188,7 +200,9 @@ private final class ImageMinimapView: NSView {
         imagePath.addClip()
         NSColor.white.withAlphaComponent(0.08).setFill()
         contentRect.fill()
-        TransparencyBackground.draw(in: contentRect)
+        if showsTransparencyBackground {
+            TransparencyBackground.draw(in: contentRect)
+        }
         image.draw(in: contentRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         NSGraphicsContext.current?.restoreGraphicsState()
 
@@ -559,6 +573,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private let defaults: UserDefaults
     private let preferences: ViewerPreferences
     private var preferenceObservation: AnyCancellable?
+    private var slideshowWindowObservations: Set<AnyCancellable> = []
 
     // Live Text path
     private let liveTextOverlay = ImageAnalysisOverlayView()
@@ -595,8 +610,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 resetTextSelectionState()
             }
             imageView.image = image
-            transparencyBackground.isHidden = image == nil
             if imageChanged {
+                transparencyBackground.isHidden = image.map { !TransparencyBackground.needsCheckerboard(for: $0) } ?? true
                 analyzeImageIfPossible()
             }
             needsLayout = true
@@ -650,6 +665,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     var canUndoDeletion = false
     var onTrashImage: (() -> Void)?
     var onUndoDeletion: (() -> Void)?
+    var slideshow: SlideshowController?
+    var onStartSlideshow: (() -> Void)?
     var onZoomRequestHandled: ((Int) -> Void)?
     var onDisplayScaleChanged: ((CGFloat) -> Void)?
     var onTitleBarVisibilityChanged: ((Bool) -> Void)?
@@ -772,6 +789,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.acceptsMouseMovedEvents = true
+        slideshowWindowObservations.removeAll()
+        guard let window else { return }
+        NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification, object: window)
+            .sink { [weak self] _ in self?.slideshow?.pauseForWindowDeactivation() }
+            .store(in: &slideshowWindowObservations)
+        NotificationCenter.default.publisher(for: NSWindow.willBeginSheetNotification, object: window)
+            .sink { [weak self] _ in self?.slideshow?.pause() }
+            .store(in: &slideshowWindowObservations)
     }
 
     override func updateTrackingAreas() {
@@ -866,6 +891,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        slideshow?.pause()
         interruptMotion()
         let isTrackpad = event.hasPreciseScrollingDeltas && (event.phase != [] || event.momentumPhase != [])
         if isTrackpad, abs(zoomScale - 1) > 0.001 {
@@ -885,6 +911,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func magnify(with event: NSEvent) {
+        slideshow?.pause()
         interruptMotion()
         guard event.magnification != 0 else { return }
         applyZoom(multiplier: 1 + event.magnification)
@@ -919,6 +946,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     override func mouseDown(with event: NSEvent) {
         guard !fileDragController.isDragging else { return }
+        slideshow?.pause()
         interruptMotion()
         let geometry = currentGeometry()
         let point = convert(event.locationInWindow, from: nil)
@@ -1075,7 +1103,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func keyDown(with event: NSEvent) {
-        switch KeyboardNavigation.action(for: event.keyCode, modifiers: event.modifierFlags, isRepeat: event.isARepeat) {
+        switch KeyboardNavigation.action(for: event.keyCode, modifiers: event.modifierFlags, isRepeat: event.isARepeat, slideshowActive: slideshow?.isActive == true) {
         case .trash:
             trashImageForMenu(nil)
         case .undoDeletion:
@@ -1084,6 +1112,10 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             onPrevious?()
         case .next:
             onNext?()
+        case .toggleSlideshowPause:
+            slideshow?.togglePause()
+        case .endSlideshow:
+            slideshow?.stop()
         case .quit:
             onClose?()
         case .toggleImageParameters:
@@ -1162,6 +1194,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     @objc func exportImageForMenu(_ sender: Any?) {
+        slideshow?.pause()
         guard let image else { return }
 
         let panel = NSSavePanel()
@@ -1258,7 +1291,30 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         _ = copySelectedTextToPasteboard()
     }
 
+    @objc func toggleSlideshowForMenu(_ sender: Any?) {
+        if slideshow?.isActive == true {
+            slideshow?.togglePause()
+        } else {
+            onStartSlideshow?()
+        }
+    }
+
+    @objc func endSlideshowForMenu(_ sender: Any?) { slideshow?.stop() }
+
     private func appendPicSeeContextMenuItems(to menu: NSMenu) {
+        slideshow?.pause()
+        if onStartSlideshow != nil,
+           !menu.items.contains(where: { $0.action == #selector(toggleSlideshowForMenu(_:)) }) {
+            let title = slideshow?.isActive == true ? "继续幻灯片" : "播放幻灯片"
+            let playItem = NSMenuItem(title: title, action: #selector(toggleSlideshowForMenu(_:)), keyEquivalent: "")
+            playItem.target = self
+            menu.addItem(playItem)
+            if slideshow?.isActive == true {
+                let stopItem = NSMenuItem(title: "结束幻灯片", action: #selector(endSlideshowForMenu(_:)), keyEquivalent: "")
+                stopItem.target = self
+                menu.addItem(stopItem)
+            }
+        }
         applyPreferences(ViewerPreferencesSnapshot(defaults: defaults))
         let shouldAddTitleBarItem = menu.items.first(where: { $0.action == #selector(toggleTitleBarForMenu(_:)) }) == nil
         let shouldAddMinimapItem = menu.items.first(where: { $0.action == #selector(toggleMinimapForMenu(_:)) }) == nil
@@ -1448,6 +1504,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
         minimapView.isHidden = true
         minimapView.onNavigate = { [weak self] point in
+            self?.slideshow?.pause()
             self?.navigateWithMinimap(to: point)
         }
         addSubview(minimapView)
@@ -1830,7 +1887,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         if let imageLayer = outgoingImageView.layer {
             outgoingTransparencyBackground.synchronize(imageLayer: imageLayer)
         }
-        outgoingTransparencyBackground.isHidden = false
+        outgoingTransparencyBackground.isHidden = transparencyBackground.isHidden
         pendingNavigationAnimation = true
     }
 
@@ -2233,6 +2290,7 @@ extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
         shouldBeginAt point: CGPoint,
         forAnalysisType analysisType: ImageAnalysisOverlayView.InteractionTypes
     ) -> Bool {
+        slideshow?.pause()
         cancelImageDragCandidate()
         interruptMotion()
         return true

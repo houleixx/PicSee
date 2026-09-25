@@ -199,6 +199,12 @@ final class WindowManager {
             onRequestDeletion: { [weak self, weak window, weak viewModel] in
                 guard let self, let window, let viewModel else { return }
                 self.deletionConfirmation.requestDeletion(for: viewModel, in: window)
+            },
+            onToggleFullScreen: { [weak window, weak viewModel] in
+                guard let window, let viewModel,
+                      !viewModel.slideshow.isFullScreenTransitioning else { return }
+                viewModel.slideshow.beginFullScreenTransition()
+                window.toggleFullScreen(nil)
             }
         )
         let hostingController = NSHostingController(rootView: rootView)
@@ -244,7 +250,8 @@ final class WindowManager {
                 guard let self, let window else { return }
                 self.saveWindowFrame(window)
             },
-            onClose: { [weak self, weak window] in
+            onClose: { [weak self, weak window, weak viewModel] in
+                viewModel?.slideshow.stop()
                 if let self, let window {
                     self.saveWindowFrame(window)
                 }
@@ -262,7 +269,8 @@ final class WindowManager {
             },
             onFailToEnterFullScreen: { [weak window] in
                 window?.restoreStyleMaskAfterFailedFullScreenEntry()
-            }
+            },
+            slideshow: viewModel.slideshow
         )
         window.delegate = delegate
         objc_setAssociatedObject(window, &Self.delegateAssociationKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
@@ -405,7 +413,7 @@ final class WindowManager {
                 return event
             }
             if window.firstResponder is NSTextView { return event }
-            switch KeyboardNavigation.action(for: event.keyCode, modifiers: event.modifierFlags, isRepeat: event.isARepeat) {
+            switch KeyboardNavigation.action(for: event.keyCode, modifiers: event.modifierFlags, isRepeat: event.isARepeat, slideshowActive: viewModel?.slideshow.isActive == true) {
             case .trash:
                 if let viewModel {
                     self.deletionConfirmation.requestDeletion(for: viewModel, in: window)
@@ -420,6 +428,12 @@ final class WindowManager {
                 return nil
             case .next:
                 viewModel?.navigateToNext()
+                return nil
+            case .toggleSlideshowPause:
+                viewModel?.slideshow.togglePause()
+                return nil
+            case .endSlideshow:
+                viewModel?.slideshow.stop()
                 return nil
             case .quit:
                 NSApp.terminate(nil)
@@ -442,17 +456,20 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
     private let onClose: () -> Void
     private let onExitFullScreen: () -> Void
     private let onFailToEnterFullScreen: () -> Void
+    private weak var slideshow: SlideshowController?
 
     init(
         onFrameChanged: @escaping () -> Void,
         onClose: @escaping () -> Void,
         onExitFullScreen: @escaping () -> Void,
-        onFailToEnterFullScreen: @escaping () -> Void
+        onFailToEnterFullScreen: @escaping () -> Void,
+        slideshow: SlideshowController
     ) {
         self.onFrameChanged = onFrameChanged
         self.onClose = onClose
         self.onExitFullScreen = onExitFullScreen
         self.onFailToEnterFullScreen = onFailToEnterFullScreen
+        self.slideshow = slideshow
     }
 
     func windowDidMove(_ notification: Notification) {
@@ -467,17 +484,32 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
         onFrameChanged()
     }
 
+    func windowWillEnterFullScreen(_ notification: Notification) {
+        slideshow?.beginFullScreenTransition()
+    }
+
+    func windowWillExitFullScreen(_ notification: Notification) {
+        slideshow?.beginFullScreenTransition()
+    }
+
     func windowDidEnterFullScreen(_ notification: Notification) {
         NotificationCenter.default.post(name: ViewerOverlayPreference.didEnterFullScreenNotification, object: nil)
+        slideshow?.endFullScreenTransition()
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
         NotificationCenter.default.post(name: ViewerOverlayPreference.didExitFullScreenNotification, object: nil)
         onExitFullScreen()
+        slideshow?.endFullScreenTransition()
     }
 
     func windowDidFailToEnterFullScreen(_ window: NSWindow) {
         onFailToEnterFullScreen()
+        slideshow?.endFullScreenTransition()
+    }
+
+    func windowDidFailToExitFullScreen(_ window: NSWindow) {
+        slideshow?.endFullScreenTransition()
     }
 
     func windowWillClose(_ notification: Notification) {

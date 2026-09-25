@@ -8,6 +8,7 @@ struct ImageViewerView: View {
     let onTitleBarVisibilityChanged: (Bool) -> Void
     let onFixedWindowChanged: (Bool) -> Void
     let onRequestDeletion: () -> Void
+    var onToggleFullScreen: () -> Void = {}
     @State private var titleBarVisible = ViewerTitleBarPreference.isVisible()
     @State private var fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible()
     @State private var toolbarVisible = ViewerOverlayPreference.isToolbarVisible()
@@ -25,6 +26,13 @@ struct ImageViewerView: View {
     @State private var latestVersionNoticeID: UUID?
     @State private var clipboardError: String?
     @State private var deletionNoticeVisible = false
+    @State private var slideshowControlsVisible = true
+    @State private var slideshowControlsHovered = false
+    @State private var slideshowActivityID = 0
+
+    private var slideshowChromeVisible: Bool {
+        !viewModel.slideshow.isActive || viewModel.slideshow.state == .paused || slideshowControlsVisible
+    }
     private let hudPadding: CGFloat = 12
     private let navigationFadeDuration = 0.18
     private let toolbarEdgeFraction: CGFloat = 0.20
@@ -96,10 +104,12 @@ struct ImageViewerView: View {
                     canTrashImage: viewModel.canTrashCurrentImage,
                     canUndoDeletion: viewModel.canUndoDeletion,
                     onTrashImage: onRequestDeletion,
-                    onUndoDeletion: viewModel.undoDeletion
+                    onUndoDeletion: viewModel.undoDeletion,
+                    slideshow: viewModel.slideshow,
+                    onStartSlideshow: viewModel.startSlideshow
                 )
                 .overlay(alignment: .topLeading) {
-                    if !titleBarVisible && screenshotDocument == nil {
+                    if !titleBarVisible && screenshotDocument == nil && slideshowChromeVisible {
                         HStack(spacing: 8) {
                             Text(viewModel.zoomPercentageText)
                                 .font(.system(size: 13, weight: .semibold))
@@ -126,30 +136,21 @@ struct ImageViewerView: View {
                     }
                 }
                 .overlay(alignment: .bottomLeading) {
-                    if let updateChecker {
+                    if let updateChecker, !viewModel.slideshow.isActive {
                         UpdatePromptView(updateChecker: updateChecker)
                             .padding(.leading, hudPadding)
                             .padding(.bottom, hudPadding)
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    if toolbarEffectivelyVisible && screenshotDocument == nil {
-                        ImageToolBar(
-                            onFitToWindow: viewModel.fitToWindow,
-                            onShowHundredPercent: viewModel.showActualSize,
-                            onZoomOut: viewModel.zoomOut,
-                            onZoomIn: viewModel.zoomIn,
-                            onRotateLeft: viewModel.rotateLeft,
-                            onRotateRight: viewModel.rotateRight,
-                            onCopy: copyCurrentImage,
-                            onScreenshot: beginScreenshot
-                        )
-                        .padding(.bottom, hudPadding)
-                        .transition(.opacity)
+                    if screenshotDocument == nil {
+                        viewerControls
+                            .padding(.bottom, hudPadding)
+                            .transition(.opacity)
                     }
                 }
                 .overlay(alignment: .trailing) {
-                    if screenshotDocument == nil, imageParametersVisible, let imageParametersText = viewModel.imageParametersText {
+                    if screenshotDocument == nil, slideshowChromeVisible, imageParametersVisible, let imageParametersText = viewModel.imageParametersText {
                         ImageParametersPanel(
                             usesFlatStyle: !titleBarVisible,
                             text: imageParametersText,
@@ -172,8 +173,8 @@ struct ImageViewerView: View {
                 .overlay {
                     GeometryReader { geometry in
                         imageNavigationControls(viewerWidth: geometry.size.width)
-                            .opacity(screenshotDocument == nil ? 1 : 0)
-                            .allowsHitTesting(screenshotDocument == nil)
+                            .opacity(screenshotDocument == nil && slideshowChromeVisible ? 1 : 0)
+                            .allowsHitTesting(screenshotDocument == nil && slideshowChromeVisible)
                             .onAppear { viewerHeight = geometry.size.height }
                             .onChange(of: geometry.size.height) { _, newValue in
                                 viewerHeight = newValue
@@ -184,6 +185,7 @@ struct ImageViewerView: View {
                     let pointerX: CGFloat?
                     switch phase {
                     case .active(let location):
+                        revealSlideshowControls()
                         pointerX = location.x
                     case .ended:
                         pointerX = nil
@@ -242,7 +244,7 @@ struct ImageViewerView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if !titleBarVisible && screenshotDocument == nil {
+            if !titleBarVisible && screenshotDocument == nil && slideshowChromeVisible {
                 Button(action: { NSApp.terminate(nil) }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
@@ -334,7 +336,18 @@ struct ImageViewerView: View {
             Button("好") { clipboardError = nil }
         } message: { Text(clipboardError ?? "") }
         .onChange(of: viewModel.currentURL) { _, _ in closeScreenshot() }
+        // AppKit temporarily detaches this view during native full-screen changes.
+        // WindowDelegate owns stopping playback when the window actually closes.
         .onDisappear { closeScreenshot() }
+        .onChange(of: viewModel.slideshow.state) { _, _ in revealSlideshowControls() }
+        .task(id: slideshowActivityID) {
+            guard viewModel.slideshow.state == .playing else { return }
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            guard !Task.isCancelled, !slideshowControlsHovered else { return }
+            withAnimation(.easeInOut(duration: navigationFadeDuration)) {
+                slideshowControlsVisible = false
+            }
+        }
         .alert("无法开始截图", isPresented: Binding(
             get: { screenshotError != nil }, set: { if !$0 { screenshotError = nil } }
         )) {
@@ -377,7 +390,46 @@ struct ImageViewerView: View {
         }
     }
 
+    private func revealSlideshowControls() {
+        guard viewModel.slideshow.isActive else { return }
+        slideshowControlsVisible = true
+        slideshowActivityID += 1
+    }
+
+    @ViewBuilder
+    private var viewerControls: some View {
+        if viewModel.slideshow.isActive {
+            if slideshowChromeVisible {
+                SlideshowControls(
+                    slideshow: viewModel.slideshow,
+                    isReady: viewModel.isNavigationOrderReady,
+                    onPrevious: viewModel.navigateToPrevious,
+                    onNext: viewModel.navigateToNext,
+                    isFullScreen: isFullScreen,
+                    onToggleFullScreen: onToggleFullScreen
+                )
+                .onHover { hovering in
+                    slideshowControlsHovered = hovering
+                    revealSlideshowControls()
+                }
+            }
+        } else if toolbarEffectivelyVisible {
+            ImageToolBar(
+                onFitToWindow: viewModel.fitToWindow,
+                onShowHundredPercent: viewModel.showActualSize,
+                onZoomOut: viewModel.zoomOut,
+                onZoomIn: viewModel.zoomIn,
+                onRotateLeft: viewModel.rotateLeft,
+                onRotateRight: viewModel.rotateRight,
+                onCopy: copyCurrentImage,
+                onScreenshot: beginScreenshot,
+                onSlideshow: viewModel.startSlideshow
+            )
+        }
+    }
+
     private func copyCurrentImage() {
+        viewModel.slideshow.pause()
         guard let image = viewModel.image else { return }
         latestVersionNoticeID = nil
         clipboardNoticeID = nil
@@ -404,6 +456,7 @@ struct ImageViewerView: View {
 
     private func beginScreenshot() {
         guard screenshotDocument == nil, let image = viewModel.image else { return }
+        viewModel.slideshow.pause()
         do {
             screenshotDocument = try ScreenshotDocument(image: image, rotationDegrees: viewModel.rotationDegrees)
             viewModel.isScreenshotEditing = true
@@ -505,6 +558,7 @@ struct ImageToolBar: View {
     let onRotateRight: () -> Void
     let onCopy: () -> Void
     let onScreenshot: () -> Void
+    let onSlideshow: () -> Void
 
     var body: some View {
         HStack(spacing: ViewerToolbarMetrics.spacing) {
@@ -528,18 +582,14 @@ struct ImageToolBar: View {
                 }
             }
             .frame(height: ViewerToolbarMetrics.viewerButtonHeight)
+            toolbarButton(.play, label: "播放幻灯片", action: onSlideshow)
+                .help("播放当前文件夹中的图片")
             ViewerToolbarDivider(color: .white)
                 .padding(.horizontal, ViewerToolbarMetrics.viewerDividerPadding)
             toolbarButton(.crop, label: "截图与标注", action: onScreenshot)
                 .help("截取图片区域并标注（⌘⇧A）")
         }
-        .padding(.horizontal, ViewerToolbarMetrics.viewerHorizontalPadding)
-        .padding(.vertical, 4)
-        .frame(maxWidth: ViewerToolbarMetrics.viewerWidth)
-        .background(.black.opacity(0.46), in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-        .padding(.horizontal, 12)
+        .modifier(ViewerToolbarSurface(maxWidth: ViewerToolbarMetrics.viewerWidth))
     }
 
     private func toolbarButton(_ symbol: ViewerToolbarIcon.Symbol, label: String, action: @escaping () -> Void) -> some View {

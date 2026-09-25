@@ -92,7 +92,7 @@ struct TransparencyBackgroundTests {
         #expect(darkest > 0.79, "No tile seam may expose the dark canvas at scale \(scale)")
     }
 
-    @Test func checkerboardIsAlwaysVisibleWithoutContextMenuToggle() throws {
+    @Test func transparentImagesShowCheckerboardWithoutContextMenuToggle() throws {
         let suite = "PicSee.TransparencyBackgroundTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -122,6 +122,90 @@ struct TransparencyBackgroundTests {
             #expect(second.alphaComponent == 1)
             #expect(abs(first.redComponent - second.redComponent) > 0.18)
         }
+    }
+
+    @Test(arguments: [NSBitmapImageRep.FileType.png, .jpeg])
+    func opaqueImagesDoNotNeedCheckerboard(format: NSBitmapImageRep.FileType) throws {
+        let pixels = try bitmap()
+        let context = try #require(NSGraphicsContext(bitmapImageRep: pixels))
+        context.cgContext.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.cgContext.fill(CGRect(x: 0, y: 0, width: 96, height: 32))
+        let data = try #require(pixels.representation(using: format, properties: [:]))
+        let image = try #require(NSImage(data: data))
+        if format == .png {
+            let cgImage = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+            #expect(cgImage.alphaInfo != .none)
+        }
+        #expect(!TransparencyBackground.needsCheckerboard(for: image))
+        // A second lookup uses the same immutable image (also used by minimaps).
+        #expect(!TransparencyBackground.needsCheckerboard(for: image))
+        let canvas = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 96, height: 32), backend: .vision)
+        canvas.image = image
+        canvas.layoutSubtreeIfNeeded()
+        #expect(canvas.subviews.compactMap { $0 as? TransparencyBackgroundView }.allSatisfy { $0.isHidden })
+    }
+
+    @Test(arguments: [0.0, 0.5, 254.0 / 255.0])
+    func detectsOneTransparentPixelAtSourceResolution(alpha: CGFloat) throws {
+        let pixels = try bitmap(width: 257, height: 129)
+        let context = try #require(NSGraphicsContext(bitmapImageRep: pixels))
+        context.cgContext.setBlendMode(.copy)
+        context.cgContext.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.cgContext.fill(CGRect(x: 0, y: 0, width: 257, height: 129))
+        context.cgContext.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: alpha))
+        context.cgContext.fill(CGRect(x: 256, y: 128, width: 1, height: 1))
+        let image = NSImage(size: NSSize(width: 257, height: 129))
+        image.addRepresentation(pixels)
+        #expect(TransparencyBackground.needsCheckerboard(for: image))
+    }
+
+    @Test(arguments: [0, 1, 2, 3, 4], [0.0, 0.5, 1.0])
+    func recognizesAlphaAcrossBitmapLayouts(layout: Int, alpha: CGFloat) throws {
+        let formats = [
+            CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Big.rawValue,
+            CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
+            CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue,
+            CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Little.rawValue,
+            CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder16Little.rawValue
+        ]
+        let context = try #require(CGContext(data: nil, width: 7, height: 3,
+            bitsPerComponent: layout == 4 ? 16 : 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: formats[layout]))
+        context.setFillColor(CGColor(red: 0.1, green: 0.3, blue: 0.7, alpha: alpha))
+        context.fill(CGRect(x: 0, y: 0, width: 7, height: 3))
+        let image = NSImage(cgImage: try #require(context.makeImage()), size: NSSize(width: 7, height: 3))
+        #expect(TransparencyBackground.needsCheckerboard(for: image) == (alpha < 1))
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func navigationKeepsEachImagesOwnBackground(outgoingTransparent: Bool, incomingTransparent: Bool) throws {
+        let canvas = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 96, height: 32), backend: .vision)
+        canvas.motionPreference = { false }
+        canvas.image = outgoingTransparent ? try pngImage() : try opaqueImage()
+        canvas.layoutSubtreeIfNeeded()
+        canvas.navigationDirection = 1
+        canvas.image = incomingTransparent ? try pngImage() : try opaqueImage()
+        canvas.layoutSubtreeIfNeeded()
+        let backgrounds = canvas.subviews.compactMap { $0 as? TransparencyBackgroundView }
+        #expect(backgrounds.count == 2)
+        #expect(backgrounds[0].isHidden == !outgoingTransparent)
+        #expect(backgrounds[1].isHidden == !incomingTransparent)
+        // Interrupting the transition must not leave the old checkerboard up.
+        canvas.image = try opaqueImage()
+        canvas.layoutSubtreeIfNeeded()
+        #expect(backgrounds.allSatisfy { $0.isHidden })
+        canvas.image = nil
+        canvas.layoutSubtreeIfNeeded()
+        #expect(backgrounds.allSatisfy { $0.isHidden })
+    }
+
+    private func opaqueImage() throws -> NSImage {
+        let pixels = try bitmap()
+        let context = try #require(NSGraphicsContext(bitmapImageRep: pixels))
+        context.cgContext.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.cgContext.fill(CGRect(x: 0, y: 0, width: 96, height: 32))
+        let data = try #require(pixels.representation(using: .png, properties: [:]))
+        return try #require(NSImage(data: data))
     }
 
     private func pngImage() throws -> NSImage {

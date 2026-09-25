@@ -25,6 +25,21 @@ final class KeyboardNavigationTests: XCTestCase {
         XCTAssertEqual(KeyboardNavigation.action(for: 34), .toggleImageParameters)
     }
 
+    func testFullScreenShortcutsDoNotRepeatAndWorkDuringSlideshow() {
+        for modifiers: NSEvent.ModifierFlags in [[], [.control, .command], .capsLock] {
+            for slideshowActive in [false, true] {
+                XCTAssertEqual(KeyboardNavigation.action(for: 3, modifiers: modifiers,
+                    slideshowActive: slideshowActive), .toggleFullScreen)
+                XCTAssertEqual(KeyboardNavigation.action(for: 3, modifiers: modifiers,
+                    isRepeat: true, slideshowActive: slideshowActive), .none)
+            }
+        }
+        for modifiers: NSEvent.ModifierFlags in [.command, .control, .option, .shift,
+                                                [.control, .command, .shift], [.control, .command, .option]] {
+            XCTAssertEqual(KeyboardNavigation.action(for: 3, modifiers: modifiers), .none)
+        }
+    }
+
     func testDeleteAndForwardDeleteTrashWithoutRepeating() {
         for keyCode: UInt16 in [51, 117] {
             XCTAssertEqual(KeyboardNavigation.action(for: keyCode), .trash)

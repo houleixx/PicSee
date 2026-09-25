@@ -438,6 +438,11 @@ final class WindowManager {
             case .quit:
                 NSApp.terminate(nil)
                 return nil
+            case .toggleFullScreen:
+                guard let viewModel, !viewModel.slideshow.isFullScreenTransitioning else { return nil }
+                viewModel.slideshow.beginFullScreenTransition()
+                window.toggleFullScreen(nil)
+                return nil
             case .toggleImageParameters:
                 NotificationCenter.default.post(name: ViewerOverlayPreference.toggleImageParametersNotification, object: window)
                 return nil

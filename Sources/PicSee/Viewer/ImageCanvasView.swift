@@ -1118,6 +1118,10 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             slideshow?.stop()
         case .quit:
             onClose?()
+        case .toggleFullScreen:
+            guard let window, slideshow?.isFullScreenTransitioning != true else { return }
+            slideshow?.beginFullScreenTransition()
+            window.toggleFullScreen(nil)
         case .toggleImageParameters:
             toggleImageParametersVisibility()
         case .screenshot:

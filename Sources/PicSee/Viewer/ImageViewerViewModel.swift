@@ -11,6 +11,7 @@ struct ImageZoomRequest: Equatable {
 
 @MainActor
 final class ImageViewerViewModel: ObservableObject {
+    @Published private(set) var sessionID = UUID()
     @Published private(set) var currentURL: URL
     @Published private(set) var image: NSImage?
     @Published private(set) var errorMessage: String?
@@ -245,6 +246,28 @@ final class ImageViewerViewModel: ObservableObject {
         if needsOrder { startImageOrder(waitForResult: true) }
     }
 
+    /// External opens start a fresh browsing session; failed loads leave it intact.
+    @discardableResult
+    func openImage(_ url: URL) -> Bool {
+        let url = url.standardizedFileURL
+        if url == currentURL, image != nil, !isFolderEmpty { return true }
+        guard load(imageURL: url, preservesCurrentImageOnFailure: true) else {
+            fileOperationError = "无法打开“\(url.lastPathComponent)”，当前图片已保留。"
+            return false
+        }
+        slideshow.stop()
+        isScreenshotEditing = false
+        deletions.removeAll()
+        deletionNoticeID = nil
+        fileOperationError = nil
+        displayScale = 1
+        transformAnimationID = 0
+        sessionID = UUID()
+        establishNavigator(for: url, preferredOrder: nil)
+        startImageOrder(waitForResult: true)
+        return true
+    }
+
     func resetViewTransform() {
         zoomScale = 1
         panOffset = .zero
@@ -365,13 +388,13 @@ final class ImageViewerViewModel: ObservableObject {
         direction: Int? = nil
     ) -> Bool {
         let standardizedURL = imageURL.standardizedFileURL
-        isFolderEmpty = false
         guard let loadedImage = NSImage(contentsOf: standardizedURL), loadedImage.isValid else {
             if preservesCurrentImageOnFailure { return false }
             if preservesCurrentImageWhenMissing,
                !fileManager.fileExists(atPath: standardizedURL.path) {
                 return false
             }
+            isFolderEmpty = false
             currentURL = standardizedURL
             resetViewTransform()
             rotationDegrees = 0
@@ -382,6 +405,7 @@ final class ImageViewerViewModel: ObservableObject {
             return false
         }
 
+        isFolderEmpty = false
         currentURL = standardizedURL
         resetViewTransform()
         rotationDegrees = 0

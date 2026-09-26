@@ -108,6 +108,7 @@ struct ImageViewerView: View {
                     slideshow: viewModel.slideshow,
                     onStartSlideshow: viewModel.startSlideshow
                 )
+                .id(viewModel.sessionID)
                 .overlay(alignment: .topLeading) {
                     if !titleBarVisible && screenshotDocument == nil && slideshowChromeVisible {
                         HStack(spacing: 8) {
@@ -335,6 +336,18 @@ struct ImageViewerView: View {
         )) {
             Button("好") { clipboardError = nil }
         } message: { Text(clipboardError ?? "") }
+        .onChange(of: viewModel.sessionID) { _, _ in
+            closeScreenshot()
+            screenshotError = nil
+            clipboardError = nil
+            clipboardNoticeID = nil
+            latestVersionNoticeID = nil
+            deletionNoticeVisible = false
+            navigationPointerX = nil
+            toolbarPointerY = nil
+            slideshowControlsHovered = false
+            slideshowControlsVisible = true
+        }
         .onChange(of: viewModel.currentURL) { _, _ in closeScreenshot() }
         // AppKit temporarily detaches this view during native full-screen changes.
         // WindowDelegate owns stopping playback when the window actually closes.

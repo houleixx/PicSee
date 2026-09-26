@@ -19,6 +19,7 @@ final class SettingsWindowController: NSWindowController {
     static let contentSize = NSSize(width: 724, height: 548)
     let navigation = SettingsNavigation()
     private let preferences: ViewerPreferences
+    private var pinningController: WindowPinningController?
     private var appearanceObservation: AnyCancellable?
 
     init(
@@ -46,6 +47,7 @@ final class SettingsWindowController: NSWindowController {
         // Attaching a hosting controller can reset the content size to zero
         // before its first layout pass. Restore the intended size before showing.
         window.setContentSize(Self.contentSize)
+        pinningController = WindowPinningController(window: window, role: .settings, preferences: preferences)
         appearanceObservation = preferences.$snapshot.map(\.theme).removeDuplicates()
             .sink { [weak window] theme in window?.appearance = theme.appearance }
     }
@@ -164,6 +166,18 @@ private struct BrowsingSettingsView: View {
                 }
 
                 settingsCard("窗口") {
+                    preferenceRow(
+                        "单窗口看图",
+                        detail: "再次打开图片时，在已有窗口中显示",
+                        keyPath: \.singleWindowEnabled
+                    )
+                    Divider()
+                    preferenceRow(
+                        "窗口置顶",
+                        detail: "所有看图窗口保持在普通窗口上方，切换应用时仍然显示",
+                        keyPath: \.alwaysOnTopEnabled
+                    )
+                    Divider()
                     preferenceRow(
                         "固定窗口大小和位置",
                         detail: "开启时记住当前图片窗口，之后打开图片时沿用",

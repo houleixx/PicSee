@@ -1183,6 +1183,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             #selector(toggleFileInfoForMenu(_:)): snapshot.fileInfoVisible,
             #selector(toggleToolbarForMenu(_:)): snapshot.toolbarVisible,
             #selector(toggleImageParametersForMenu(_:)): snapshot.imageParametersVisible,
+            #selector(toggleSingleWindowForMenu(_:)): snapshot.singleWindowEnabled,
+            #selector(toggleAlwaysOnTopForMenu(_:)): snapshot.alwaysOnTopEnabled,
             #selector(toggleFixedWindowForMenu(_:)): snapshot.fixedWindowEnabled
         ]
         if let action = menuItem.action, let enabled = toggles[action] {
@@ -1262,6 +1264,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         }
         onFixedWindowChanged?(fixedWindowEnabled)
         window?.invalidateCursorRects(for: self)
+    }
+
+    @objc func toggleAlwaysOnTopForMenu(_ sender: Any?) {
+        WindowPinningPreference.setEnabled(!WindowPinningPreference.isEnabled(in: defaults), in: defaults)
+    }
+
+    @objc func toggleSingleWindowForMenu(_ sender: Any?) {
+        SingleWindowPreference.setEnabled(!SingleWindowPreference.isEnabled(in: defaults), in: defaults)
     }
 
     @objc func checkForUpdatesForMenu(_ sender: Any?) {
@@ -1366,6 +1376,20 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             imageParametersItem.target = self
             imageParametersItem.state = imageParametersVisible ? .on : .off
             menu.addItem(imageParametersItem)
+        }
+
+        if !menu.items.contains(where: { $0.action == #selector(toggleSingleWindowForMenu(_:)) }) {
+            let item = NSMenuItem(title: "单窗口看图", action: #selector(toggleSingleWindowForMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.state = SingleWindowPreference.isEnabled(in: defaults) ? .on : .off
+            menu.addItem(item)
+        }
+
+        if !menu.items.contains(where: { $0.action == #selector(toggleAlwaysOnTopForMenu(_:)) }) {
+            let item = NSMenuItem(title: "窗口置顶", action: #selector(toggleAlwaysOnTopForMenu(_:)), keyEquivalent: "")
+            item.target = self
+            item.state = WindowPinningPreference.isEnabled(in: defaults) ? .on : .off
+            menu.addItem(item)
         }
 
         if shouldAddFixedWindowItem {

@@ -49,10 +49,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func open(urls: [URL]) {
         let imageURLs = urls.filter(FolderImageNavigator.isSupportedImage)
-        let routing = ImageOpenRouting.route(urls: imageURLs, hasOpenViewer: windowManager.hasOpenViewer)
+        UserDefaults.standard.synchronize()
+        let singleWindow = SingleWindowPreference.isEnabled()
+        if singleWindow, let url = imageURLs.first {
+            let receiver = SingleWindowRouter.receiverPID()
+            if receiver != ProcessInfo.processInfo.processIdentifier {
+                do {
+                    try SingleWindowRouter.forward(url, to: receiver)
+                    // A newly launched forwarding instance has no reason to stay alive.
+                    if !windowManager.hasOpenViewer, settingsWindowController == nil {
+                        NSApp.terminate(nil)
+                    }
+                    return
+                } catch {
+                    // If the receiver exited between discovery and delivery, take over.
+                    if let app = NSRunningApplication(processIdentifier: receiver), !app.isTerminated {
+                        let alert = NSAlert(error: error)
+                        alert.messageText = "无法在已有窗口中打开图片"
+                        alert.runModal()
+                        return
+                    }
+                }
+            }
+        }
+        let routing = ImageOpenRouting.route(
+            urls: imageURLs, hasOpenViewer: windowManager.hasOpenViewer,
+            singleWindowEnabled: singleWindow
+        )
 
         if let currentProcessURL = routing.currentProcessURL {
-            windowManager.openViewer(for: currentProcessURL)
+            if singleWindow {
+                windowManager.openInExistingViewer(for: currentProcessURL)
+            } else {
+                windowManager.openViewer(for: currentProcessURL)
+            }
         }
 
         for spawnedURL in routing.spawnedProcessURLs {

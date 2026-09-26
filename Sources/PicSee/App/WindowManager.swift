@@ -4,6 +4,7 @@ import ObjectiveC
 import SwiftUI
 
 final class ViewerWindow: NSWindow {
+    var pinningController: WindowPinningController?
     private struct NativeFullScreenSnapshot {
         let styleMask: NSWindow.StyleMask
         let frame: NSRect
@@ -56,6 +57,7 @@ final class ViewerWindow: NSWindow {
 
     func prepareStyleMaskForNativeFullScreen() {
         guard nativeFullScreenSnapshot == nil else { return }
+        pinningController?.setFullScreenActive(true)
         nativeFullScreenSnapshot = NativeFullScreenSnapshot(styleMask: styleMask, frame: frame)
         styleMask = [.titled, .closable, .miniaturizable, .resizable]
     }
@@ -65,6 +67,7 @@ final class ViewerWindow: NSWindow {
         styleMask = snapshot.styleMask
         setFrame(snapshot.frame, display: true)
         nativeFullScreenSnapshot = nil
+        pinningController?.setFullScreenActive(false)
     }
 
     @discardableResult
@@ -73,6 +76,7 @@ final class ViewerWindow: NSWindow {
         self.styleMask = styleMask
         setFrame(snapshot.frame, display: true)
         nativeFullScreenSnapshot = nil
+        pinningController?.setFullScreenActive(false)
         return true
     }
 
@@ -137,18 +141,68 @@ final class ViewerWindow: NSWindow {
 @MainActor
 final class WindowManager {
     let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
-    private var currentWindow: NSWindow?
+    private(set) var currentWindow: NSWindow?
+    private(set) var currentViewModel: ImageViewerViewModel?
+    private var pendingOpenURL: URL?
+    private var isConfirmingReplacement = false
+    private var sheetObserver: AnyCancellable?
     private var titleObserver: AnyCancellable?
     private var appearanceObserver: AnyCancellable?
     private var keyEventMonitor: Any?
+    private let finderOrderProvider: (any FinderFolderOrderProviding)?
     private let deletionConfirmation = ImageDeletionConfirmation()
     private let minimumWindowSize = NSSize(width: 320, height: 220)
     private lazy var authorizationFocusRecovery = ViewerAuthorizationFocusRecovery { [weak self] window in
         self?.bringViewerToFront(window)
     }
 
+    init(finderOrderProvider: (any FinderFolderOrderProviding)? = nil) {
+        self.finderOrderProvider = finderOrderProvider
+    }
+
     var hasOpenViewer: Bool {
         currentWindow != nil
+    }
+
+    func openInExistingViewer(for url: URL) {
+        guard let window = currentWindow, let viewModel = currentViewModel else {
+            openViewer(for: url)
+            return
+        }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        bringViewerToFront(window)
+        // Keep only the latest request while an export/deletion/confirmation sheet is open.
+        pendingOpenURL = url
+        guard window.attachedSheet == nil, !isConfirmingReplacement else { return }
+        pendingOpenURL = nil
+        if url.standardizedFileURL == viewModel.currentURL, viewModel.image != nil, !viewModel.isFolderEmpty {
+            return
+        }
+        guard viewModel.isScreenshotEditing else {
+            viewModel.openImage(url)
+            return
+        }
+        isConfirmingReplacement = true
+        let alert = NSAlert()
+        alert.messageText = "放弃当前编辑并打开新图片？"
+        alert.informativeText = "当前截图和标注中尚未保存的内容将丢失。"
+        alert.addButton(withTitle: "放弃并打开")
+        alert.addButton(withTitle: "取消")
+        alert.buttons.last?.keyEquivalent = "\u{1b}"
+        alert.beginSheetModal(for: window) { [weak self, weak viewModel] response in
+            guard let self else { return }
+            if response == .alertFirstButtonReturn { viewModel?.openImage(url) }
+            self.isConfirmingReplacement = false
+            self.resumePendingOpen()
+        }
+    }
+
+    private func resumePendingOpen() {
+        // Sheets finish detaching after their completion callback.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let url = self.pendingOpenURL else { return }
+            self.openInExistingViewer(for: url)
+        }
     }
 
     func openViewer(for url: URL) {
@@ -156,7 +210,7 @@ final class WindowManager {
 
         let viewModel = ImageViewerViewModel(
             imageURL: url,
-            finderOrderProvider: FinderFolderOrderProvider(
+            finderOrderProvider: finderOrderProvider ?? FinderFolderOrderProvider(
                 onAuthorizationPromptWillBegin: { [weak self] in
                     guard let self else { return }
                     self.authorizationFocusRecovery.begin(for: self.currentWindow)
@@ -209,7 +263,11 @@ final class WindowManager {
         )
         let hostingController = NSHostingController(rootView: rootView)
 
+        window.pinningController = WindowPinningController(window: window)
         currentWindow = window
+        currentViewModel = viewModel
+        sheetObserver = NotificationCenter.default.publisher(for: NSWindow.didEndSheetNotification, object: window)
+            .sink { [weak self] _ in self?.resumePendingOpen() }
         appearanceObserver = ViewerPreferences.shared.$snapshot.map(\.theme).removeDuplicates()
             .sink { [weak window] theme in window?.appearance = theme.appearance }
         window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
@@ -262,6 +320,10 @@ final class WindowManager {
                     self?.keyEventMonitor = nil
                 }
                 self?.currentWindow = nil
+                self?.currentViewModel = nil
+                self?.sheetObserver = nil
+                self?.pendingOpenURL = nil
+                self?.isConfirmingReplacement = false
             },
             onExitFullScreen: { [weak self, weak window] in
                 guard let window else { return }
@@ -350,6 +412,7 @@ final class WindowManager {
             window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: visible)
             window.setFrame(frame, display: true)
         }
+        (window as? ViewerWindow)?.pinningController?.apply()
         applyWindowShape(to: window, titleBarVisible: visible)
         if !isFull {
             applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
@@ -490,6 +553,7 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
+        (notification.object as? ViewerWindow)?.pinningController?.setFullScreenActive(true)
         slideshow?.beginFullScreenTransition()
     }
 
@@ -505,11 +569,13 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
     func windowDidExitFullScreen(_ notification: Notification) {
         NotificationCenter.default.post(name: ViewerOverlayPreference.didExitFullScreenNotification, object: nil)
         onExitFullScreen()
+        (notification.object as? ViewerWindow)?.pinningController?.setFullScreenActive(false)
         slideshow?.endFullScreenTransition()
     }
 
     func windowDidFailToEnterFullScreen(_ window: NSWindow) {
         onFailToEnterFullScreen()
+        (window as? ViewerWindow)?.pinningController?.setFullScreenActive(false)
         slideshow?.endFullScreenTransition()
     }
 

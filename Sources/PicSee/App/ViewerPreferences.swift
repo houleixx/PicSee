@@ -25,6 +25,8 @@ struct ViewerPreferencesSnapshot: Equatable {
     var fileInfoVisible: Bool
     var toolbarVisible: Bool
     var imageParametersVisible: Bool
+    var alwaysOnTopEnabled: Bool
+    var singleWindowEnabled: Bool
     var fixedWindowEnabled: Bool
 
     init(defaults: UserDefaults) {
@@ -34,6 +36,8 @@ struct ViewerPreferencesSnapshot: Equatable {
         fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible(in: defaults)
         toolbarVisible = ViewerOverlayPreference.isToolbarVisible(in: defaults)
         imageParametersVisible = ViewerOverlayPreference.isImageParametersVisible(in: defaults)
+        alwaysOnTopEnabled = WindowPinningPreference.isEnabled(in: defaults)
+        singleWindowEnabled = SingleWindowPreference.isEnabled(in: defaults)
         fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: defaults)
     }
 }
@@ -86,6 +90,8 @@ final class ViewerPreferences: ObservableObject {
         case \.fileInfoVisible: ViewerOverlayPreference.setFileInfoVisible(value, in: defaults)
         case \.toolbarVisible: ViewerOverlayPreference.setToolbarVisible(value, in: defaults)
         case \.imageParametersVisible: ViewerOverlayPreference.setImageParametersVisible(value, in: defaults)
+        case \.alwaysOnTopEnabled: WindowPinningPreference.setEnabled(value, in: defaults)
+        case \.singleWindowEnabled: SingleWindowPreference.setEnabled(value, in: defaults)
         case \.fixedWindowEnabled: WindowFramePreference.setFixedEnabled(value, in: defaults)
         default: preconditionFailure("Unknown viewer preference")
         }

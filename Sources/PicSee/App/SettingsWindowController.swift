@@ -3,10 +3,17 @@ import Combine
 import SwiftUI
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case defaultApps = "打开方式"
-    case browsing = "显示设置"
-    case about = "关于"
+    case defaultApps
+    case browsing
+    case about
     var id: Self { self }
+    var title: String {
+        switch self {
+        case .defaultApps: L10n.text("打开方式")
+        case .browsing: L10n.text("显示设置")
+        case .about: L10n.text("关于")
+        }
+    }
 }
 
 @MainActor
@@ -21,6 +28,7 @@ final class SettingsWindowController: NSWindowController {
     private let preferences: ViewerPreferences
     private var pinningController: WindowPinningController?
     private var appearanceObservation: AnyCancellable?
+    private var languageObservation: AnyCancellable?
 
     init(
         preferences: ViewerPreferences = .shared,
@@ -34,7 +42,7 @@ final class SettingsWindowController: NSWindowController {
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered, defer: false
         )
-        window.title = "PicSee 设置"
+        window.title = L10n.text("PicSee 设置")
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.contentViewController = NSHostingController(rootView: SettingsView(
@@ -47,6 +55,9 @@ final class SettingsWindowController: NSWindowController {
         // Attaching a hosting controller can reset the content size to zero
         // before its first layout pass. Restore the intended size before showing.
         window.setContentSize(Self.contentSize)
+        languageObservation = LanguageSettings.shared.$revision.sink { [weak window] _ in
+            window?.title = L10n.text("PicSee 设置")
+        }
         pinningController = WindowPinningController(window: window, role: .settings, preferences: preferences)
         appearanceObservation = preferences.$snapshot.map(\.theme).removeDuplicates()
             .sink { [weak window] theme in window?.appearance = theme.appearance }
@@ -80,6 +91,7 @@ private final class SettingsWindow: NSWindow {
 }
 
 private struct SettingsView: View {
+    @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var navigation: SettingsNavigation
     @ObservedObject var preferences: ViewerPreferences
     let updateChecker: UpdateChecker?
@@ -88,14 +100,15 @@ private struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("设置页面", selection: $navigation.page) {
+            Picker(L10n.text("设置页面"), selection: $navigation.page) {
                 ForEach(SettingsPage.allCases) { page in
-                    Text(page.rawValue).tag(page)
+                    Text(page.title).tag(page)
                 }
             }
+            .id(language.revision)
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 300)
+            .frame(width: L10n.languageCode == "zh-Hans" ? 300 : 360)
             .padding(.vertical, 12)
 
             Divider()
@@ -124,21 +137,39 @@ private struct SettingsView: View {
         }
         .frame(width: SettingsWindowController.contentSize.width, height: SettingsWindowController.contentSize.height)
         .background(Color(nsColor: .windowBackgroundColor))
+        .environment(\.locale, L10n.locale)
     }
 }
 
 private struct BrowsingSettingsView: View {
+    @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var preferences: ViewerPreferences
     let captureFixedWindowFrame: () -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                settingsCard("外观") {
+                settingsCard(L10n.text("外观")) {
                     HStack {
-                        Text("主题").font(.system(size: 13, weight: .medium))
+                        Text(L10n.text("语言")).font(.system(size: 13, weight: .medium))
                         Spacer()
-                        Picker("主题", selection: Binding(
+                        Picker(L10n.text("语言"), selection: Binding(
+                            get: { language.selection }, set: { language.set($0) }
+                        )) {
+                            ForEach(AppLanguage.allCases, id: \.rawValue) { option in
+                                Text(option.title).tag(option)
+                            }
+                        }
+                        .labelsHidden()
+                        .id(language.revision)
+                        .frame(width: 270)
+                    }
+                    .padding(.vertical, 4)
+                    Divider()
+                    HStack {
+                        Text(L10n.text("主题")).font(.system(size: 13, weight: .medium))
+                        Spacer()
+                        Picker(L10n.text("主题"), selection: Binding(
                             get: { preferences.snapshot.theme },
                             set: { preferences.setTheme($0) }
                         )) {
@@ -147,46 +178,44 @@ private struct BrowsingSettingsView: View {
                             }
                         }
                         .labelsHidden()
+                        .id(language.revision)
                         .pickerStyle(.segmented)
                         .frame(width: 270)
                     }
                     .padding(.vertical, 4)
                 }
 
-                settingsCard("界面元素") {
-                    preferenceRow("显示标题栏", keyPath: \.titleBarVisible)
+                settingsCard(L10n.text("界面元素")) {
+                    preferenceRow(L10n.text("显示标题栏"), keyPath: \.titleBarVisible)
                     Divider()
-                    preferenceRow("显示缩略图", detail: "图片放大超出窗口时，显示定位缩略图", keyPath: \.minimapEnabled)
+                    preferenceRow(L10n.text("显示缩略图"), detail: L10n.text("图片放大超出窗口时，显示定位缩略图"), keyPath: \.minimapEnabled)
                     Divider()
-                    preferenceRow("显示文件信息", detail: "隐藏标题栏时，在左上角显示文件信息", keyPath: \.fileInfoVisible)
+                    preferenceRow(L10n.text("显示文件信息"), detail: L10n.text("隐藏标题栏时，在左上角显示文件信息"), keyPath: \.fileInfoVisible)
                     Divider()
-                    preferenceRow("显示底部工具栏", keyPath: \.toolbarVisible)
+                    preferenceRow(L10n.text("显示底部工具栏"), keyPath: \.toolbarVisible)
                     Divider()
-                    preferenceRow("显示图片参数", detail: "在右侧显示图片详细参数", keyPath: \.imageParametersVisible)
+                    preferenceRow(L10n.text("显示图片参数"), detail: L10n.text("在右侧显示图片详细参数"), keyPath: \.imageParametersVisible)
                 }
 
-                settingsCard("窗口") {
+                settingsCard(L10n.text("窗口")) {
                     preferenceRow(
-                        "单窗口看图",
-                        detail: "再次打开图片时，在已有窗口中显示",
+                        L10n.text("单窗口看图"),
+                        detail: L10n.text("再次打开图片时，在已有窗口中显示"),
                         keyPath: \.singleWindowEnabled
                     )
                     Divider()
                     preferenceRow(
-                        "窗口置顶",
-                        detail: "所有看图窗口保持在普通窗口上方，切换应用时仍然显示",
+                        L10n.text("窗口置顶"),
+                        detail: L10n.text("所有看图窗口保持在普通窗口上方，切换应用时仍然显示"),
                         keyPath: \.alwaysOnTopEnabled
                     )
                     Divider()
                     preferenceRow(
-                        "固定窗口大小和位置",
-                        detail: "开启时记住当前图片窗口，之后打开图片时沿用",
+                        L10n.text("固定窗口大小和位置"),
+                        detail: L10n.text("开启时记住当前图片窗口，之后打开图片时沿用"),
                         keyPath: \.fixedWindowEnabled
                     )
                 }
-                Text("更改立即生效，并与右键菜单同步。")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
@@ -274,6 +303,7 @@ private struct DefaultAppsSettingsView: NSViewControllerRepresentable {
 }
 
 private struct AboutSettingsView: View {
+    @ObservedObject private var language = LanguageSettings.shared
     let updateChecker: UpdateChecker?
 
     var body: some View {
@@ -299,7 +329,7 @@ private struct AboutSettingsView: View {
             }
 
             HStack(spacing: 6) {
-                Text("下载地址：").foregroundStyle(.secondary)
+                Text(L10n.text("下载地址：")).foregroundStyle(.secondary)
                 let websiteURL = AppMenu.releasePageURL(from: Bundle.main.infoDictionary ?? [:])
                 let websiteLabel = websiteURL.absoluteString.hasSuffix("/")
                     ? String(websiteURL.absoluteString.dropLast()) : websiteURL.absoluteString
@@ -308,13 +338,13 @@ private struct AboutSettingsView: View {
             }
             .font(.system(size: 12))
 
-            Text("感谢“大脑袋范同学”提出的优化建议")
+            Text(L10n.text("感谢“大脑袋范同学”提出的优化建议"))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             if let updateChecker {
                 SettingsUpdateView(updateChecker: updateChecker)
             } else {
-                Text("当前构建缺少版本信息，无法检查更新。")
+                Text(L10n.text("当前构建缺少版本信息，无法检查更新。"))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }
@@ -325,12 +355,13 @@ private struct AboutSettingsView: View {
 }
 
 private struct SettingsUpdateView: View {
+    @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var updateChecker: UpdateChecker
     @State private var isUpToDate = false
 
     var body: some View {
         VStack(spacing: 12) {
-            Button(updateChecker.checkError == nil ? "检查更新" : "重试检查") {
+            Button(updateChecker.checkError == nil ? L10n.text("检查更新") : L10n.text("重试检查")) {
                 Task { isUpToDate = await updateChecker.checkForUpdatesManually() }
             }
             .buttonStyle(.bordered)
@@ -351,31 +382,31 @@ private struct SettingsUpdateView: View {
             if updateChecker.status == .checking {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("正在检查更新…")
+                    Text(L10n.text("正在检查更新…"))
                 }
             } else if let error = updateChecker.checkError {
                 Text(error).foregroundStyle(.secondary)
             } else if let update = updateChecker.availableUpdate {
-                Text("发现新版本 \(update.version.displayString)")
+                Text(L10n.text("发现新版本 %1$@", String(describing: update.version.displayString)))
             } else if isUpToDate {
                 HStack(spacing: 6) {
                     Image(nsImage: PhosphorImages.check)
                         .resizable().renderingMode(.template).scaledToFit()
                         .frame(width: 16, height: 16).foregroundStyle(.green)
                         .accessibilityHidden(true)
-                    Text("已经是最新版本了")
+                    Text(L10n.text("已经是最新版本了"))
                 }
             }
 
             if updateChecker.status == .downloading {
                 ProgressView(value: updateChecker.downloadProgress ?? 0)
                     .frame(width: 220)
-                Text("正在下载更新…").foregroundStyle(.secondary)
+                Text(L10n.text("正在下载更新…")).foregroundStyle(.secondary)
             } else if updateChecker.availableUpdate != nil {
                 if updateChecker.status == .failed {
-                    Text("下载失败，请重试。").foregroundStyle(.secondary)
+                    Text(L10n.text("下载失败，请重试。")).foregroundStyle(.secondary)
                 }
-                Button(updateChecker.status == .failed ? "重试下载" : "下载并安装") {
+                Button(updateChecker.status == .failed ? L10n.text("重试下载") : L10n.text("下载并安装")) {
                     Task { await updateChecker.downloadAvailableUpdate() }
                 }
                 .buttonStyle(.borderedProminent)

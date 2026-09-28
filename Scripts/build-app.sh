@@ -79,6 +79,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>CFBundleLocalizations</key>
     <array>
         <string>zh-Hans</string>
+        <string>en</string>
     </array>
     <key>CFBundleExecutable</key>
     <string>PicSee</string>

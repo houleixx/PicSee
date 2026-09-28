@@ -11,6 +11,82 @@ final class SettingsWindowTests: XCTestCase {
         }
     }
 
+    // Native UI integration uses XCTest's serial lifecycle because application language
+    // is a process-wide preference shared by existing windows and menus.
+    func testLiveLanguageSwitchUpdatesNativeControlsAndPreservesEditingState() throws {
+        _ = NSApplication.shared
+        let defaults = UserDefaults.standard
+        let original = defaults.object(forKey: AppLanguage.defaultsKey)
+        defer {
+            if let original { defaults.set(original, forKey: AppLanguage.defaultsKey) }
+            else { defaults.removeObject(forKey: AppLanguage.defaultsKey) }
+            LanguageSettings.shared.reload()
+        }
+        defaults.set("zh-Hans", forKey: AppLanguage.defaultsKey)
+        LanguageSettings.shared.reload()
+        let controller = SettingsWindowController(updateChecker: nil,
+            defaultAppHandler: ReadOnlyDefaultAppHandler(), captureFixedWindowFrame: {})
+        let window = try XCTUnwrap(controller.window)
+        let dialog = ImageDeletionDialog(filename: "照片.jpg")
+        dialog.suppressionButton.state = .on
+        let accessory = ScreenshotExportAccessoryView(sourceSize: CGSize(width: 100, height: 80), displayScale: 0.5)
+        accessory.selectedMode = .imageScale
+        let exportOptions = accessory.exportOptions
+        let canvas = CanvasNSView(frame: .zero, backend: .liveText)
+        let menu = NSMenu()
+        canvas.debugAppendPicSeeContextMenuItems(to: menu)
+        let associationController = DefaultImageAppSettingsViewController(handler: ReadOnlyDefaultAppHandler())
+        func allButtons(_ view: NSView) -> [NSButton] {
+            (view as? NSButton).map { [$0] } ?? view.subviews.flatMap(allButtons)
+        }
+        let buttons = allButtons(associationController.view)
+        let png = try XCTUnwrap(buttons.first { $0.title.hasPrefix("PNG") })
+        png.state = .off
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 40, pixelsHigh: 40,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("language-\(UUID()).png")
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let model = ImageViewerViewModel(imageURL: url)
+        model.zoomScale = 2.5
+        model.panOffset = CGSize(width: 10, height: 20)
+        model.rotationDegrees = 90
+        let session = model.sessionID
+        let document = try ScreenshotDocument(image: XCTUnwrap(model.image), rotationDegrees: 0)
+        document.state.selection = CGRect(x: 2, y: 3, width: 20, height: 20)
+        document.tool = .pen
+        let selection = document.state.selection
+
+        LanguageSettings.shared.set(.english)
+        XCTAssertEqual(window.title, "PicSee Settings")
+        XCTAssertEqual(dialog.messageText, "Move Image to Trash?")
+        XCTAssertEqual(dialog.buttons.map(\.title), ["Cancel", "Move to Trash"])
+        XCTAssertEqual(dialog.filename, "照片.jpg")
+        XCTAssertEqual(dialog.suppressionButton.state, .on)
+        XCTAssertTrue(menu.items.contains { $0.title == "Show Title Bar" })
+        XCTAssertTrue(menu.items.contains { $0.title == "About PicSee" })
+        XCTAssertEqual(png.state, .off)
+        XCTAssertTrue(buttons.contains { $0.title == "Set as Default" })
+        XCTAssertEqual(accessory.exportOptions.pixelSize, exportOptions.pixelSize)
+        XCTAssertEqual(accessory.selectedMode, .imageScale)
+        XCTAssertNil(model.fileSizeText?.range(of: "\\p{Han}", options: .regularExpression))
+        XCTAssertEqual(model.sessionID, session)
+        XCTAssertEqual(model.currentURL, url)
+        XCTAssertEqual(model.zoomScale, 2.5)
+        XCTAssertEqual(model.panOffset, CGSize(width: 10, height: 20))
+        XCTAssertEqual(model.rotationDegrees, 90)
+        XCTAssertEqual(document.state.selection, selection)
+        XCTAssertEqual(document.tool, .pen)
+
+        LanguageSettings.shared.set(.simplifiedChinese)
+        XCTAssertEqual(window.title, "PicSee 设置")
+        XCTAssertEqual(dialog.buttons.map(\.title), ["取消", "移到废纸篓"])
+        XCTAssertTrue(menu.items.contains { $0.title == "显示标题栏" })
+        XCTAssertEqual(png.state, .off)
+        window.close()
+    }
+
     func testDefaultAppCardBorderResolvesUsingSelectedTheme() throws {
         _ = NSApplication.shared
         let controller = DefaultImageAppSettingsViewController(handler: ReadOnlyDefaultAppHandler())

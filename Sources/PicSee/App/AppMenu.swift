@@ -14,11 +14,11 @@ enum AppMenu {
 
         appMenu.addItem(buildAboutMenuItem(appName: appName))
         appMenu.addItem(NSMenuItem(
-            title: "设置…", action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ","
+            title: L10n.text("设置…"), action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ","
         ))
         appMenu.addItem(
             NSMenuItem(
-                title: "默认打开方式…",
+                title: L10n.text("默认打开方式…"),
                 action: #selector(AppDelegate.showDefaultImageAppSettings(_:)),
                 keyEquivalent: ""
             )
@@ -26,7 +26,7 @@ enum AppMenu {
         appMenu.addItem(.separator())
         appMenu.addItem(
             NSMenuItem(
-                title: "退出 \(appName)",
+                title: L10n.text("退出 %1$@", String(describing: appName)),
                 action: #selector(NSApplication.terminate(_:)),
                 keyEquivalent: "q"
             )
@@ -36,11 +36,13 @@ enum AppMenu {
     }
 
     static func buildAboutMenuItem(appName: String) -> NSMenuItem {
-        NSMenuItem(
-            title: "关于 \(appName)",
+        let item = NSMenuItem(
+            title: L10n.text("关于 %1$@", appName),
             action: #selector(AppDelegate.showAboutSettings(_:)),
             keyEquivalent: ""
         )
+        LanguageSettings.bind(item) { $0.title = L10n.text("关于 %1$@", appName) }
+        return item
     }
 
     static func appendAboutItem(to menu: NSMenu, appName: String = "PicSee", includeSeparator: Bool = true) {
@@ -63,8 +65,8 @@ enum AppMenu {
     }
 
     static func versionSummary(from info: [String: Any]) -> String {
-        let shortVersion = stringValue(for: "CFBundleShortVersionString", in: info) ?? "未知"
-        return "版本 \(shortVersion)"
+        let shortVersion = stringValue(for: "CFBundleShortVersionString", in: info) ?? L10n.text("未知")
+        return L10n.text("版本 %1$@", String(describing: shortVersion))
     }
 
     static func releasePageURL(from info: [String: Any]) -> URL {

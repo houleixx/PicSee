@@ -20,9 +20,9 @@ final class DefaultImageAppSettingsTests: XCTestCase {
     }
 
     func testFallbackInstructionsExplainFinderGetInfoForUnlistedFormats() {
-        XCTAssertTrue(DefaultImageAppSettings.fallbackInstructions.contains("显示简介"))
-        XCTAssertTrue(DefaultImageAppSettings.fallbackInstructions.contains("打开方式"))
-        XCTAssertTrue(DefaultImageAppSettings.fallbackInstructions.contains("全部更改"))
+        XCTAssertTrue(DefaultImageAppSettings.fallbackInstructions.contains(L10n.languageCode == "en" ? "Get Info" : "显示简介"))
+        XCTAssertTrue(DefaultImageAppSettings.fallbackInstructions.contains(L10n.languageCode == "en" ? "Open with" : "打开方式"))
+        XCTAssertTrue(DefaultImageAppSettings.fallbackInstructions.contains(L10n.languageCode == "en" ? "Change All" : "全部更改"))
     }
 
     func testLaunchSettingsWindowOnlyForDirectLaunchWithoutOpenedImages() {

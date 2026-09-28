@@ -6,12 +6,12 @@ struct ImageSortOrder: Equatable, Sendable {
 
         var title: String {
             switch self {
-            case .name: "名称"
-            case .creationDate: "创建日期"
-            case .modificationDate: "修改日期"
-            case .addedDate: "添加日期"
-            case .size: "文件大小"
-            case .kind: "种类"
+            case .name: L10n.text("名称")
+            case .creationDate: L10n.text("创建日期")
+            case .modificationDate: L10n.text("修改日期")
+            case .addedDate: L10n.text("添加日期")
+            case .size: L10n.text("文件大小")
+            case .kind: L10n.text("种类")
             }
         }
 
@@ -20,7 +20,7 @@ struct ImageSortOrder: Equatable, Sendable {
 
     var field: Field
     var ascending: Bool
-    var title: String { "\(field.title)\(ascending ? "升序" : "降序")" }
+    var title: String { L10n.text("%1$@%2$@", String(describing: field.title), String(describing: ascending ? L10n.text("升序") : L10n.text("降序"))) }
     static let filename = Self(field: .name, ascending: true)
 
     // Materialize metadata once, rather than performing file I/O inside the comparator.
@@ -74,5 +74,5 @@ struct ImageSortOrder: Equatable, Sendable {
 struct FolderOrderingResult: Sendable {
     let urls: [URL]?
     let status: String
-    static let unavailable = Self(urls: nil, status: "未能读取 Finder 顺序，当前按名称升序")
+    static var unavailable: Self { Self(urls: nil, status: L10n.text("未能读取 Finder 顺序，当前按名称升序")) }
 }

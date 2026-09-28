@@ -15,6 +15,7 @@ final class DefaultImageAppSettingsViewController: NSViewController {
     private var secondaryLabels: [NSTextField] = []
     private weak var contentBackgroundLayer: CALayer?
     private var cardLayers: [CALayer] = []
+    private var statusText: () -> String = { "" }
     private let statusLabel = NSTextField(labelWithString: "")
 
     init(handler: DefaultImageAppHandling) {
@@ -27,6 +28,10 @@ final class DefaultImageAppSettingsViewController: NSViewController {
 
     override func loadView() {
         view = buildContentView()
+        LanguageSettings.bind(self) { controller in
+            controller.statusLabel.stringValue = controller.statusText()
+            controller.applyTheme(ViewerTheme.current())
+        }
     }
 
     private func buildContentView() -> NSView {
@@ -70,7 +75,8 @@ final class DefaultImageAppSettingsViewController: NSViewController {
         header.spacing = 16
 
         let icon = NSImageView()
-        icon.image = NSApp.applicationIconImage
+        icon.image = Bundle.main.url(forResource: "AppIcon", withExtension: "icns")
+            .flatMap { NSImage(contentsOf: $0) } ?? NSApp.applicationIconImage
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.translatesAutoresizingMaskIntoConstraints = false
         icon.setContentHuggingPriority(.required, for: .horizontal)
@@ -81,11 +87,13 @@ final class DefaultImageAppSettingsViewController: NSViewController {
         textStack.alignment = .leading
         textStack.spacing = 8
 
-        let title = NSTextField(labelWithString: "默认图片打开方式")
+        let title = NSTextField(labelWithString: L10n.text("默认图片打开方式"))
+        LanguageSettings.bind(title) { $0.stringValue = L10n.text("默认图片打开方式") }
         title.font = .systemFont(ofSize: 22, weight: .semibold)
         primaryLabels.append(title)
 
-        let subtitle = wrappingLabel("选择双击图片时交给 PicSee 打开的格式，已是 PicSee 默认打开的格式会自动勾选。")
+        let subtitle = wrappingLabel(L10n.text("选择双击图片时交给 PicSee 打开的格式，已是 PicSee 默认打开的格式会自动勾选。"))
+        LanguageSettings.bind(subtitle) { $0.stringValue = L10n.text("选择双击图片时交给 PicSee 打开的格式，已是 PicSee 默认打开的格式会自动勾选。") }
         secondaryLabels.append(subtitle)
 
         textStack.addArrangedSubview(title)
@@ -108,7 +116,7 @@ final class DefaultImageAppSettingsViewController: NSViewController {
         cardContent.alignment = .width
         cardContent.spacing = 12
 
-        let header = buildCardHeaderView(title: "支持的图片格式")
+        let header = buildCardHeaderView()
         cardContent.addArrangedSubview(header)
         cardContent.addArrangedSubview(buildFormatGridView())
 
@@ -128,10 +136,11 @@ final class DefaultImageAppSettingsViewController: NSViewController {
         return footer
     }
 
-    private func buildCardHeaderView(title: String = "常用图片格式") -> NSView {
+    private func buildCardHeaderView() -> NSView {
         let row = NSView()
 
-        let sectionTitle = NSTextField(labelWithString: title)
+        let sectionTitle = NSTextField(labelWithString: L10n.text("支持的图片格式"))
+        LanguageSettings.bind(sectionTitle) { $0.stringValue = L10n.text("支持的图片格式") }
         sectionTitle.font = .systemFont(ofSize: 12, weight: .semibold)
         primaryLabels.append(sectionTitle)
         sectionTitle.translatesAutoresizingMaskIntoConstraints = false
@@ -220,7 +229,7 @@ final class DefaultImageAppSettingsViewController: NSViewController {
     }
 
     private func displayExtensions(for format: DefaultImageFormat) -> String {
-        format.label == "RAW" ? "dng, cr2, cr3 等" : format.extensions
+        format.label == "RAW" ? L10n.text("dng, cr2, cr3 等") : format.extensions
     }
 
     private func buildFormatActionsView() -> NSView {
@@ -229,10 +238,12 @@ final class DefaultImageAppSettingsViewController: NSViewController {
         row.alignment = .centerY
         row.spacing = 10
 
-        let selectAllButton = NSButton(title: "全选", target: self, action: #selector(selectAllFormats(_:)))
+        let selectAllButton = NSButton(title: L10n.text("全选"), target: self, action: #selector(selectAllFormats(_:)))
+        LanguageSettings.bind(selectAllButton) { $0.title = L10n.text("全选") }
         selectAllButton.bezelStyle = .rounded
 
-        let clearButton = NSButton(title: "清除", target: self, action: #selector(clearSelectedFormats(_:)))
+        let clearButton = NSButton(title: L10n.text("清除"), target: self, action: #selector(clearSelectedFormats(_:)))
+        LanguageSettings.bind(clearButton) { $0.title = L10n.text("清除") }
         clearButton.bezelStyle = .rounded
 
         statusLabel.font = .systemFont(ofSize: 12)
@@ -242,10 +253,11 @@ final class DefaultImageAppSettingsViewController: NSViewController {
         statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let applyButton = NSButton(
-            title: "设为默认",
+            title: L10n.text("设为默认"),
             target: self,
             action: #selector(applySelectedFormats(_:))
         )
+        LanguageSettings.bind(applyButton) { $0.title = L10n.text("设为默认") }
         applyButton.bezelStyle = .rounded
         applyButton.keyEquivalent = "\r"
         applyButton.setAccessibilityIdentifier("set-default-image-formats")
@@ -273,6 +285,7 @@ final class DefaultImageAppSettingsViewController: NSViewController {
 
     private func buildTipView() -> NSView {
         let label = wrappingLabel(DefaultImageAppSettings.fallbackInstructions)
+        LanguageSettings.bind(label) { $0.stringValue = DefaultImageAppSettings.fallbackInstructions }
         label.font = .systemFont(ofSize: 11)
         label.alignment = .left
         secondaryLabels.append(label)
@@ -438,12 +451,14 @@ final class DefaultImageAppSettingsViewController: NSViewController {
 
         guard !selectedFormats.isEmpty else {
             NSSound.beep()
-            statusLabel.stringValue = "请至少选择一种图片格式。"
+            statusText = { L10n.text("请至少选择一种图片格式。") }
+            statusLabel.stringValue = statusText()
             return
         }
 
         let result = DefaultImageAppSettings.apply(selectedFormats, using: handler)
-        statusLabel.stringValue = result.statusMessage
+        statusText = { result.statusMessage }
+        statusLabel.stringValue = statusText()
         for checkbox in checkboxes {
             checkbox.button.state = handler.isDefaultViewer(for: checkbox.format) ? .on : .off
         }
@@ -455,10 +470,16 @@ final class DefaultImageAppSettingsViewController: NSViewController {
     static func makeFailureAlert(for result: DefaultImageAppApplyResult) -> NSAlert {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = result.completed.isEmpty ? "设置默认打开方式失败" : "部分格式设置失败"
+        alert.messageText = result.completed.isEmpty ? L10n.text("设置默认打开方式失败") : L10n.text("部分格式设置失败")
         alert.informativeText = result.statusMessage + "\n\n" + result.failureDetails
-            + "\n\n可在 Finder 的“显示简介”→“打开方式”中选择 PicSee，并点“全部更改…”。"
-        alert.addButton(withTitle: "好")
+            + L10n.text("\n\n可在 Finder 的“显示简介”→“打开方式”中选择 PicSee，并点“全部更改…”。")
+        alert.addButton(withTitle: L10n.text("好"))
+        LanguageSettings.bind(alert) {
+            $0.messageText = result.completed.isEmpty ? L10n.text("设置默认打开方式失败") : L10n.text("部分格式设置失败")
+            $0.informativeText = result.statusMessage + "\n\n" + result.failureDetails
+                + L10n.text("\n\n可在 Finder 的“显示简介”→“打开方式”中选择 PicSee，并点“全部更改…”。")
+            $0.buttons.first?.title = L10n.text("好")
+        }
         return alert
     }
 }

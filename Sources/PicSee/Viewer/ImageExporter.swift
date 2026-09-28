@@ -39,11 +39,20 @@ struct ImageExportOptions: Equatable {
     let pixelSize: CGSize?
 }
 
-enum ImageExporterError: Error {
+enum ImageExporterError: LocalizedError {
     case missingCGImage
     case invalidDestination
     case failedToRender
     case failedToFinalize
+
+    var errorDescription: String? {
+        switch self {
+        case .missingCGImage: L10n.text("无法读取图片像素。")
+        case .invalidDestination: L10n.text("无法创建导出文件，请检查保存位置。")
+        case .failedToRender: L10n.text("无法生成图片，请检查选区和尺寸。")
+        case .failedToFinalize: L10n.text("无法完成图片保存。")
+        }
+    }
 }
 
 enum ImageExporter {

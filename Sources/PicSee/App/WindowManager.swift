@@ -184,10 +184,16 @@ final class WindowManager {
         }
         isConfirmingReplacement = true
         let alert = NSAlert()
-        alert.messageText = "放弃当前编辑并打开新图片？"
-        alert.informativeText = "当前截图和标注中尚未保存的内容将丢失。"
-        alert.addButton(withTitle: "放弃并打开")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = L10n.text("放弃当前编辑并打开新图片？")
+        alert.informativeText = L10n.text("当前截图和标注中尚未保存的内容将丢失。")
+        alert.addButton(withTitle: L10n.text("放弃并打开"))
+        alert.addButton(withTitle: L10n.text("取消"))
+        LanguageSettings.bind(alert) {
+            $0.messageText = L10n.text("放弃当前编辑并打开新图片？")
+            $0.informativeText = L10n.text("当前截图和标注中尚未保存的内容将丢失。")
+            $0.buttons[0].title = L10n.text("放弃并打开")
+            $0.buttons[1].title = L10n.text("取消")
+        }
         alert.buttons.last?.keyEquivalent = "\u{1b}"
         alert.beginSheetModal(for: window) { [weak self, weak viewModel] response in
             guard let self else { return }
@@ -278,6 +284,10 @@ final class WindowManager {
                 window.title = ViewerTitleBarPreference.isVisible() ? viewModel.titleBarText : viewModel.currentFilename
             }
 
+        LanguageSettings.bind(window) { [weak viewModel] window in
+            guard let viewModel else { return }
+            window.title = ViewerTitleBarPreference.isVisible() ? viewModel.titleBarText : viewModel.currentFilename
+        }
         window.title = titleBarVisible ? viewModel.titleBarText : viewModel.currentFilename
         window.isMovableByWindowBackground = false
         window.isOpaque = true

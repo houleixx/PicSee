@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "PicSee",
+    defaultLocalization: "zh-Hans",
     platforms: [
         .macOS(.v14)
     ],
@@ -14,7 +15,9 @@ let package = Package(
             name: "PicSee",
             path: "Sources/PicSee",
             resources: [
-                .process("Resources/Phosphor.xcassets")
+                .process("Resources/Phosphor.xcassets"),
+                .process("Resources/en.lproj"),
+                .process("Resources/zh-Hans.lproj")
             ]
         ),
         .testTarget(

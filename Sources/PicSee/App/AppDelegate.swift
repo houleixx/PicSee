@@ -1,8 +1,10 @@
 import AppKit
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowManager = WindowManager()
+    private var languageObservation: AnyCancellable?
     private var didReceiveOpenRequest = false
     private var settingsWindowController: SettingsWindowController?
 
@@ -15,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ImageDragFileProvider().cleanupExpiredFiles()
         let info = Bundle.main.infoDictionary ?? [:]
         NSApp.mainMenu = AppMenu.buildMainMenu(appName: AppMenu.applicationName(from: info))
+        languageObservation = LanguageSettings.shared.$revision.sink { _ in
+            NSApp.mainMenu = AppMenu.buildMainMenu(appName: AppMenu.applicationName(from: Bundle.main.infoDictionary ?? [:]))
+        }
         NSApp.activate(ignoringOtherApps: true)
 
         DispatchQueue.main.async { [weak self] in
@@ -64,8 +69,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } catch {
                     // If the receiver exited between discovery and delivery, take over.
                     if let app = NSRunningApplication(processIdentifier: receiver), !app.isTerminated {
-                        let alert = NSAlert(error: error)
-                        alert.messageText = "无法在已有窗口中打开图片"
+                        let alert = NSAlert()
+                        alert.addButton(withTitle: L10n.text("好"))
+                        LanguageSettings.bind(alert) {
+                            $0.messageText = L10n.text("无法在已有窗口中打开图片")
+                            $0.informativeText = L10n.errorDescription(error)
+                            $0.buttons.first?.title = L10n.text("好")
+                        }
                         alert.runModal()
                         return
                     }
@@ -122,8 +132,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWindowController = controller
             controller.show(page: page)
         } catch {
-            let alert = NSAlert(error: error)
-            alert.messageText = "无法打开设置"
+            let alert = NSAlert()
+            alert.addButton(withTitle: L10n.text("好"))
+            LanguageSettings.bind(alert) {
+                $0.messageText = L10n.text("无法打开设置")
+                $0.informativeText = L10n.errorDescription(error)
+                $0.buttons.first?.title = L10n.text("好")
+            }
             alert.runModal()
         }
     }

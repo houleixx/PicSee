@@ -45,6 +45,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Check localization coverage
+        run: python3 Scripts/check-localizations.py
+
       - name: Configure signing identity
         id: signing
         env:

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ImageViewerView: View {
+    @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject private var preferences = ViewerPreferences.shared
     @ObservedObject var viewModel: ImageViewerViewModel
     let updateChecker: UpdateChecker?
@@ -21,10 +22,18 @@ struct ImageViewerView: View {
     @State private var hasPresentedNavigationDiscovery = false
     @State private var isFullScreen = false
     @State private var screenshotDocument: ScreenshotDocument?
-    @State private var screenshotError: String?
+    @State private var screenshotFailure: (() -> String)?
+    private var screenshotError: String? {
+        get { screenshotFailure?() }
+        nonmutating set { screenshotFailure = newValue.map { value in { value } } }
+    }
     @State private var clipboardNoticeID: UUID?
     @State private var latestVersionNoticeID: UUID?
-    @State private var clipboardError: String?
+    @State private var clipboardFailure: (() -> String)?
+    private var clipboardError: String? {
+        get { clipboardFailure?() }
+        nonmutating set { clipboardFailure = newValue.map { value in { value } } }
+    }
     @State private var deletionNoticeVisible = false
     @State private var slideshowControlsVisible = true
     @State private var slideshowControlsHovered = false
@@ -216,25 +225,25 @@ struct ImageViewerView: View {
                         .font(.system(size: 32))
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
-                    Text("此文件夹中没有可浏览的图片")
+                    Text(L10n.text("此文件夹中没有可浏览的图片"))
                         .font(.system(size: 18, weight: .semibold))
                     Text(viewModel.currentURL.deletingLastPathComponent().lastPathComponent)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 16) {
                         if viewModel.canUndoDeletion {
-                            Button("撤销删除", action: viewModel.undoDeletion)
-                                .help("恢复上一张删除的图片（⌘Z）")
+                            Button(L10n.text("撤销删除"), action: viewModel.undoDeletion)
+                                .help(L10n.text("恢复上一张删除的图片（⌘Z）"))
                         }
-                        Button("退出 PicSee") { NSApp.terminate(nil) }
+                        Button(L10n.text("退出 PicSee")) { NSApp.terminate(nil) }
                     }
                 }
                 .padding(32)
             } else {
                 VStack(spacing: 12) {
-                    Text("Cannot Open Image")
+                    Text(L10n.text("无法打开图片"))
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.primary)
-                    Text(viewModel.errorMessage ?? "PicSee could not open this file.")
+                    Text(viewModel.errorMessage ?? L10n.text("PicSee 无法打开此文件。"))
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                     Text(viewModel.currentFilename)
@@ -254,7 +263,7 @@ struct ImageViewerView: View {
                         .background(.black.opacity(0.42), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("关闭图片")
+                .accessibilityLabel(L10n.text("关闭图片"))
                 .padding(.top, hudPadding)
                 .padding(.trailing, hudPadding)
             }
@@ -290,7 +299,7 @@ struct ImageViewerView: View {
                         .frame(width: 40, height: 40)
                         .foregroundStyle(Color.green)
                         .accessibilityHidden(true)
-                    Text(latestVersionNoticeID != nil ? "已经是最新版本了" : "已复制到剪贴板")
+                    Text(latestVersionNoticeID != nil ? L10n.text("已经是最新版本了") : L10n.text("已复制到剪贴板"))
                         .font(.system(size: 14, weight: .medium))
                 }
                 .foregroundStyle(.white)
@@ -315,11 +324,11 @@ struct ImageViewerView: View {
             do { try await Task.sleep(for: .seconds(5)) } catch { return }
             deletionNoticeVisible = false
         }
-        .alert("文件操作失败", isPresented: Binding(
+        .alert(L10n.text("文件操作失败"), isPresented: Binding(
             get: { viewModel.fileOperationError != nil },
             set: { if !$0 { viewModel.fileOperationError = nil } }
         )) {
-            Button("好") { viewModel.fileOperationError = nil }
+            Button(L10n.text("好")) { viewModel.fileOperationError = nil }
         } message: { Text(viewModel.fileOperationError ?? "") }
         .task(id: clipboardNoticeID) {
             guard clipboardNoticeID != nil else { return }
@@ -331,11 +340,12 @@ struct ImageViewerView: View {
             do { try await Task.sleep(for: .seconds(2)) } catch { return }
             latestVersionNoticeID = nil
         }
-        .alert("无法复制图片", isPresented: Binding(
+        .alert(L10n.text("无法复制图片"), isPresented: Binding(
             get: { clipboardError != nil }, set: { if !$0 { clipboardError = nil } }
         )) {
-            Button("好") { clipboardError = nil }
+            Button(L10n.text("好")) { clipboardError = nil }
         } message: { Text(clipboardError ?? "") }
+        .environment(\.locale, L10n.locale)
         .onChange(of: viewModel.sessionID) { _, _ in
             closeScreenshot()
             screenshotError = nil
@@ -361,10 +371,10 @@ struct ImageViewerView: View {
                 slideshowControlsVisible = false
             }
         }
-        .alert("无法开始截图", isPresented: Binding(
+        .alert(L10n.text("无法开始截图"), isPresented: Binding(
             get: { screenshotError != nil }, set: { if !$0 { screenshotError = nil } }
         )) {
-            Button("好") { screenshotError = nil }
+            Button(L10n.text("好")) { screenshotError = nil }
         } message: { Text(screenshotError ?? "") }
         .frame(minWidth: 480, minHeight: 320)
         .animation(.easeInOut(duration: navigationFadeDuration), value: toolbarEffectivelyVisible)
@@ -453,12 +463,12 @@ struct ImageViewerView: View {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             guard pasteboard.writeObjects([copiedImage]) else {
-                clipboardError = "无法写入剪贴板，请重试。"
+                clipboardFailure = { L10n.text("无法写入剪贴板，请重试。") }
                 return
             }
             clipboardNoticeID = UUID()
         } catch {
-            clipboardError = "无法准备要复制的图片。\n\(error.localizedDescription)"
+            clipboardFailure = { L10n.text("无法准备要复制的图片。\n%1$@", String(describing: L10n.errorDescription(error))) }
         }
     }
 
@@ -473,7 +483,7 @@ struct ImageViewerView: View {
         do {
             screenshotDocument = try ScreenshotDocument(image: image, rotationDegrees: viewModel.rotationDegrees)
             viewModel.isScreenshotEditing = true
-        } catch { screenshotError = error.localizedDescription }
+        } catch { screenshotFailure = { L10n.errorDescription(error) } }
     }
 
     @ViewBuilder
@@ -490,8 +500,8 @@ struct ImageViewerView: View {
             if visibility.previous {
                 imageNavigationButton(
                     systemName: "chevron.left",
-                    accessibilityLabel: "上一张图片",
-                    help: "上一张图片",
+                    accessibilityLabel: L10n.text("上一张图片"),
+                    help: L10n.text("上一张图片"),
                     action: viewModel.navigateToPrevious
                 )
                 .transition(.opacity)
@@ -502,8 +512,8 @@ struct ImageViewerView: View {
             if visibility.next {
                 imageNavigationButton(
                     systemName: "chevron.right",
-                    accessibilityLabel: "下一张图片",
-                    help: "下一张图片",
+                    accessibilityLabel: L10n.text("下一张图片"),
+                    help: L10n.text("下一张图片"),
                     action: viewModel.navigateToNext
                 )
                 .transition(.opacity)
@@ -563,6 +573,7 @@ enum ImageParametersPanelLayout {
 }
 
 struct ImageToolBar: View {
+    @ObservedObject private var language = LanguageSettings.shared
     let onFitToWindow: () -> Void
     let onShowHundredPercent: () -> Void
     let onZoomOut: () -> Void
@@ -578,29 +589,29 @@ struct ImageToolBar: View {
             // Keep the edit entry visible when a small image opens in a narrow window.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: ViewerToolbarMetrics.spacing) {
-                    toolbarButton(.fit, label: "适合窗口显示图片", action: onFitToWindow)
-                        .help("适合窗口显示图片")
-                    toolbarButton(.actualSize, label: "100% 显示图片", action: onShowHundredPercent)
-                        .help("100% 显示图片（1:1）")
-                    toolbarButton(.zoomOut, label: "缩小图片", action: onZoomOut)
-                        .help("缩小图片")
-                    toolbarButton(.zoomIn, label: "放大图片", action: onZoomIn)
-                        .help("放大图片")
-                    toolbarButton(.rotateLeft, label: "向左旋转 90 度", action: onRotateLeft)
-                        .help("向左旋转 90 度")
-                    toolbarButton(.rotateRight, label: "向右旋转 90 度", action: onRotateRight)
-                        .help("向右旋转 90 度")
-                    toolbarButton(.copy, label: "复制图片", action: onCopy)
-                        .help("复制图片到剪贴板")
+                    toolbarButton(.fit, label: L10n.text("适合窗口显示图片"), action: onFitToWindow)
+                        .help(L10n.text("适合窗口显示图片"))
+                    toolbarButton(.actualSize, label: L10n.text("100% 显示图片"), action: onShowHundredPercent)
+                        .help(L10n.text("100% 显示图片（1:1）"))
+                    toolbarButton(.zoomOut, label: L10n.text("缩小图片"), action: onZoomOut)
+                        .help(L10n.text("缩小图片"))
+                    toolbarButton(.zoomIn, label: L10n.text("放大图片"), action: onZoomIn)
+                        .help(L10n.text("放大图片"))
+                    toolbarButton(.rotateLeft, label: L10n.text("向左旋转 90 度"), action: onRotateLeft)
+                        .help(L10n.text("向左旋转 90 度"))
+                    toolbarButton(.rotateRight, label: L10n.text("向右旋转 90 度"), action: onRotateRight)
+                        .help(L10n.text("向右旋转 90 度"))
+                    toolbarButton(.copy, label: L10n.text("复制图片"), action: onCopy)
+                        .help(L10n.text("复制图片到剪贴板"))
                 }
             }
             .frame(height: ViewerToolbarMetrics.viewerButtonHeight)
-            toolbarButton(.play, label: "播放幻灯片", action: onSlideshow)
-                .help("播放当前文件夹中的图片")
+            toolbarButton(.play, label: L10n.text("播放幻灯片"), action: onSlideshow)
+                .help(L10n.text("播放当前文件夹中的图片"))
             ViewerToolbarDivider(color: .white)
                 .padding(.horizontal, ViewerToolbarMetrics.viewerDividerPadding)
-            toolbarButton(.crop, label: "截图与标注", action: onScreenshot)
-                .help("截取图片区域并标注（⌘⇧A）")
+            toolbarButton(.crop, label: L10n.text("截图与标注"), action: onScreenshot)
+                .help(L10n.text("截取图片区域并标注（⌘⇧A）"))
         }
         .modifier(ViewerToolbarSurface(maxWidth: ViewerToolbarMetrics.viewerWidth))
     }
@@ -617,6 +628,7 @@ struct ImageToolBar: View {
 }
 
 private struct ImageParametersPanel: View {
+    @ObservedObject private var language = LanguageSettings.shared
     let usesFlatStyle: Bool
     let text: String
     let onClose: () -> Void
@@ -644,7 +656,7 @@ private struct ImageParametersPanel: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
             .padding(.trailing, 4)
-            .accessibilityLabel("关闭图片参数")
+            .accessibilityLabel(L10n.text("关闭图片参数"))
         }
         .background(.black.opacity(0.46), in: RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(usesFlatStyle ? 0 : 0.22), lineWidth: 1))
@@ -676,6 +688,7 @@ enum PicSeeResourceBundle {
 }
 
 private struct UpdatePromptView: View {
+    @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var updateChecker: UpdateChecker
 
     var body: some View {
@@ -700,7 +713,7 @@ private struct UpdatePromptView: View {
                     .disabled(updateChecker.status == .downloading)
 
                     Button(action: updateChecker.ignoreAvailableUpdate) {
-                        Text("忽略")
+                        Text(L10n.text("忽略"))
                             .font(.system(size: 12, weight: .medium))
                     }
                     .buttonStyle(.plain)
@@ -725,18 +738,18 @@ private struct UpdatePromptView: View {
     private var updateButtonTitle: String {
         switch updateChecker.status {
         case .downloading:
-            return "下载中..."
+            return L10n.text("下载中...")
         case .failed:
-            return "重试"
+            return L10n.text("重试")
         default:
-            return "更新"
+            return L10n.text("更新")
         }
     }
 
     private func message(for update: GitHubRelease) -> String {
         if updateChecker.status == .failed {
-            return "下载失败"
+            return L10n.text("下载失败")
         }
-        return "发现新版本 \(update.version.displayString)"
+        return L10n.text("发现新版本 %1$@", String(describing: update.version.displayString))
     }
 }

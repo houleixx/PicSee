@@ -14,10 +14,15 @@ final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var sessionID = UUID()
     @Published private(set) var currentURL: URL
     @Published private(set) var image: NSImage?
-    @Published private(set) var errorMessage: String?
+    @Published private var imageOpenFailed = false
+    var errorMessage: String? { imageOpenFailed ? L10n.text("PicSee 无法打开此图片。") : nil }
     @Published private(set) var isFolderEmpty = false
     @Published private(set) var deletionNoticeID: UUID?
-    @Published var fileOperationError: String?
+    @Published private var fileOperationMessage: (() -> String)?
+    var fileOperationError: String? {
+        get { fileOperationMessage?() }
+        set { fileOperationMessage = newValue.map { value in { value } } }
+    }
     @Published private var deletions: [DeletedImage] = []
     @Published var isScreenshotEditing = false {
         didSet { if isScreenshotEditing { slideshow.pause() } }
@@ -111,7 +116,7 @@ final class ImageViewerViewModel: ObservableObject {
 
     var fileSizeText: String? {
         guard let byteCount = currentURL.fileByteCount else { return nil }
-        return ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+        return ByteCountFormatStyle(style: .file, spellsOutZero: false, locale: L10n.locale).format(byteCount)
     }
 
     var imageMetadataText: String? {
@@ -125,7 +130,7 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     var titleBarText: String {
-        if isFolderEmpty { return "\(currentFilename) — 此文件夹中没有可浏览的图片" }
+        if isFolderEmpty { return L10n.text("%1$@ — 此文件夹中没有可浏览的图片", String(describing: currentFilename)) }
         return [imageMetadataText, zoomPercentageText]
             .compactMap { $0 }
             .joined(separator: " | ")
@@ -186,12 +191,12 @@ final class ImageViewerViewModel: ObservableObject {
             currentURL = originalURL
             isFolderEmpty = true
             image = nil
-            errorMessage = nil
+            imageOpenFailed = false
             resetViewTransform()
             rotationDegrees = 0
             zoomRequest = nil
         } catch {
-            fileOperationError = "无法将“\(originalURL.lastPathComponent)”移到废纸篓。\n\(error.localizedDescription)"
+            fileOperationMessage = { L10n.text("无法将“%1$@”移到废纸篓。\n%2$@", String(describing: originalURL.lastPathComponent), String(describing: L10n.errorDescription(error))) }
         }
     }
 
@@ -210,7 +215,7 @@ final class ImageViewerViewModel: ObservableObject {
             deletionNoticeID = nil
             fileOperationError = nil
         } catch {
-            fileOperationError = "无法恢复“\(deletion.originalURL.lastPathComponent)”。\n\(error.localizedDescription)"
+            fileOperationMessage = { L10n.text("无法恢复“%1$@”。\n%2$@", String(describing: deletion.originalURL.lastPathComponent), String(describing: L10n.errorDescription(error))) }
         }
     }
 
@@ -252,7 +257,7 @@ final class ImageViewerViewModel: ObservableObject {
         let url = url.standardizedFileURL
         if url == currentURL, image != nil, !isFolderEmpty { return true }
         guard load(imageURL: url, preservesCurrentImageOnFailure: true) else {
-            fileOperationError = "无法打开“\(url.lastPathComponent)”，当前图片已保留。"
+            fileOperationMessage = { L10n.text("无法打开“%1$@”，当前图片已保留。", String(describing: url.lastPathComponent)) }
             return false
         }
         slideshow.stop()
@@ -400,7 +405,7 @@ final class ImageViewerViewModel: ObservableObject {
             rotationDegrees = 0
             zoomRequest = nil
             image = nil
-            errorMessage = "PicSee could not open this image."
+            imageOpenFailed = true
             navigator?.move(to: standardizedURL)
             return false
         }
@@ -412,7 +417,7 @@ final class ImageViewerViewModel: ObservableObject {
         zoomRequest = nil
         navigationDirection = direction
         image = loadedImage
-        errorMessage = nil
+        imageOpenFailed = false
         navigator?.move(to: standardizedURL)
         return true
     }
@@ -571,18 +576,18 @@ struct ImageParameterMetadata: Equatable {
 
     var displayRows: [(label: String, value: String)] {
         [
-            ("创建时间", creationTime),
-            ("尺寸", size),
-            ("分辨率", resolution),
-            ("色彩空间", colorSpace),
-            ("相机", camera),
-            ("镜头", lens),
-            ("快门", shutterSpeed),
-            ("光圈", aperture),
+            (L10n.text("创建时间"), creationTime),
+            (L10n.text("尺寸"), size),
+            (L10n.text("分辨率"), resolution),
+            (L10n.text("色彩空间"), colorSpace),
+            (L10n.text("相机"), camera),
+            (L10n.text("镜头"), lens),
+            (L10n.text("快门"), shutterSpeed),
+            (L10n.text("光圈"), aperture),
             ("ISO", iso),
-            ("焦距", focalLength),
-            ("曝光补偿", exposureCompensation),
-            ("闪光灯", flash)
+            (L10n.text("焦距"), focalLength),
+            (L10n.text("曝光补偿"), exposureCompensation),
+            (L10n.text("闪光灯"), flash)
         ].compactMap { label, value in
             guard let value, !value.isEmpty else { return nil }
             return (label, value)
@@ -656,9 +661,9 @@ struct ImageParameterMetadata: Equatable {
         guard let number = doubleValue(value) else { return nil }
         switch Int(number.rounded()) {
         case 0:
-            return "否"
+            return L10n.text("否")
         case 1:
-            return "闪光"
+            return L10n.text("闪光")
         default:
             return "\(Int(number.rounded()))"
         }
@@ -717,9 +722,9 @@ struct ImageParameterMetadata: Equatable {
     private static func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.locale = L10n.locale
         formatter.timeZone = .current
-        formatter.dateFormat = "yyyy年MM月dd日 HH:mm"
+        formatter.dateFormat = L10n.text("yyyy年MM月dd日 HH:mm")
         return formatter.string(from: date)
     }
 

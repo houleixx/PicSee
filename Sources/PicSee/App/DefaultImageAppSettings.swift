@@ -39,7 +39,7 @@ enum DefaultImageAppSettings {
         DefaultImageFormat(label: "JPEG XL", contentType: "public.jpeg-xl", extensions: "jxl")
     ]
 
-    static let fallbackInstructions = "其他格式可在 Finder 的“显示简介”→“打开方式”中选择 PicSee，并点“全部更改…”。"
+    static var fallbackInstructions: String { L10n.text("其他格式可在 Finder 的“显示简介”→“打开方式”中选择 PicSee，并点“全部更改…”。") }
 
     static func shouldShowSettingsWindowAfterLaunch(didReceiveOpenRequest: Bool, hasOpenViewer: Bool) -> Bool {
         !didReceiveOpenRequest && !hasOpenViewer
@@ -58,7 +58,7 @@ enum DefaultImageAppSettings {
                 }
                 completed.append(format)
             } catch {
-                failures.append(.init(format: format, message: error.localizedDescription))
+                failures.append(.init(format: format, error: error))
             }
         }
         return DefaultImageAppApplyResult(completed: completed, failures: failures)
@@ -68,7 +68,19 @@ enum DefaultImageAppSettings {
 struct DefaultImageAppApplyResult {
     struct Failure {
         let format: DefaultImageFormat
-        let message: String
+        private let fallback: String
+        private let error: Error?
+        var message: String { error.map(L10n.errorDescription) ?? fallback }
+        init(format: DefaultImageFormat, message: String) {
+            self.format = format
+            fallback = message
+            error = nil
+        }
+        init(format: DefaultImageFormat, error: Error) {
+            self.format = format
+            self.error = error
+            fallback = ""
+        }
     }
 
     let completed: [DefaultImageFormat]
@@ -76,9 +88,9 @@ struct DefaultImageAppApplyResult {
 
     var statusMessage: String {
         if failures.isEmpty {
-            return "已设置 \(completed.count) 种格式。"
+            return L10n.text("已设置 %1$@ 种格式。", String(describing: completed.count))
         }
-        return "已完成 \(completed.count) 种，\(failures.count) 种失败。"
+        return L10n.text("已完成 %1$@ 种，%2$@ 种失败。", String(describing: completed.count), String(describing: failures.count))
     }
 
     var failureDetails: String {
@@ -98,9 +110,9 @@ enum DefaultImageAppError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingBundleIdentifier:
-            return "无法读取当前应用的 Bundle ID。"
+            return L10n.text("无法读取当前应用的 Bundle ID。")
         case let .launchServicesFailed(status, contentType):
-            return "设置 \(contentType) 默认打开方式失败，错误码 \(status)。"
+            return L10n.text("设置 %1$@ 默认打开方式失败，错误码 %2$@。", String(describing: contentType), String(describing: status))
         }
     }
 }

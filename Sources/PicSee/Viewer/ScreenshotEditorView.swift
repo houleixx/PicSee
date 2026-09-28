@@ -3,13 +3,14 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ScreenshotEditorView: View {
+    @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var document: ScreenshotDocument
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var screenScale
     let imageRect: CGRect
     let onClose: () -> Void
     var onCopy: () -> Void = {}
-    @State private var errorMessage: String?
+    @State private var operationError: Error?
     @State private var isPointerOverControls = false
 
     private var displayPixelScale: CGFloat {
@@ -36,9 +37,9 @@ struct ScreenshotEditorView: View {
             .padding(12)
         }
         .onExitCommand(perform: onClose)
-        .alert("截图操作失败", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-            Button("好") { errorMessage = nil }
-        } message: { Text(errorMessage ?? "") }
+        .alert(L10n.text("截图操作失败"), isPresented: Binding(get: { operationError != nil }, set: { if !$0 { operationError = nil } })) {
+            Button(L10n.text("好")) { operationError = nil }
+        } message: { Text(operationError.map(L10n.errorDescription) ?? "") }
     }
 
     private var controls: some View {
@@ -56,15 +57,16 @@ struct ScreenshotEditorView: View {
                                 .buttonStyle(ViewerToolbarButtonStyle(selected: document.tool == tool)).help(tool.title).accessibilityLabel(tool.title)
                                 .accessibilityAddTraits(document.tool == tool ? .isSelected : [])
                             }
+                            .id(language.revision)
                             ViewerToolbarDivider()
                                 .padding(.horizontal, ViewerToolbarMetrics.editorGroupSpacing - ViewerToolbarMetrics.editorSpacing)
                             Button { document.undo() } label: { actionIcon(.undo) }
                             .buttonStyle(ViewerToolbarButtonStyle())
-                                .disabled(document.undoStates.isEmpty).help("撤销（⌘Z）").accessibilityLabel("撤销")
+                                .disabled(document.undoStates.isEmpty).help(L10n.text("撤销（⌘Z）")).accessibilityLabel(L10n.text("撤销"))
                                 .keyboardShortcut("z", modifiers: .command)
                             Button { document.redo() } label: { actionIcon(.redo) }
                             .buttonStyle(ViewerToolbarButtonStyle())
-                                .disabled(document.redoStates.isEmpty).help("重做（⇧⌘Z）").accessibilityLabel("重做")
+                                .disabled(document.redoStates.isEmpty).help(L10n.text("重做（⇧⌘Z）")).accessibilityLabel(L10n.text("重做"))
                                 .keyboardShortcut("z", modifiers: [.command, .shift])
                         }
                     }
@@ -73,14 +75,14 @@ struct ScreenshotEditorView: View {
                     HStack(spacing: ViewerToolbarMetrics.editorSpacing) {
                         Button(action: copy) { actionIcon(.copy) }
                             .buttonStyle(ViewerToolbarButtonStyle())
-                            .help("复制截图").accessibilityLabel("复制截图")
+                            .help(L10n.text("复制截图")).accessibilityLabel(L10n.text("复制截图"))
                         Button(action: onClose) { actionIcon(.cancel) }
                             .buttonStyle(ViewerToolbarButtonStyle(tint: colorScheme == .dark ? .red : Color(red: 0.78, green: 0.12, blue: 0.12)))
                             .keyboardShortcut(.cancelAction)
-                            .help("取消截图（Esc）").accessibilityLabel("取消截图")
+                            .help(L10n.text("取消截图（Esc）")).accessibilityLabel(L10n.text("取消截图"))
                         Button(action: save) { actionIcon(.confirm) }
                             .buttonStyle(ViewerToolbarButtonStyle(tint: colorScheme == .dark ? .green : Color(red: 0.05, green: 0.45, blue: 0.2)))
-                            .help("保存截图…").accessibilityLabel("保存截图")
+                            .help(L10n.text("保存截图…")).accessibilityLabel(L10n.text("保存截图"))
                     }
                     .fixedSize()
                 }
@@ -128,26 +130,26 @@ struct ScreenshotEditorView: View {
     private var toolSettings: some View {
         switch document.tool {
         case .crop:
-            Text("拖动边角调整选区")
+            Text(L10n.text("拖动边角调整选区"))
                 .font(.system(size: 12, weight: .light)).foregroundStyle(.primary.opacity(0.64)).fixedSize()
         case .eraser:
-            Text("点击或拖动删除标注")
+            Text(L10n.text("点击或拖动删除标注"))
                 .font(.system(size: 12, weight: .light)).foregroundStyle(.primary.opacity(0.64)).fixedSize()
         case .mosaic:
             HStack(spacing: 4) {
-                settingsLabel("直径")
+                settingsLabel(L10n.text("直径"))
                 ForEach([16, 40, 96], id: \.self) { size in
-                    sizePreset(size, value: $document.mosaicDiameter, title: "马赛克直径")
+                    sizePreset(size, value: $document.mosaicDiameter, title: L10n.text("马赛克直径"))
                 }
-                ScreenshotParameterSlider(value: $document.mosaicDiameter, title: "马赛克直径", range: 8...160)
+                ScreenshotParameterSlider(value: $document.mosaicDiameter, title: L10n.text("马赛克直径"), range: 8...160)
             }.fixedSize()
         case .text:
             HStack(spacing: 6) {
                 annotationColorPicker
                 settingsDivider
                 HStack(spacing: 4) {
-                    settingsLabel("字号")
-                    ScreenshotParameterSlider(value: $document.fontSize, title: "字号", range: 12...96)
+                    settingsLabel(L10n.text("字号"))
+                    ScreenshotParameterSlider(value: $document.fontSize, title: L10n.text("字号"), range: 12...96)
                 }
             }.fixedSize()
         default:
@@ -155,11 +157,11 @@ struct ScreenshotEditorView: View {
                 annotationColorPicker
                 settingsDivider
                 HStack(spacing: 4) {
-                    settingsLabel("粗细")
+                    settingsLabel(L10n.text("粗细"))
                     ForEach([2, 6, 12], id: \.self) { size in
-                        sizePreset(size, value: $document.strokeWidth, title: "画笔粗细")
+                        sizePreset(size, value: $document.strokeWidth, title: L10n.text("画笔粗细"))
                     }
-                    ScreenshotParameterSlider(value: $document.strokeWidth, title: "画笔粗细", range: 2...32)
+                    ScreenshotParameterSlider(value: $document.strokeWidth, title: L10n.text("画笔粗细"), range: 2...32)
 
                 }
             }.fixedSize()
@@ -185,17 +187,17 @@ struct ScreenshotEditorView: View {
         }
         .buttonStyle(ViewerToolbarButtonStyle(selected: value.wrappedValue == CGFloat(size), cornerRadius: 6))
         .help("\(title)：\(size) px")
-        .accessibilityLabel("\(title) \(size) 像素")
+        .accessibilityLabel(L10n.text("%1$@ %2$@ 像素", String(describing: title), String(describing: size)))
         .accessibilityAddTraits(value.wrappedValue == CGFloat(size) ? .isSelected : [])
     }
 
     private var commonColors: [(name: String, color: NSColor)] {
-        [("红色", .systemRed), ("黄色", .systemYellow), ("蓝色", .systemBlue), ("黑色", .black), ("绿色", .systemGreen)]
+        [(L10n.text("红色"), .systemRed), (L10n.text("黄色"), .systemYellow), (L10n.text("蓝色"), .systemBlue), (L10n.text("黑色"), .black), (L10n.text("绿色"), .systemGreen)]
     }
 
     private var annotationColorPicker: some View {
         HStack(spacing: 3) {
-            settingsLabel("颜色")
+            settingsLabel(L10n.text("颜色"))
             ForEach(commonColors.indices, id: \.self) { index in
                 let preset = commonColors[index]
                 let selected = document.color.isEqual(preset.color)
@@ -209,13 +211,13 @@ struct ScreenshotEditorView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(preset.name).accessibilityLabel("标注颜色：\(preset.name)")
+                .help(preset.name).accessibilityLabel(L10n.text("标注颜色：%1$@", String(describing: preset.name)))
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
             ScreenshotColorWell(color: $document.color)
                 .frame(width: 20, height: 14)
                 .frame(width: 24, height: 24)
-                .help("自定义标注颜色")
+                .help(L10n.text("自定义标注颜色"))
         }.fixedSize()
     }
 
@@ -226,13 +228,13 @@ struct ScreenshotEditorView: View {
     }
 
     private var hint: String {
-        if !document.canExport { return "拖动选择截图区域（可从图片外开始），按 Esc 退出" }
+        if !document.canExport { return L10n.text("拖动选择截图区域（可从图片外开始），按 Esc 退出") }
         switch document.tool {
-        case .crop: return "拖动选区内部移动；拖动边角调整大小；在外部拖动重新选择"
-        case .text: return "点击框外确认；拖动文字移动，双击编辑，回车换行"
-        case .eraser: return "点击或拖动删除标注；不会擦除原图像素"
-        case .mosaic: return "按住鼠标用圆形画刷涂抹马赛克；在下方调整画刷直径"
-        default: return "在选区内拖动添加标注；可随时切换“调整选区”修改裁剪范围"
+        case .crop: return L10n.text("拖动选区内部移动；拖动边角调整大小；在外部拖动重新选择")
+        case .text: return L10n.text("点击框外确认；拖动文字移动，双击编辑，回车换行")
+        case .eraser: return L10n.text("点击或拖动删除标注；不会擦除原图像素")
+        case .mosaic: return L10n.text("按住鼠标用圆形画刷涂抹马赛克；在下方调整画刷直径")
+        default: return L10n.text("在选区内拖动添加标注；可随时切换“调整选区”修改裁剪范围")
         }
     }
     private func copy() {
@@ -242,7 +244,7 @@ struct ScreenshotEditorView: View {
             guard NSPasteboard.general.writeObjects([image]) else { throw ImageExporterError.failedToRender }
             onCopy()
             onClose()
-        } catch { errorMessage = error.localizedDescription }
+        } catch { operationError = error }
     }
     private func save() {
         document.commitPendingText()
@@ -253,26 +255,31 @@ struct ScreenshotEditorView: View {
         )
         let exportScale = displayPixelScale
         let panel = NSSavePanel()
-        panel.title = "保存截图"
+        LanguageSettings.bind(panel) {
+            $0.title = L10n.text("保存截图")
+            $0.prompt = L10n.text("保存")
+            $0.nameFieldLabel = L10n.text("文件名：")
+        }
         panel.appearance = ViewerTheme.current().appearance
         panel.accessoryView = accessory
         panel.allowedContentTypes = [.png]
         let timestampFormatter = DateFormatter()
         timestampFormatter.locale = Locale(identifier: "en_US_POSIX")
         timestampFormatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
-        panel.nameFieldStringValue = "PicSee_截图_\(timestampFormatter.string(from: Date())).png"
+        panel.nameFieldStringValue = L10n.text("PicSee_截图_%1$@.png", String(describing: timestampFormatter.string(from: Date())))
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             do {
                 try ImageExporter.export(document.exportImage(mode: accessory.selectedMode, displayPixelScale: exportScale), to: url,
                                          options: accessory.exportOptions)
                 onClose()
-            } catch { errorMessage = error.localizedDescription }
+            } catch { operationError = error }
         }
     }
 }
 
 private struct ScreenshotSizeFields: View {
+    @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var document: ScreenshotDocument
     let displayScale: CGFloat
     @State private var widthText = ""
@@ -284,15 +291,15 @@ private struct ScreenshotSizeFields: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("宽").foregroundStyle(ViewerToolbarMetrics.secondaryForeground).fixedSize()
-            dimensionField("选区宽度（像素）", text: $widthText, dimension: .width)
+            Text(L10n.text("宽")).foregroundStyle(ViewerToolbarMetrics.secondaryForeground).fixedSize()
+            dimensionField(L10n.text("选区宽度（像素）"), text: $widthText, dimension: .width)
             Image(systemName: "multiply")
                 .font(.system(size: 11, weight: .regular))
                 .foregroundStyle(ViewerToolbarMetrics.secondaryForeground)
                 .frame(width: 14, height: 16)
-                .accessibilityLabel("乘")
-            Text("高").foregroundStyle(ViewerToolbarMetrics.secondaryForeground).fixedSize()
-            dimensionField("选区高度（像素）", text: $heightText, dimension: .height)
+                .accessibilityLabel(L10n.text("乘"))
+            Text(L10n.text("高")).foregroundStyle(ViewerToolbarMetrics.secondaryForeground).fixedSize()
+            dimensionField(L10n.text("选区高度（像素）"), text: $heightText, dimension: .height)
             Text("px").foregroundStyle(ViewerToolbarMetrics.secondaryForeground).fixedSize()
         }
         .font(.system(size: 13).monospacedDigit())
@@ -333,7 +340,7 @@ private struct ScreenshotSizeFields: View {
                                   lineWidth: focusedDimension == dimension ? 1.5 : 1)
             }
             .accessibilityLabel(title)
-            .help("按屏幕实际像素输入宽高；最大为图片显示像素尺寸")
+            .help(L10n.text("按屏幕实际像素输入宽高；最大为图片显示像素尺寸"))
     }
 
     private func commit(_ dimension: Dimension) {
@@ -588,7 +595,10 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
         field.isSelectable = true
         field.stringValue = annotation.text
         field.delegate = self
-        field.placeholderString = "输入文字"
+        LanguageSettings.bind(field) {
+            $0.placeholderString = L10n.text("输入文字")
+            $0.setAccessibilityLabel(L10n.text("截图文字输入"))
+        }
         field.font = .systemFont(ofSize: max(1, annotation.fontSize * scale), weight: .regular)
         field.textColor = annotation.color
         field.backgroundColor = .clear
@@ -609,7 +619,7 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             field.layer?.borderColor = NSColor.controlAccentColor.cgColor
         }
-        field.setAccessibilityLabel("截图文字输入")
+        field.setAccessibilityLabel(L10n.text("截图文字输入"))
         let x = imageRect.minX + origin.x * scale - 10
         let y = imageRect.minY + origin.y * scale - 8
         let height = max(28, ceil((field.font?.ascender ?? 0) - (field.font?.descender ?? 0)
@@ -655,7 +665,7 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
 
     private func resizeTextEditor(preservingTop: Bool = true) {
         guard let field = textEditor, let font = field.font else { return }
-        let measuredText = field.stringValue.isEmpty ? "输入文字" : field.stringValue + "\u{200B}"
+        let measuredText = field.stringValue.isEmpty ? L10n.text("输入文字") : field.stringValue + "\u{200B}"
         let measured = (measuredText as NSString).size(withAttributes: [.font: font])
         let lineHeight = ceil(font.ascender - font.descender + font.leading)
         let height = min(bounds.height, max(28, max(lineHeight, ceil(measured.height)) + 16))
@@ -997,6 +1007,7 @@ final class ScreenshotCanvasNSView: NSView, NSTextFieldDelegate {
 }
 
 private struct ScreenshotParameterSlider: View {
+    @ObservedObject private var language = LanguageSettings.shared
     @Binding var value: CGFloat
     let title: String
     let range: ClosedRange<CGFloat>
@@ -1016,8 +1027,8 @@ private struct ScreenshotParameterSlider: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(ViewerToolbarButtonStyle(cornerRadius: 6))
-        .help("调整\(title)")
-        .accessibilityLabel("\(title)，当前 \(Int(value)) 像素")
+        .help(L10n.text("调整%1$@", String(describing: title)))
+        .accessibilityLabel(L10n.text("%1$@，当前 %2$@ 像素", String(describing: title), String(describing: Int(value))))
         .popover(isPresented: $isPresented) {
             HStack(spacing: 10) {
                 Text("\(title)：")

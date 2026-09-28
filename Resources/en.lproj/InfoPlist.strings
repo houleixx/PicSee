@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "PicSee";
+"CFBundleName" = "PicSee";
+"NSAppleEventsUsageDescription" = "PicSee needs to read the image order in the current Finder window to browse images in the same order.";

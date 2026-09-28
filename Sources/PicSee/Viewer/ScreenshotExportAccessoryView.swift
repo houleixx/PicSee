@@ -5,8 +5,8 @@ enum ScreenshotExportSizeMode: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .selectedSize: "按选择尺寸保存"
-        case .imageScale: "按原图尺寸保存"
+        case .selectedSize: L10n.text("按选择尺寸保存")
+        case .imageScale: L10n.text("按原图尺寸保存")
         }
     }
 
@@ -43,7 +43,7 @@ final class ScreenshotExportAccessoryView: NSView {
         autoresizingMask = [.width]
         let imageDisplayScale = ScreenshotExportSizeMode.validDisplayScale(displayScale)
             / ScreenshotExportSizeMode.validDisplayScale(screenScale)
-        let scaleText = "（当前显示比例 \(Int((imageDisplayScale * 100).rounded()))%）"
+        let scaleText = L10n.text("（当前显示比例 %1$@%）", String(describing: Int((imageDisplayScale * 100).rounded())))
         modeButtons = ScreenshotExportSizeMode.allCases.map { mode in
             let size = mode.pixelSize(sourceSize: sourceSize, displayScale: displayScale)
             let title = "\(mode.title) · \(Int(size.width)) × \(Int(size.height)) px"
@@ -54,15 +54,16 @@ final class ScreenshotExportAccessoryView: NSView {
             return button
         }
         let optionsWidth = max(328, ceil(modeButtons.map { $0.intrinsicContentSize.width }.max() ?? 328))
-        let gridWidth = 76 + 12 + optionsWidth
+        let gridWidth = 90 + 12 + optionsWidth
         setFrameSize(NSSize(width: max(460, gridWidth + 36), height: 80))
+        let sizeLabel = NSTextField(labelWithString: L10n.text("保存尺寸："))
         let grid = NSGridView(views: [
-            [NSTextField(labelWithString: "保存尺寸："), modeButtons[0]],
+            [sizeLabel, modeButtons[0]],
             [NSGridCell.emptyContentView, modeButtons[1]]
         ])
         grid.rowSpacing = 10
         grid.columnSpacing = 12
-        grid.column(at: 0).width = 76
+        grid.column(at: 0).width = 90
         grid.column(at: 1).width = optionsWidth
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).xPlacement = .leading
@@ -71,12 +72,23 @@ final class ScreenshotExportAccessoryView: NSView {
         addSubview(grid)
         NSLayoutConstraint.activate([
             grid.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 16),
-            grid.widthAnchor.constraint(equalToConstant: gridWidth),
+            grid.widthAnchor.constraint(greaterThanOrEqualToConstant: gridWidth),
             grid.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
             grid.topAnchor.constraint(equalTo: topAnchor, constant: 10),
             grid.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -10)
         ])
         updateControls()
+        LanguageSettings.bind(self) { accessory in
+            sizeLabel.stringValue = L10n.text("保存尺寸：")
+            for (button, mode) in zip(accessory.modeButtons, ScreenshotExportSizeMode.allCases) {
+                let size = mode.pixelSize(sourceSize: sourceSize, displayScale: displayScale)
+                button.title = "\(mode.title) · \(Int(size.width)) × \(Int(size.height)) px"
+                    + (mode == .imageScale ? L10n.text("（当前显示比例 %1$@%）", String(Int((imageDisplayScale * 100).rounded()))) : "")
+                button.setAccessibilityLabel(button.title)
+            }
+            grid.column(at: 1).width = max(328, ceil(accessory.modeButtons.map { $0.intrinsicContentSize.width }.max() ?? 328))
+            accessory.setFrameSize(NSSize(width: max(460, 90 + 12 + grid.column(at: 1).width + 36), height: 80))
+        }
     }
 
     required init?(coder: NSCoder) { nil }

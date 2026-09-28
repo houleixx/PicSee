@@ -298,10 +298,8 @@ final class ImageViewerViewModelTests: XCTestCase {
     @MainActor
     func testImageMetadataTextIncludesFilenameFileSizeAndPixelDimensions() throws {
         let imageURL = try writePNG(named: "sample image.png", color: .red, size: NSSize(width: 12, height: 34))
-        let expectedFileSize = ByteCountFormatter.string(
-            fromByteCount: Int64(try Data(contentsOf: imageURL).count),
-            countStyle: .file
-        )
+        let expectedFileSize = ByteCountFormatStyle(style: .file, spellsOutZero: false, locale: L10n.locale)
+            .format(Int64(try Data(contentsOf: imageURL).count))
 
         let viewModel = ImageViewerViewModel(imageURL: imageURL)
 
@@ -311,10 +309,8 @@ final class ImageViewerViewModelTests: XCTestCase {
     @MainActor
     func testTitleBarTextIncludesFileMetadataAndZoomPercentage() throws {
         let imageURL = try writePNG(named: "sample image.png", color: .red, size: NSSize(width: 12, height: 34))
-        let expectedFileSize = ByteCountFormatter.string(
-            fromByteCount: Int64(try Data(contentsOf: imageURL).count),
-            countStyle: .file
-        )
+        let expectedFileSize = ByteCountFormatStyle(style: .file, spellsOutZero: false, locale: L10n.locale)
+            .format(Int64(try Data(contentsOf: imageURL).count))
         let viewModel = ImageViewerViewModel(imageURL: imageURL)
         viewModel.displayScale = 1.25
 
@@ -344,17 +340,17 @@ final class ImageViewerViewModelTests: XCTestCase {
         ]))
         let text = metadata.displayText
 
-        XCTAssertTrue(text.contains("创建时间: 2016年07月25日 15:27"))
-        XCTAssertTrue(text.contains("尺寸: 2448 × 3264 px"))
-        XCTAssertTrue(text.contains("分辨率: 72×72"))
-        XCTAssertTrue(text.contains("色彩空间: sRGB IEC61966-2.1"))
-        XCTAssertTrue(text.contains("相机: Fujifilm X100V"))
-        XCTAssertTrue(text.contains("镜头: 23mm F2"))
-        XCTAssertTrue(text.contains("快门: 1/125 s"))
-        XCTAssertTrue(text.contains("光圈: f/2.8"))
+        XCTAssertTrue(text.contains(L10n.text("创建时间") + ": " + (L10n.languageCode == "en" ? "2016-07-25 15:27" : "2016年07月25日 15:27")))
+        XCTAssertTrue(text.contains(L10n.text("尺寸") + ": " + "2448 × 3264 px"))
+        XCTAssertTrue(text.contains(L10n.text("分辨率") + ": " + "72×72"))
+        XCTAssertTrue(text.contains(L10n.text("色彩空间") + ": " + "sRGB IEC61966-2.1"))
+        XCTAssertTrue(text.contains(L10n.text("相机") + ": " + "Fujifilm X100V"))
+        XCTAssertTrue(text.contains(L10n.text("镜头") + ": " + "23mm F2"))
+        XCTAssertTrue(text.contains(L10n.text("快门") + ": " + "1/125 s"))
+        XCTAssertTrue(text.contains(L10n.text("光圈") + ": " + "f/2.8"))
         XCTAssertTrue(text.contains("ISO: 400"))
-        XCTAssertTrue(text.contains("焦距: 23 mm"))
-        XCTAssertTrue(text.contains("闪光灯: 否"))
+        XCTAssertTrue(text.contains(L10n.text("焦距") + ": " + "23 mm"))
+        XCTAssertTrue(text.contains(L10n.text("闪光灯") + ": " + L10n.text("否")))
     }
 
     @MainActor
@@ -379,7 +375,7 @@ final class ImageViewerViewModelTests: XCTestCase {
 
         let viewModel = ImageViewerViewModel(imageURL: imageURL)
 
-        XCTAssertTrue(viewModel.imageParametersText?.contains("创建时间: 2016年07月25日 15:30") ?? false)
+        XCTAssertTrue(viewModel.imageParametersText?.contains(L10n.text("创建时间") + ": " + (L10n.languageCode == "en" ? "2016-07-25 15:30" : "2016年07月25日 15:30")) ?? false)
     }
 
     private func writePNG(named name: String, color: NSColor, size: NSSize = NSSize(width: 8, height: 8)) throws -> URL {

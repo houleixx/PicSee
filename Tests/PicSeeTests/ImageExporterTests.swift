@@ -21,7 +21,7 @@ final class ImageExporterTests: XCTestCase {
 
     @MainActor
     func testAccessoryViewUsesFixedLabelColumnWidth() {
-        XCTAssertEqual(ImageExportAccessoryView.debugLabelColumnWidth, 76)
+        XCTAssertEqual(ImageExportAccessoryView.debugLabelColumnWidth, 94)
     }
 
     @MainActor
@@ -45,7 +45,7 @@ final class ImageExporterTests: XCTestCase {
     func testAccessoryViewMatchesSavePanelLabelAndControlRhythm() {
         let accessoryView = ImageExportAccessoryView(defaultPixelSize: CGSize(width: 100, height: 80))
 
-        XCTAssertEqual(accessoryView.debugLabelTexts, ["格式:", "尺寸模式:", "宽度:", "高度:", "JPEG 质量:"])
+        XCTAssertEqual(accessoryView.debugLabelTexts, [L10n.text("格式:"), L10n.text("尺寸模式:"), L10n.text("宽度:"), L10n.text("高度:"), L10n.text("JPEG 质量:")])
         XCTAssertEqual(accessoryView.debugFormatPopupWidth, 150)
         XCTAssertEqual(accessoryView.debugResizeModePopupWidth, 150)
     }

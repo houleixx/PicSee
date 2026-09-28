@@ -18,7 +18,7 @@ struct DefaultImageAppApplyTests {
         #expect(result.failures.map(\.format) == [dds])
         #expect(result.failureDetails.contains("DDS"))
         #expect(result.failureDetails.contains("-50"))
-        #expect(result.statusMessage == "已完成 4 种，1 种失败。")
+        #expect(result.statusMessage == L10n.text("已完成 %1$@ 种，%2$@ 种失败。", "4", "1"))
     }
 
     @Test func successfulBatchReportsAllSelectedFormats() throws {
@@ -29,7 +29,7 @@ struct DefaultImageAppApplyTests {
 
         #expect(result.completed == formats)
         #expect(result.failures.isEmpty)
-        #expect(result.statusMessage == "已设置 2 种格式。")
+        #expect(result.statusMessage == L10n.text("已设置 %1$@ 种格式。", "2"))
         #expect(formats.allSatisfy { handler.isDefaultViewer(for: $0) })
     }
 
@@ -40,10 +40,10 @@ struct DefaultImageAppApplyTests {
 
         let alert = DefaultImageAppSettingsViewController.makeFailureAlert(for: result)
 
-        #expect(alert.messageText == "设置默认打开方式失败")
+        #expect(alert.messageText == L10n.text("设置默认打开方式失败"))
         #expect(alert.informativeText.contains("DDS"))
         #expect(alert.informativeText.contains("-50"))
-        #expect(alert.informativeText.contains("全部更改"))
+        #expect(alert.informativeText.contains(L10n.languageCode == "en" ? "Change All" : "全部更改"))
     }
 
     private func format(_ label: String) throws -> DefaultImageFormat {

@@ -28,14 +28,14 @@ final class ImageDeletionTests: XCTestCase {
         let model = ImageViewerViewModel(imageURL: url, imageTrash: trash)
         var completion: ((NSApplication.ModalResponse) -> Void)?
         let confirmation = ImageDeletionConfirmation(defaults: defaults) { alert, _, reply in
-            XCTAssertEqual(alert.messageText, "将图片移到废纸篓？")
+            XCTAssertEqual(alert.messageText, L10n.text("将图片移到废纸篓？"))
             XCTAssertEqual(alert.filename, "确认测试.png")
-            XCTAssertEqual(alert.buttons.map(\.title), ["取消", "移到废纸篓"])
+            XCTAssertEqual(alert.buttons.map(\.title), [L10n.text("取消"), L10n.text("移到废纸篓")])
             XCTAssertEqual(alert.buttons[0].keyEquivalent, "\r")
             XCTAssertEqual(alert.buttons[1].keyEquivalent, "")
             XCTAssertTrue(alert.defaultButtonCell === alert.buttons[0].cell)
             XCTAssertTrue(alert.initialFirstResponder === alert.buttons[0])
-            XCTAssertEqual(alert.suppressionButton.title, "以后不再询问")
+            XCTAssertEqual(alert.suppressionButton.title, L10n.text("以后不再询问"))
             XCTAssertEqual(alert.suppressionButton.state, .off)
             completion = reply
         }
@@ -169,7 +169,7 @@ final class ImageDeletionTests: XCTestCase {
         XCTAssertNil(model.nextURL)
         XCTAssertFalse(model.canTrashCurrentImage)
         XCTAssertTrue(model.canUndoDeletion)
-        XCTAssertTrue(model.titleBarText.contains("此文件夹中没有可浏览的图片"))
+        XCTAssertTrue(model.titleBarText.contains(L10n.text("此文件夹中没有可浏览的图片")))
         model.trashCurrentImage()
         XCTAssertEqual(trash.trashCalls, 1)
         model.undoDeletion()
@@ -294,7 +294,7 @@ final class ImageDeletionTests: XCTestCase {
         let menu = NSMenu()
         canvas.debugAppendPicSeeContextMenuItems(to: menu)
         canvas.debugAppendPicSeeContextMenuItems(to: menu)
-        let trashItems = menu.items.filter { $0.title == "移到废纸篓" }
+        let trashItems = menu.items.filter { $0.title == L10n.text("移到废纸篓") }
         XCTAssertEqual(trashItems.count, 1)
         let item = trashItems[0]
         XCTAssertEqual(item.keyEquivalent, "\u{8}")

@@ -11,16 +11,16 @@ enum ScreenshotTool: String, CaseIterable, Identifiable {
     var id: Self { self }
     var title: String {
         switch self {
-        case .crop: "调整选区"
-        case .pen: "画笔"
-        case .highlighter: "荧光笔"
-        case .line: "直线"
-        case .arrow: "箭头"
-        case .rectangle: "矩形"
-        case .ellipse: "椭圆"
-        case .text: "文字"
-        case .mosaic: "马赛克"
-        case .eraser: "删除标注"
+        case .crop: L10n.text("调整选区")
+        case .pen: L10n.text("画笔")
+        case .highlighter: L10n.text("荧光笔")
+        case .line: L10n.text("直线")
+        case .arrow: L10n.text("箭头")
+        case .rectangle: L10n.text("矩形")
+        case .ellipse: L10n.text("椭圆")
+        case .text: L10n.text("文字")
+        case .mosaic: L10n.text("马赛克")
+        case .eraser: L10n.text("删除标注")
         }
     }
     var symbol: String {

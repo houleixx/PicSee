@@ -13,7 +13,7 @@ extension FinderFolderOrderProviding {
     var isOrderingAvailableImmediately: Bool { false }
     func ordering(for folderURL: URL) async -> FolderOrderingResult {
         let urls = await orderedURLs(for: folderURL)
-        return FolderOrderingResult(urls: urls, status: urls == nil ? FolderOrderingResult.unavailable.status : "跟随 Finder")
+        return FolderOrderingResult(urls: urls, status: urls == nil ? FolderOrderingResult.unavailable.status : L10n.text("跟随 Finder"))
     }
 }
 
@@ -96,22 +96,22 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
         switch instruction {
         case .rule(let rule):
             guard settingsReader(folderURL).supportsGrouping(for: rule) else {
-                return FolderOrderingResult(urls: nil, status: "暂不支持此分组组合，当前按名称升序")
+                return FolderOrderingResult(urls: nil, status: L10n.text("暂不支持此分组组合，当前按名称升序"))
             }
             urls = rule.sorted(directoryURLs)
-            status = "跟随 Finder：" + rule.title
+            status = L10n.text("跟随 Finder：") + rule.title
         case .savedList(let ascending):
             guard let rule = settingsReader(folderURL).listOrder(ascending: ascending) else { return .unavailable }
             urls = rule.sorted(directoryURLs)
-            status = "按 Finder 保存的排列：" + rule.title
+            status = L10n.text("按 Finder 保存的排列：") + rule.title
         case .column:
             guard let rule = settingsReader(folderURL).columnOrder else { return .unavailable }
             urls = rule.sorted(directoryURLs)
-            status = "按 Finder 保存的排列：" + rule.title
+            status = L10n.text("按 Finder 保存的排列：") + rule.title
         case .exact(let ordered):
             guard !settingsReader(folderURL).hasGrouping else { return .unavailable }
             urls = Self.validatedImageOrder(ordered, directoryURLs: directoryURLs)
-            status = "跟随 Finder"
+            status = L10n.text("跟随 Finder")
         case .positions(let positioned):
             guard !settingsReader(folderURL).hasGrouping else { return .unavailable }
             let ordered = positioned.sorted {
@@ -120,7 +120,7 @@ struct FinderFolderOrderProvider: FinderFolderOrderProviding {
                 return Self.nameComesBefore($0.url, $1.url)
             }.map(\.url)
             urls = Self.validatedImageOrder(ordered, directoryURLs: directoryURLs)
-            status = "按 Finder 图标位置"
+            status = L10n.text("按 Finder 图标位置")
         }
         return urls.map { FolderOrderingResult(urls: $0, status: status) } ?? .unavailable
     }

@@ -2,9 +2,9 @@ import AppKit
 
 @MainActor
 final class ImageDeletionDialog: NSPanel {
-    let messageText = "将图片移到废纸篓？"
+    var messageText: String { L10n.text("将图片移到废纸篓？") }
     let filename: String
-    let suppressionButton = NSButton(checkboxWithTitle: "以后不再询问", target: nil, action: nil)
+    let suppressionButton = NSButton(checkboxWithTitle: L10n.text("以后不再询问"), target: nil, action: nil)
     private(set) var buttons: [NSButton] = []
 
     init(filename: String) {
@@ -14,7 +14,7 @@ final class ImageDeletionDialog: NSPanel {
             styleMask: [.titled], backing: .buffered, defer: false
         )
         isReleasedWhenClosed = false
-        title = "移到废纸篓"
+        title = L10n.text("移到废纸篓")
 
         let content = NSView()
         contentView = content
@@ -28,7 +28,7 @@ final class ImageDeletionDialog: NSPanel {
         filenameLabel.toolTip = filename
         filenameLabel.setAccessibilityValue(filename)
         let explanation = NSTextField(wrappingLabelWithString:
-            "原文件将移到废纸篓，删除后可撤销。"
+            L10n.text("原文件将移到废纸篓，删除后可撤销。")
         )
         explanation.font = .systemFont(ofSize: 12)
         explanation.textColor = .secondaryLabelColor
@@ -38,8 +38,8 @@ final class ImageDeletionDialog: NSPanel {
         suppressionButton.font = .systemFont(ofSize: 12)
 
         let cancel = ConfirmationActionButton()
-        cancel.cell = ConfirmationActionButtonCell(textCell: "取消")
-        cancel.title = "取消"
+        cancel.cell = ConfirmationActionButtonCell(textCell: L10n.text("取消"))
+        cancel.title = L10n.text("取消")
         cancel.setButtonType(.momentaryPushIn)
         cancel.target = self
         cancel.action = #selector(cancelDeletion(_:))
@@ -47,8 +47,8 @@ final class ImageDeletionDialog: NSPanel {
         cancel.keyEquivalent = "\r"
         cancel.font = .systemFont(ofSize: 13)
         let trash = ConfirmationActionButton()
-        trash.cell = ConfirmationActionButtonCell(textCell: "移到废纸篓")
-        trash.title = "移到废纸篓"
+        trash.cell = ConfirmationActionButtonCell(textCell: L10n.text("移到废纸篓"))
+        trash.title = L10n.text("移到废纸篓")
         trash.setButtonType(.momentaryPushIn)
         trash.target = self
         trash.action = #selector(confirmDeletion(_:))
@@ -93,6 +93,14 @@ final class ImageDeletionDialog: NSPanel {
         setContentSize(NSSize(width: 400, height: ceil(height)))
         defaultButtonCell = cancel.cell as? NSButtonCell
         initialFirstResponder = cancel
+        LanguageSettings.bind(self) { dialog in
+            dialog.title = L10n.text("移到废纸篓")
+            titleLabel.stringValue = dialog.messageText
+            explanation.stringValue = L10n.text("原文件将移到废纸篓，删除后可撤销。")
+            dialog.suppressionButton.title = L10n.text("以后不再询问")
+            cancel.title = L10n.text("取消")
+            trash.title = L10n.text("移到废纸篓")
+        }
     }
 
     @objc private func cancelDeletion(_ sender: Any?) {

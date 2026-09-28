@@ -270,13 +270,13 @@ struct SlideshowTests {
         canvas.onStartSlideshow = fixture.model.startSlideshow
         let event = try #require(NSEvent.mouseEvent(with: .rightMouseDown, location: .zero,
             modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
-        #expect(canvas.menu(for: event)?.items.contains { $0.title == "播放幻灯片" } == true)
+        #expect(canvas.menu(for: event)?.items.contains { $0.title == L10n.text("播放幻灯片") } == true)
         canvas.toggleSlideshowForMenu(nil)
         #expect(fixture.controller.state == .playing)
         let menu = try #require(canvas.menu(for: event))
         #expect(fixture.controller.state == .paused)
-        #expect(menu.items.contains { $0.title == "继续幻灯片" })
-        #expect(menu.items.contains { $0.title == "结束幻灯片" })
+        #expect(menu.items.contains { $0.title == L10n.text("继续幻灯片") })
+        #expect(menu.items.contains { $0.title == L10n.text("结束幻灯片") })
         canvas.toggleSlideshowForMenu(nil)
         #expect(fixture.controller.state == .playing)
         canvas.endSlideshowForMenu(nil)

@@ -42,7 +42,7 @@ final class ImageSortOrderTests: XCTestCase {
         )
         let result = await provider.ordering(for: folder)
         XCTAssertEqual(result.urls, [new, old])
-        XCTAssertEqual(result.status, "跟随 Finder：修改日期降序")
+        XCTAssertEqual(result.status, L10n.text("跟随 Finder：") + ImageSortOrder(field: .modificationDate, ascending: false).title)
         XCTAssertFalse(provider.isOrderingAvailableImmediately)
     }
 
@@ -66,7 +66,7 @@ final class ImageSortOrderTests: XCTestCase {
             )
             let result = await provider.ordering(for: folder)
             XCTAssertNil(result.urls)
-            XCTAssertTrue(result.status.contains("当前按名称"))
+            XCTAssertTrue(result.status == L10n.text("暂不支持此分组组合，当前按名称升序") || result.status == FolderOrderingResult.unavailable.status)
         }
     }
 

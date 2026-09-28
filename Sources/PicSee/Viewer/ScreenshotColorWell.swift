@@ -12,13 +12,14 @@ struct ScreenshotColorWell: NSViewRepresentable {
         well.color = color
         well.target = context.coordinator
         well.action = #selector(Coordinator.colorChanged(_:))
-        well.setAccessibilityLabel("自定义标注颜色")
+        well.setAccessibilityLabel(L10n.text("自定义标注颜色"))
         well.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return well
     }
 
     func updateNSView(_ well: NSColorWell, context: Context) {
         context.coordinator.parent = self
+        well.setAccessibilityLabel(L10n.text("自定义标注颜色"))
         if !well.color.isEqual(color) { well.color = color }
     }
 

@@ -335,6 +335,13 @@ private struct AboutSettingsView: View {
                     ? String(websiteURL.absoluteString.dropLast()) : websiteURL.absoluteString
                 Link(websiteLabel, destination: websiteURL)
                     .buttonStyle(.link)
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.pointingHand.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
             }
             .font(.system(size: 12))
 

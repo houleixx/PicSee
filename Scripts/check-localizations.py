@@ -92,6 +92,10 @@ def main():
             elif path.name == "AppLanguage.swift" and raw == "简体中文":
                 # Endonyms let users recover after accidentally choosing a language.
                 continue
+            elif path.name == "ImageCanvasView.swift" and raw in {"拷贝", "复制", "共享", "分享"}:
+                # Match VisionKit-owned menu titles in the OS language, independently
+                # of PicSee's selected language. These are not displayed app strings.
+                continue
             else:
                 errors.append(f"Unlocalized literal in {path.name}: {raw}")
     if errors:

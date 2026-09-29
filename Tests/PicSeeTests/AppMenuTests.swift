@@ -43,97 +43,59 @@ final class AppMenuTests: XCTestCase {
         XCTAssertEqual(AppMenu.releasePageURL(from: [:]), URL(string: "https://picsee.pages.dev/"))
     }
 
-    func testImageContextMenuContainsAboutItem() {
+    func testContextMenuKeepsApplicationSettingsInSettingsWindow() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
-        let menu = view.menu(for: rightClickEvent())
-
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("复制图片路径") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("显示缩略图") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("显示标题栏") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("显示文件信息") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("显示底部工具栏") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("显示图片参数") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("固定窗口大小和位置") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("图片另存为...") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("默认打开方式…") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("检查更新") })
-        XCTAssertNotNil(menu?.items.first { $0.title == L10n.text("关于 %1$@", "PicSee") })
-        XCTAssertEqual(
-            menu?.items.first { $0.title == L10n.text("默认打开方式…") }?.action,
-            #selector(AppDelegate.showDefaultImageAppSettings(_:))
-        )
-        XCTAssertEqual(
-            menu?.items.first { $0.title == L10n.text("关于 %1$@", "PicSee") }?.action,
-            #selector(AppDelegate.showAboutSettings(_:))
-        )
-    }
-
-    func testImageContextMenuShowsTitleBarItemAboveMinimapItem() {
-        let view = CanvasNSView(frame: .zero, backend: .vision)
-        let menu = view.menu(for: rightClickEvent())
-
-        guard
-            let titleBarIndex = menu?.items.firstIndex(where: { $0.title == L10n.text("显示标题栏") }),
-            let minimapIndex = menu?.items.firstIndex(where: { $0.title == L10n.text("显示缩略图") })
-        else {
-            return XCTFail("Expected title bar and minimap menu items")
+        let menu = view.menu(for: rightClickEvent())!
+        XCTAssertEqual(menu.items.last?.action, #selector(CanvasNSView.checkForUpdatesForMenu(_:)))
+        XCTAssertEqual(menu.items[menu.items.count - 2].action, #selector(AppDelegate.showSettings(_:)))
+        XCTAssertFalse(view.validateMenuItem(menu.items.last!))
+        for action in [#selector(AppDelegate.showAboutSettings(_:)),
+                       #selector(AppDelegate.showDefaultImageAppSettings(_:))] {
+            XCTAssertFalse(menu.items.contains { $0.action == action })
         }
-
-        XCTAssertLessThan(titleBarIndex, minimapIndex)
+        XCTAssertEqual(menu.items.first?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
+        XCTAssertEqual(menu.items[1].action, #selector(CanvasNSView.exportImageForMenu(_:)))
     }
 
-    func testImageContextMenuGroupsTitleBarMinimapAndFileInfoItemsTogether() {
+    func testDisplayOptionsAreGroupedInAnIconFreeSubmenu() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
-        let menu = view.menu(for: rightClickEvent())
-
-        guard
-            let items = menu?.items,
-            let titleBarIndex = items.firstIndex(where: { $0.title == L10n.text("显示标题栏") }),
-            titleBarIndex + 1 < items.count
-        else {
-            return XCTFail("Expected title bar menu item")
-        }
-
-        XCTAssertEqual(items[titleBarIndex + 1].title, L10n.text("显示缩略图"))
-        XCTAssertEqual(items[titleBarIndex + 2].title, L10n.text("显示文件信息"))
-        XCTAssertEqual(items[titleBarIndex + 3].title, L10n.text("显示底部工具栏"))
-        XCTAssertEqual(items[titleBarIndex + 4].title, L10n.text("显示图片参数"))
-        XCTAssertEqual(items[titleBarIndex + 5].title, L10n.text("单窗口看图"))
-        XCTAssertEqual(items[titleBarIndex + 6].title, L10n.text("窗口置顶"))
-        XCTAssertEqual(items[titleBarIndex + 7].title, L10n.text("固定窗口大小和位置"))
-        XCTAssertFalse(items[titleBarIndex + 1].isSeparatorItem)
-        XCTAssertFalse(items[titleBarIndex + 2].isSeparatorItem)
-        XCTAssertFalse(items[titleBarIndex + 3].isSeparatorItem)
-        XCTAssertFalse(items[titleBarIndex + 4].isSeparatorItem)
-        XCTAssertFalse(items[titleBarIndex + 5].isSeparatorItem)
+        let menu = view.menu(for: rightClickEvent())!
+        let items = menu.displayOptionsItems
+        XCTAssertEqual(items.map(\.title), ["显示标题栏", "显示缩略图", "显示文件信息", "显示底部工具栏", "显示图片参数"].map { L10n.text($0) })
+        XCTAssertTrue(items.allSatisfy { $0.image == nil && $0.target === view })
+        XCTAssertFalse(menu.items.contains { $0.action == #selector(CanvasNSView.toggleMinimapForMenu(_:)) })
+        XCTAssertEqual(items.last?.keyEquivalent, "i")
+        XCTAssertEqual(items.last?.keyEquivalentModifierMask, .command)
     }
 
-    func testAppendsPicSeeItemsWithoutSeparatingTitleBarMinimapAndFileInfoItems() {
+    func testMainMenuIconsLoadAndWindowControlsRemainTogether() {
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+        view.onStartSlideshow = {}
+        let menu = view.menu(for: rightClickEvent())!
+        XCTAssertTrue(menu.items.filter { !$0.isSeparatorItem }.allSatisfy { $0.image != nil })
+        let index = menu.items.firstIndex { $0.title == L10n.text("显示选项") }!
+        XCTAssertEqual(Array(menu.items[(index + 1)...(index + 4)]).map(\.title),
+                       ["单窗口看图", "窗口置顶", "固定窗口大小和位置", "主题"].map { L10n.text($0) })
+    }
+
+    func testLiveTextActionsKeepTheirTargetsAndGainAlignedIcons() {
         let view = CanvasNSView(frame: .zero, backend: .liveText)
-        let menu = NSMenu(title: "Live Text")
-        menu.addItem(NSMenuItem(title: L10n.text("复制"), action: nil, keyEquivalent: ""))
-
+        let menu = NSMenu()
+        let copy = NSMenuItem(title: "拷贝图像", action: #selector(NSText.copy(_:)), keyEquivalent: "")
+        copy.target = view
+        let share = NSMenuItem(title: "Share Image…", action: nil, keyEquivalent: "")
+        menu.addItem(copy)
+        menu.addItem(share)
         view.debugAppendPicSeeContextMenuItems(to: menu)
-
-        guard
-            let titleBarIndex = menu.items.firstIndex(where: { $0.title == L10n.text("显示标题栏") }),
-            titleBarIndex + 1 < menu.items.count
-        else {
-            return XCTFail("Expected title bar menu item")
-        }
-
-        XCTAssertEqual(menu.items[titleBarIndex + 1].title, L10n.text("显示缩略图"))
-        XCTAssertEqual(menu.items[titleBarIndex + 2].title, L10n.text("显示文件信息"))
-        XCTAssertEqual(menu.items[titleBarIndex + 3].title, L10n.text("显示底部工具栏"))
-        XCTAssertEqual(menu.items[titleBarIndex + 4].title, L10n.text("显示图片参数"))
-        XCTAssertEqual(menu.items[titleBarIndex + 5].title, L10n.text("单窗口看图"))
-        XCTAssertEqual(menu.items[titleBarIndex + 6].title, L10n.text("窗口置顶"))
-        XCTAssertEqual(menu.items[titleBarIndex + 7].title, L10n.text("固定窗口大小和位置"))
-        XCTAssertFalse(menu.items[titleBarIndex + 1].isSeparatorItem)
-        XCTAssertFalse(menu.items[titleBarIndex + 2].isSeparatorItem)
-        XCTAssertFalse(menu.items[titleBarIndex + 3].isSeparatorItem)
-        XCTAssertFalse(menu.items[titleBarIndex + 4].isSeparatorItem)
-        XCTAssertFalse(menu.items[titleBarIndex + 5].isSeparatorItem)
+        let count = menu.items.count
+        view.debugAppendPicSeeContextMenuItems(to: menu)
+        XCTAssertEqual(menu.items.count, count)
+        XCTAssertTrue(menu.items[0] === copy)
+        XCTAssertTrue(copy.target === view)
+        XCTAssertEqual(copy.action, #selector(NSText.copy(_:)))
+        XCTAssertNotNil(copy.image)
+        XCTAssertNotNil(share.image)
+        XCTAssertEqual(menu.displayOptionsItems.count, 5)
     }
 
     func testAppendingPicSeeItemsTwiceAddsOnlyOneThemeMenu() {
@@ -168,48 +130,6 @@ final class AppMenuTests: XCTestCase {
         XCTAssertTrue(themeItems.filter { $0.state == .on }.count == 1)
     }
 
-    func testImageContextMenuShowsCheckForUpdatesAboveAboutItem() {
-        let view = CanvasNSView(frame: .zero, backend: .vision)
-        view.onCheckForUpdates = {}
-
-        let menu = view.menu(for: rightClickEvent())
-
-        guard
-            let items = menu?.items,
-            let updateIndex = items.firstIndex(where: { $0.title == L10n.text("检查更新") }),
-            let aboutIndex = items.firstIndex(where: { $0.title == L10n.text("关于 %1$@", "PicSee") })
-        else {
-            return XCTFail("Expected update and about menu items")
-        }
-
-        XCTAssertEqual(updateIndex + 1, aboutIndex)
-        XCTAssertFalse(items[aboutIndex].isSeparatorItem)
-        XCTAssertTrue(items[updateIndex].isEnabled)
-    }
-
-    func testImageContextMenuGroupsSettingsAndApplicationInfo() {
-        let view = CanvasNSView(frame: .zero, backend: .vision)
-        view.onCheckForUpdates = {}
-
-        let menu = view.menu(for: rightClickEvent())
-
-        guard
-            let items = menu?.items,
-            let settingsIndex = items.firstIndex(where: { $0.title == L10n.text("设置…") }),
-            let defaultSettingsIndex = items.firstIndex(where: { $0.title == L10n.text("默认打开方式…") }),
-            let updateIndex = items.firstIndex(where: { $0.title == L10n.text("检查更新") })
-        else {
-            return XCTFail("Expected default image settings and update menu items")
-        }
-
-        XCTAssertGreaterThan(settingsIndex, 0)
-        if settingsIndex > 0 { XCTAssertTrue(items[settingsIndex - 1].isSeparatorItem) }
-        XCTAssertEqual(settingsIndex + 1, defaultSettingsIndex)
-        XCTAssertEqual(defaultSettingsIndex + 1, updateIndex)
-        XCTAssertEqual(items[defaultSettingsIndex].action, #selector(AppDelegate.showDefaultImageAppSettings(_:)))
-        XCTAssertFalse(items[defaultSettingsIndex].isSeparatorItem)
-    }
-
     func testImageContextMenuCheckForUpdatesTriggersCallback() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
         var didCheck = false
@@ -218,6 +138,11 @@ final class AppMenuTests: XCTestCase {
         let menu = view.menu(for: rightClickEvent())
         let updateItem = menu?.items.first { $0.title == L10n.text("检查更新") }
 
+        XCTAssertNotNil(updateItem)
+        XCTAssertNotNil(updateItem?.image)
+        XCTAssertTrue(updateItem?.target === view)
+        XCTAssertEqual(updateItem?.action, #selector(CanvasNSView.checkForUpdatesForMenu(_:)))
+        XCTAssertTrue(view.validateMenuItem(updateItem!))
         view.checkForUpdatesForMenu(updateItem)
 
         XCTAssertTrue(didCheck)
@@ -265,14 +190,14 @@ final class AppMenuTests: XCTestCase {
         let view = CanvasNSView(frame: .zero, backend: .vision)
 
         var menu = view.menu(for: rightClickEvent())
-        let firstItem = menu?.items.first { $0.title == L10n.text("显示缩略图") }
+        let firstItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示缩略图") }
         XCTAssertEqual(firstItem?.state, .on)
         XCTAssertTrue(view.debugMinimapEnabled)
 
         view.toggleMinimapForMenu(firstItem)
 
         menu = view.menu(for: rightClickEvent())
-        let secondItem = menu?.items.first { $0.title == L10n.text("显示缩略图") }
+        let secondItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示缩略图") }
         XCTAssertEqual(secondItem?.state, .off)
         XCTAssertFalse(view.debugMinimapEnabled)
 
@@ -294,7 +219,7 @@ final class AppMenuTests: XCTestCase {
 
         let secondView = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
         XCTAssertFalse(secondView.debugMinimapEnabled)
-        XCTAssertEqual(secondView.menu(for: rightClickEvent())?.items.first { $0.title == L10n.text("显示缩略图") }?.state, .off)
+        XCTAssertEqual(secondView.menu(for: rightClickEvent())?.displayOptionsItems.first { $0.title == L10n.text("显示缩略图") }?.state, .off)
     }
 
     func testImageContextMenuTogglesFileInfoVisibilityPreference() {
@@ -307,14 +232,14 @@ final class AppMenuTests: XCTestCase {
         firstView.onFileInfoVisibilityChanged = { observedValues.append($0) }
 
         var menu = firstView.menu(for: rightClickEvent())
-        let firstItem = menu?.items.first { $0.title == L10n.text("显示文件信息") }
+        let firstItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示文件信息") }
         XCTAssertEqual(firstItem?.state, .on)
         XCTAssertTrue(firstView.debugFileInfoVisible)
 
         firstView.toggleFileInfoForMenu(firstItem)
 
         menu = firstView.menu(for: rightClickEvent())
-        let secondItem = menu?.items.first { $0.title == L10n.text("显示文件信息") }
+        let secondItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示文件信息") }
         XCTAssertEqual(secondItem?.state, .off)
         XCTAssertFalse(firstView.debugFileInfoVisible)
         XCTAssertEqual(observedValues, [false])
@@ -333,14 +258,14 @@ final class AppMenuTests: XCTestCase {
         firstView.onToolbarVisibilityChanged = { observedValues.append($0) }
 
         var menu = firstView.menu(for: rightClickEvent())
-        let firstItem = menu?.items.first { $0.title == L10n.text("显示底部工具栏") }
+        let firstItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示底部工具栏") }
         XCTAssertEqual(firstItem?.state, .on)
         XCTAssertTrue(firstView.debugToolbarVisible)
 
         firstView.toggleToolbarForMenu(firstItem)
 
         menu = firstView.menu(for: rightClickEvent())
-        let secondItem = menu?.items.first { $0.title == L10n.text("显示底部工具栏") }
+        let secondItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示底部工具栏") }
         XCTAssertEqual(secondItem?.state, .off)
         XCTAssertFalse(firstView.debugToolbarVisible)
         XCTAssertEqual(observedValues, [false])
@@ -359,14 +284,14 @@ final class AppMenuTests: XCTestCase {
         firstView.onImageParametersVisibilityChanged = { observedValues.append($0) }
 
         var menu = firstView.menu(for: rightClickEvent())
-        let firstItem = menu?.items.first { $0.title == L10n.text("显示图片参数") }
+        let firstItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示图片参数") }
         XCTAssertEqual(firstItem?.state, .off)
         XCTAssertFalse(firstView.debugImageParametersVisible)
 
         firstView.toggleImageParametersForMenu(firstItem)
 
         menu = firstView.menu(for: rightClickEvent())
-        let secondItem = menu?.items.first { $0.title == L10n.text("显示图片参数") }
+        let secondItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示图片参数") }
         XCTAssertEqual(secondItem?.state, .on)
         XCTAssertTrue(firstView.debugImageParametersVisible)
         XCTAssertEqual(observedValues, [true])
@@ -385,14 +310,14 @@ final class AppMenuTests: XCTestCase {
         view.onTitleBarVisibilityChanged = { observedValues.append($0) }
 
         var menu = view.menu(for: rightClickEvent())
-        let firstItem = menu?.items.first { $0.title == L10n.text("显示标题栏") }
+        let firstItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示标题栏") }
         XCTAssertEqual(firstItem?.state, .off)
         XCTAssertFalse(view.debugTitleBarVisible)
 
         view.toggleTitleBarForMenu(firstItem)
 
         menu = view.menu(for: rightClickEvent())
-        let secondItem = menu?.items.first { $0.title == L10n.text("显示标题栏") }
+        let secondItem = menu?.displayOptionsItems.first { $0.title == L10n.text("显示标题栏") }
         XCTAssertEqual(secondItem?.state, .on)
         XCTAssertTrue(view.debugTitleBarVisible)
         XCTAssertEqual(observedValues, [true])
@@ -444,15 +369,15 @@ final class AppMenuTests: XCTestCase {
         XCTAssertTrue(pathItem?.isEnabled ?? false)
         XCTAssertEqual(pathItem?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
         XCTAssertNotNil(menu.items.first { $0.title == L10n.text("图片另存为...") })
-        XCTAssertNotNil(menu.items.first { $0.title == L10n.text("显示缩略图") })
-        XCTAssertNotNil(menu.items.first { $0.title == L10n.text("显示标题栏") })
-        XCTAssertNotNil(menu.items.first { $0.title == L10n.text("显示文件信息") })
-        XCTAssertNotNil(menu.items.first { $0.title == L10n.text("显示底部工具栏") })
-        XCTAssertNotNil(menu.items.first { $0.title == L10n.text("显示图片参数") })
+        XCTAssertNotNil(menu.displayOptionsItems.first { $0.title == L10n.text("显示缩略图") })
+        XCTAssertNotNil(menu.displayOptionsItems.first { $0.title == L10n.text("显示标题栏") })
+        XCTAssertNotNil(menu.displayOptionsItems.first { $0.title == L10n.text("显示文件信息") })
+        XCTAssertNotNil(menu.displayOptionsItems.first { $0.title == L10n.text("显示底部工具栏") })
+        XCTAssertNotNil(menu.displayOptionsItems.first { $0.title == L10n.text("显示图片参数") })
         XCTAssertNotNil(menu.items.first { $0.title == L10n.text("固定窗口大小和位置") })
-        XCTAssertNotNil(menu.items.first { $0.title == L10n.text("默认打开方式…") })
+        XCTAssertNil(menu.items.first { $0.title == L10n.text("默认打开方式…") })
         XCTAssertNotNil(menu.items.first { $0.title == L10n.text("检查更新") })
-        XCTAssertNotNil(menu.items.first { $0.title == L10n.text("关于 %1$@", "PicSee") })
+        XCTAssertNil(menu.items.first { $0.title == L10n.text("关于 %1$@", "PicSee") })
     }
 
     func testAppendsAboutItemToExistingMenuOnce() {

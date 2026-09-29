@@ -49,9 +49,9 @@ final class ViewerPreferencesTests: XCTestCase {
         XCTAssertEqual(reopened.snapshot.theme, .dark)
         let menu = NSMenu()
         canvas.debugAppendPicSeeContextMenuItems(to: menu)
-        XCTAssertEqual(menu.items.first { $0.title == L10n.text("显示缩略图") }?.state, .off)
-        XCTAssertEqual(menu.items.first { $0.title == L10n.text("显示标题栏") }?.state, .on)
-        XCTAssertEqual(menu.items.first { $0.title == L10n.text("显示图片参数") }?.state, .on)
+        XCTAssertEqual(menu.displayOptionsItems.first { $0.title == L10n.text("显示缩略图") }?.state, .off)
+        XCTAssertEqual(menu.displayOptionsItems.first { $0.title == L10n.text("显示标题栏") }?.state, .on)
+        XCTAssertEqual(menu.displayOptionsItems.first { $0.title == L10n.text("显示图片参数") }?.state, .on)
     }
 
     func testContextMenuChangesUpdateOpenSettingsWithoutManualReload() async {
@@ -108,7 +108,7 @@ final class ViewerPreferencesTests: XCTestCase {
         preferences.set(\.toolbarVisible, to: false)
         preferences.setTheme(.dark)
 
-        let toolbar = menu.items.first { $0.title == L10n.text("显示底部工具栏") }!
+        let toolbar = menu.displayOptionsItems.first { $0.title == L10n.text("显示底部工具栏") }!
         XCTAssertTrue(canvas.validateMenuItem(toolbar))
         XCTAssertEqual(toolbar.state, .off)
         let themes = menu.items.first { $0.title == L10n.text("主题") }!.submenu!.items
@@ -123,7 +123,7 @@ final class ViewerPreferencesTests: XCTestCase {
         canvas.debugAppendPicSeeContextMenuItems(to: menu)
         canvas.debugAppendPicSeeContextMenuItems(to: menu)
         XCTAssertEqual(menu.items.filter { $0.action == #selector(AppDelegate.showSettings(_:)) }.count, 1)
-        for title in [L10n.text("默认打开方式…"), L10n.text("检查更新"), L10n.text("关于 %1$@", "PicSee"), L10n.text("主题"), L10n.text("显示缩略图")] {
+        for title in [L10n.text("显示选项"), L10n.text("主题")] {
             XCTAssertNotNil(menu.items.first { $0.title == title })
         }
         let main = AppMenu.buildMainMenu(appName: "PicSee")

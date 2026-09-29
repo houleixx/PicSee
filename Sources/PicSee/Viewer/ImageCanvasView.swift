@@ -1333,10 +1333,34 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     private func appendPicSeeContextMenuItems(to menu: NSMenu) {
         slideshow?.pause()
+        applyPreferences(ViewerPreferencesSnapshot(defaults: defaults))
+        let displayIdentifier = NSUserInterfaceItemIdentifier("PicSee.DisplayOptions")
+        guard !menu.items.contains(where: { $0.identifier == displayIdentifier }) else { return }
+        alignSystemContextMenuItems(in: menu)
+        if menu.items.first(where: { $0.action == #selector(copyImagePathForMenu(_:)) }) == nil {
+            let pathItem = NSMenuItem(title: L10n.text("复制图片路径"), action: #selector(copyImagePathForMenu(_:)), keyEquivalent: "")
+            pathItem.image = contextMenuImage("link")
+            LanguageSettings.bind(pathItem) { $0.title = L10n.text("复制图片路径") }
+            pathItem.target = self
+            pathItem.isEnabled = imageURL != nil
+            menu.addItem(pathItem)
+        }
+
+        if menu.items.first(where: { $0.action == #selector(exportImageForMenu(_:)) }) == nil {
+            let exportItem = NSMenuItem(title: L10n.text("图片另存为..."), action: #selector(exportImageForMenu(_:)), keyEquivalent: "")
+            exportItem.image = contextMenuImage("square.and.arrow.down")
+            LanguageSettings.bind(exportItem) { $0.title = L10n.text("图片另存为...") }
+            exportItem.target = self
+            exportItem.isEnabled = image != nil
+            menu.addItem(exportItem)
+        }
+
         if onStartSlideshow != nil,
            !menu.items.contains(where: { $0.action == #selector(toggleSlideshowForMenu(_:)) }) {
+            menu.addItem(.separator())
             let title = slideshow?.isActive == true ? L10n.text("继续幻灯片") : L10n.text("播放幻灯片")
             let playItem = NSMenuItem(title: title, action: #selector(toggleSlideshowForMenu(_:)), keyEquivalent: "")
+            playItem.image = contextMenuImage("play.circle")
             LanguageSettings.bind(playItem) { [weak slideshow] item in
                 item.title = slideshow?.isActive == true ? L10n.text("继续幻灯片") : L10n.text("播放幻灯片")
             }
@@ -1344,12 +1368,12 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             menu.addItem(playItem)
             if slideshow?.isActive == true {
                 let stopItem = NSMenuItem(title: L10n.text("结束幻灯片"), action: #selector(endSlideshowForMenu(_:)), keyEquivalent: "")
-            LanguageSettings.bind(stopItem) { $0.title = L10n.text("结束幻灯片") }
+                stopItem.image = contextMenuImage("stop")
+                LanguageSettings.bind(stopItem) { $0.title = L10n.text("结束幻灯片") }
                 stopItem.target = self
                 menu.addItem(stopItem)
             }
         }
-        applyPreferences(ViewerPreferencesSnapshot(defaults: defaults))
         let shouldAddTitleBarItem = menu.items.first(where: { $0.action == #selector(toggleTitleBarForMenu(_:)) }) == nil
         let shouldAddMinimapItem = menu.items.first(where: { $0.action == #selector(toggleMinimapForMenu(_:)) }) == nil
         let shouldAddFileInfoItem = menu.items.first(where: { $0.action == #selector(toggleFileInfoForMenu(_:)) }) == nil
@@ -1363,12 +1387,20 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             }
         }
 
+        let displayItem = NSMenuItem(title: L10n.text("显示选项"), action: nil, keyEquivalent: "")
+        LanguageSettings.bind(displayItem) { $0.title = L10n.text("显示选项") }
+        displayItem.identifier = displayIdentifier
+        displayItem.image = contextMenuImage("slider.horizontal.3")
+        let displayMenu = NSMenu(title: L10n.text("显示选项"))
+        displayItem.submenu = displayMenu
+        menu.addItem(displayItem)
+
         if shouldAddTitleBarItem {
             let titleBarItem = NSMenuItem(title: L10n.text("显示标题栏"), action: #selector(toggleTitleBarForMenu(_:)), keyEquivalent: "")
             LanguageSettings.bind(titleBarItem) { $0.title = L10n.text("显示标题栏") }
             titleBarItem.target = self
             titleBarItem.state = titleBarVisible ? .on : .off
-            menu.addItem(titleBarItem)
+            displayMenu.addItem(titleBarItem)
         }
 
         if shouldAddMinimapItem {
@@ -1376,7 +1408,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             LanguageSettings.bind(minimapItem) { $0.title = L10n.text("显示缩略图") }
             minimapItem.target = self
             minimapItem.state = minimapEnabled ? .on : .off
-            menu.addItem(minimapItem)
+            displayMenu.addItem(minimapItem)
         }
 
         if shouldAddFileInfoItem {
@@ -1384,7 +1416,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             LanguageSettings.bind(fileInfoItem) { $0.title = L10n.text("显示文件信息") }
             fileInfoItem.target = self
             fileInfoItem.state = fileInfoVisible ? .on : .off
-            menu.addItem(fileInfoItem)
+            displayMenu.addItem(fileInfoItem)
         }
 
         if shouldAddToolbarItem {
@@ -1392,7 +1424,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             LanguageSettings.bind(toolbarItem) { $0.title = L10n.text("显示底部工具栏") }
             toolbarItem.target = self
             toolbarItem.state = toolbarVisible ? .on : .off
-            menu.addItem(toolbarItem)
+            displayMenu.addItem(toolbarItem)
         }
 
         if shouldAddImageParametersItem {
@@ -1400,11 +1432,12 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             LanguageSettings.bind(imageParametersItem) { $0.title = L10n.text("显示图片参数") }
             imageParametersItem.target = self
             imageParametersItem.state = imageParametersVisible ? .on : .off
-            menu.addItem(imageParametersItem)
+            displayMenu.addItem(imageParametersItem)
         }
 
         if !menu.items.contains(where: { $0.action == #selector(toggleSingleWindowForMenu(_:)) }) {
             let item = NSMenuItem(title: L10n.text("单窗口看图"), action: #selector(toggleSingleWindowForMenu(_:)), keyEquivalent: "")
+            item.image = contextMenuImage("macwindow")
             LanguageSettings.bind(item) { $0.title = L10n.text("单窗口看图") }
             item.target = self
             item.state = SingleWindowPreference.isEnabled(in: defaults) ? .on : .off
@@ -1413,6 +1446,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
         if !menu.items.contains(where: { $0.action == #selector(toggleAlwaysOnTopForMenu(_:)) }) {
             let item = NSMenuItem(title: L10n.text("窗口置顶"), action: #selector(toggleAlwaysOnTopForMenu(_:)), keyEquivalent: "")
+            item.image = contextMenuImage("pin")
             LanguageSettings.bind(item) { $0.title = L10n.text("窗口置顶") }
             item.target = self
             item.state = WindowPinningPreference.isEnabled(in: defaults) ? .on : .off
@@ -1421,6 +1455,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
         if shouldAddFixedWindowItem {
             let fixedWindowItem = NSMenuItem(title: L10n.text("固定窗口大小和位置"), action: #selector(toggleFixedWindowForMenu(_:)), keyEquivalent: "")
+            fixedWindowItem.image = contextMenuImage("lock")
             LanguageSettings.bind(fixedWindowItem) { $0.title = L10n.text("固定窗口大小和位置") }
             fixedWindowItem.target = self
             fixedWindowItem.state = fixedWindowEnabled ? .on : .off
@@ -1429,6 +1464,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
         if menu.items.first(where: { $0.identifier == Self.themeMenuIdentifier }) == nil {
             let themeItem = NSMenuItem(title: L10n.text("主题"), action: nil, keyEquivalent: "")
+            themeItem.image = contextMenuImage("circle.lefthalf.filled")
             LanguageSettings.bind(themeItem) { $0.title = L10n.text("主题") }
             themeItem.identifier = Self.themeMenuIdentifier
             let themeMenu = NSMenu(title: L10n.text("主题"))
@@ -1444,34 +1480,17 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             menu.addItem(themeItem)
         }
 
-        if menu.items.first(where: { $0.action == #selector(copyImagePathForMenu(_:)) }) == nil {
-            if !menu.items.isEmpty {
-                menu.addItem(.separator())
-            }
-            let pathItem = NSMenuItem(title: L10n.text("复制图片路径"), action: #selector(copyImagePathForMenu(_:)), keyEquivalent: "")
-            LanguageSettings.bind(pathItem) { $0.title = L10n.text("复制图片路径") }
-            pathItem.target = self
-            pathItem.isEnabled = imageURL != nil
-            menu.addItem(pathItem)
-        }
-
-        if menu.items.first(where: { $0.action == #selector(exportImageForMenu(_:)) }) == nil {
-            let exportItem = NSMenuItem(title: L10n.text("图片另存为..."), action: #selector(exportImageForMenu(_:)), keyEquivalent: "")
-            LanguageSettings.bind(exportItem) { $0.title = L10n.text("图片另存为...") }
-            exportItem.target = self
-            exportItem.isEnabled = image != nil
-            menu.addItem(exportItem)
-        }
-
         if !menu.items.contains(where: { $0.action == #selector(trashImageForMenu(_:)) }) {
             menu.addItem(.separator())
             let trashItem = NSMenuItem(title: L10n.text("移到废纸篓"), action: #selector(trashImageForMenu(_:)), keyEquivalent: "\u{8}")
+            trashItem.image = contextMenuImage("trash")
             LanguageSettings.bind(trashItem) { $0.title = L10n.text("移到废纸篓") }
             trashItem.keyEquivalentModifierMask = .command
             trashItem.target = self
             trashItem.isEnabled = canTrashImage
             menu.addItem(trashItem)
             let undoItem = NSMenuItem(title: L10n.text("撤销移到废纸篓"), action: #selector(undoDeletionForMenu(_:)), keyEquivalent: "z")
+            undoItem.image = contextMenuImage("arrow.uturn.backward")
             LanguageSettings.bind(undoItem) { $0.title = L10n.text("撤销移到废纸篓") }
             undoItem.keyEquivalentModifierMask = .command
             undoItem.target = self
@@ -1482,31 +1501,43 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         if !menu.items.contains(where: { $0.action == #selector(AppDelegate.showSettings(_:)) }) {
             menu.addItem(.separator())
             let settingsItem = NSMenuItem(title: L10n.text("设置…"), action: #selector(AppDelegate.showSettings(_:)), keyEquivalent: ",")
+            settingsItem.image = contextMenuImage("gearshape")
             LanguageSettings.bind(settingsItem) { $0.title = L10n.text("设置…") }
             settingsItem.target = NSApplication.shared.delegate
             menu.addItem(settingsItem)
         }
 
-        if menu.items.first(where: { $0.action == #selector(AppDelegate.showDefaultImageAppSettings(_:)) }) == nil {
-            let defaultSettingsItem = NSMenuItem(
-                title: L10n.text("默认打开方式…"),
-                action: #selector(AppDelegate.showDefaultImageAppSettings(_:)),
-                keyEquivalent: ""
-            )
-            LanguageSettings.bind(defaultSettingsItem) { $0.title = L10n.text("默认打开方式…") }
-            defaultSettingsItem.target = NSApplication.shared.delegate
-            menu.addItem(defaultSettingsItem)
-        }
-
-        if menu.items.first(where: { $0.action == #selector(checkForUpdatesForMenu(_:)) }) == nil {
+        if !menu.items.contains(where: { $0.action == #selector(checkForUpdatesForMenu(_:)) }) {
             let updateItem = NSMenuItem(title: L10n.text("检查更新"), action: #selector(checkForUpdatesForMenu(_:)), keyEquivalent: "")
+            updateItem.image = contextMenuImage("arrow.triangle.2.circlepath")
             LanguageSettings.bind(updateItem) { $0.title = L10n.text("检查更新") }
             updateItem.target = self
             updateItem.isEnabled = onCheckForUpdates != nil
             menu.addItem(updateItem)
         }
+    }
 
-        AppMenu.appendAboutItem(to: menu, includeSeparator: false)
+    private func contextMenuImage(_ symbolName: String) -> NSImage? {
+        NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 13, weight: .regular))
+    }
+
+    private func alignSystemContextMenuItems(in menu: NSMenu) {
+        // VisionKit owns these actions. Only decorate their presentation; preserve
+        // targets, validation, ordering, and any icons supplied by the system.
+        for item in menu.items where !item.isSeparatorItem && item.image == nil {
+            let title = item.title.lowercased()
+            if ["copy", "拷贝", "复制"].contains(where: { title.hasPrefix($0) }) {
+                item.image = contextMenuImage("doc.on.doc")
+            } else if ["share", "共享", "分享"].contains(where: { title.hasPrefix($0) }) {
+                item.image = contextMenuImage("square.and.arrow.up")
+            } else {
+                // Reserve the same icon column for other system languages/actions.
+                let spacer = NSImage(size: NSSize(width: 16, height: 16))
+                spacer.isTemplate = true
+                item.image = spacer
+            }
+        }
     }
 
     private func defaultExportFilename() -> String {

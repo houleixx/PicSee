@@ -46,9 +46,11 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 ### 设置为默认图片查看器
 
-右键选择“设置…”或按 `⌘,` 会打开统一设置窗口的“显示设置”页；“默认打开方式…”进入“打开方式”页，“关于 PicSee”进入“关于”页。三个入口复用同一窗口，不再打开独立小窗口。直接启动 PicSee 时进入“打开方式”页。显示设置页可调整主题、标题栏、缩略图、文件信息、工具栏、图片参数、单窗口看图、窗口置顶以及固定窗口；修改立即生效，与保留的右键菜单双向同步，并沿用已有偏好记忆。多个 PicSee 进程之间也会同步这些浏览偏好。
+右键选择“设置…”或按 `⌘,` 会打开统一设置窗口的“显示设置”页，可在窗口顶部切换到“打开方式”和“关于”；应用菜单仍保留“默认打开方式…”和“关于 PicSee”快捷入口，复用同一设置窗口。直接启动 PicSee 时进入“打开方式”页。显示设置页可调整主题、标题栏、缩略图、文件信息、工具栏、图片参数、单窗口看图、窗口置顶以及固定窗口；修改立即生效，与保留的右键菜单双向同步，并沿用已有偏好记忆。多个 PicSee 进程之间也会同步这些浏览偏好。
 
 “显示设置 → 语言”可选择“跟随系统”“简体中文”或“English”，切换立即生效、无需重启，并同步到其他 PicSee 进程。切换保留当前图片、缩放、旋转和截图编辑状态。菜单、应用弹窗、导出选项和工具提示均支持中英文；macOS 自身管理的文件面板导航及权限提示遵循系统语言设置。
+
+右键菜单采用统一的系统图标，图片操作集中在顶部；标题栏、缩略图、文件信息、底部工具栏和图片参数开关收进“显示选项”子菜单。底部保留“设置…”与“检查更新”。
 
 “打开方式”页可选择图片格式后点击“设为默认”；取消勾选只会排除本次设置，不会撤销已有文件关联。“关于”页可查看版本并手动检查更新，检查结果在设置内显示。启动时的自动检查不会显示“已经是最新版本了”提示。
 
@@ -120,7 +122,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.62 PICSEE_BUILD_NUMBER=62 Scripts/build-app.sh
+PICSEE_VERSION=0.2.63 PICSEE_BUILD_NUMBER=63 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -137,15 +139,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.62.dmg`
+- DMG: `build/dmg/PicSee-0.2.63.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.62 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.63 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.62.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.63.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -271,14 +273,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.62
-git push origin v0.2.62
+git tag v0.2.63
+git push origin v0.2.63
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.62`
-- Asset: `PicSee-0.2.62.dmg`
+- Release: `v0.2.63`
+- Asset: `PicSee-0.2.63.dmg`
 
 ## Release 说明
 

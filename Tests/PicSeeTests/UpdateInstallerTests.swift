@@ -2,6 +2,26 @@ import XCTest
 @testable import PicSee
 
 final class UpdateInstallerTests: XCTestCase {
+    func testCodesignParsesRequirementAndRejectsDifferentApplicationIdentity() throws {
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        // A real Apple-signed executable exercises codesign's requirement parser,
+        // but must never pass the PicSee identifier and developer-team checks.
+        process.arguments = UpdateInstaller.verificationArguments(
+            application: URL(fileURLWithPath: "/usr/bin/true"), team: "AAAAAAAAAA"
+        )
+        process.standardOutput = output
+        process.standardError = output
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let message = String(decoding: data, as: UTF8.self)
+        XCTAssertEqual(process.terminationStatus, 3, message)
+        XCTAssertFalse(message.contains("invalid requirement specification"), message)
+        XCTAssertFalse(message.contains("No such file or directory"), message)
+    }
+
     func testRejectsHTTPFailuresAndInsecureRedirects() throws {
         for (url, status) in [("https://example.com/update.dmg", 404), ("http://example.com/update.dmg", 200)] {
             let response = try XCTUnwrap(HTTPURLResponse(url: URL(string: url)!, statusCode: status,

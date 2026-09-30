@@ -43,6 +43,21 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "dmg_name=PicSee-$VERSION.dmg" >> "$GITHUB_OUTPUT"
 
+      - name: Withdraw releases with the broken updater
+        if: steps.version.outputs.version == '0.2.69'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # One-time withdrawal requested for this repair release. Keep Git tags.
+          RELEASE_IDS="$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq '.[] | select(.tag_name == "v0.2.65" or .tag_name == "v0.2.66" or .tag_name == "v0.2.67" or .tag_name == "v0.2.68") | .id')"
+          while IFS= read -r release_id; do
+            [ -n "$release_id" ] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$release_id"
+          done <<< "$RELEASE_IDS"
+
       - name: Make scripts executable
         run: chmod +x Scripts/build-app.sh Scripts/build-dmg.sh
 

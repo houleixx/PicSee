@@ -72,15 +72,20 @@ enum UpdateInstaller {
         guard team.count == 10, team.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else {
             throw Failure.invalidApplication
         }
-        let requirement = "identifier \"local.picsee.viewer\" and anchor apple generic and certificate leaf[subject.OU] = \"\(team)\""
-        _ = try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", "-R", requirement, source.path])
+        _ = try run("/usr/bin/codesign", verificationArguments(application: source, team: team))
         _ = try run("/usr/sbin/spctl", ["--assess", "--type", "execute", source.path])
         try Task.checkCancellation()
         _ = try run("/usr/bin/ditto", [source.path, staging.path])
-        _ = try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", "-R", requirement, staging.path])
+        _ = try run("/usr/bin/codesign", verificationArguments(application: staging, team: team))
         try Task.checkCancellation()
         prepared = true
         return staging
+    }
+
+    static func verificationArguments(application: URL, team: String) -> [String] {
+        let requirement = "identifier \"local.picsee.viewer\" and anchor apple generic and certificate leaf[subject.OU] = \"\(team)\""
+        // Without '=', codesign interprets the requirement as a filename.
+        return ["--verify", "--deep", "--strict", "-R", "=" + requirement, application.path]
     }
 
     private static func run(_ executable: String, _ arguments: [String]) throws -> String {

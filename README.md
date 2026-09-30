@@ -14,6 +14,8 @@ macOS 自带的「预览」在快速看图时有两处常见不便：**鼠标滚
 
 ## 应用预览
 
+**升级提示：** 已安装 v0.2.65～v0.2.68 的用户，请从 [v0.2.69 发布页面](https://github.com/houleixx/PicSee/releases/tag/v0.2.69) 手动下载 DMG 并替换应用一次。这些旧版本的更新器存在签名校验参数错误，相关公开安装包已撤下；v0.2.69 已修复。
+
 PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并通过底部工具栏完成适合窗口、原始尺寸、缩放、旋转、复制，以及图片裁剪与标注等操作。
 
 看图时按 `⌘←` 向左旋转 90°，按 `⌘→` 向右旋转 90°；每按一次继续旋转，四次回到原方向。隐藏工具栏时仍可使用，文字输入、截图编辑及弹窗期间不触发；长按不连续旋转，普通方向键继续用于翻页。
@@ -128,7 +130,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.68 PICSEE_BUILD_NUMBER=68 Scripts/build-app.sh
+PICSEE_VERSION=0.2.69 PICSEE_BUILD_NUMBER=69 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -145,15 +147,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.68.dmg`
+- DMG: `build/dmg/PicSee-0.2.69.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.68 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.69 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.68.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.69.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -283,14 +285,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.68
-git push origin v0.2.68
+git tag v0.2.69
+git push origin v0.2.69
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.68`
-- Asset: `PicSee-0.2.68.dmg`
+- Release: `v0.2.69`
+- Asset: `PicSee-0.2.69.dmg`
 
 ## Release 说明
 

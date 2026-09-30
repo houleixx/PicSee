@@ -4,6 +4,8 @@ enum KeyboardNavigation {
     enum Action: Equatable {
         case previous
         case next
+        case rotateLeft
+        case rotateRight
         case toggleSlideshowPause
         case endSlideshow
         case quit
@@ -24,6 +26,8 @@ enum KeyboardNavigation {
             return isRepeat ? .none : .screenshot
         }
         if commandModifiers == .command {
+            if keyCode == 123 { return isRepeat ? .none : .rotateLeft }
+            if keyCode == 124 { return isRepeat ? .none : .rotateRight }
             if keyCode == 51 { return isRepeat ? .none : .trash }
             if keyCode == 6 { return isRepeat ? .none : .undoDeletion }
         }

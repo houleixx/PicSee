@@ -5,6 +5,41 @@ import Testing
 
 @MainActor
 struct ScreenshotShortcutTests {
+    @Test func repeatedRotationShortcutsReachModelWithToolbarHidden() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/ocr-test.png")
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url)
+        let host = NSHostingView(rootView: ImageViewerView(viewModel: model, updateChecker: nil,
+            onTitleBarVisibilityChanged: { _ in }, onFixedWindowChanged: { _ in }, onRequestDeletion: {}))
+        let window = ViewerWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        func findCanvas(_ parent: NSView) -> CanvasNSView? {
+            if let canvas = parent as? CanvasNSView { return canvas }
+            return parent.subviews.lazy.compactMap { findCanvas($0) }.first
+        }
+        let canvas = try #require(findCanvas(host))
+        canvas.toolbarVisible = false
+        func press(_ keyCode: UInt16) throws {
+            let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero,
+                modifierFlags: .command, timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil, characters: "",
+                charactersIgnoringModifiers: "", isARepeat: false, keyCode: keyCode))
+            canvas.keyDown(with: event)
+        }
+        let originalURL = model.currentURL
+        for expected in [270, 180, 90, 0] {
+            try press(124)
+            #expect(model.rotationDegrees == expected)
+        }
+        for expected in [90, 180, 270, 0] {
+            try press(123)
+            #expect(model.rotationDegrees == expected)
+        }
+        #expect(model.currentURL == originalURL)
+    }
+
     @Test func screenshotRequiresCommandShiftAWithoutRepeat() {
         #expect(KeyboardNavigation.action(for: 0, modifiers: [.command, .shift]) == .screenshot)
         #expect(KeyboardNavigation.action(for: 0, modifiers: [.command, .shift], isRepeat: true) == .none)

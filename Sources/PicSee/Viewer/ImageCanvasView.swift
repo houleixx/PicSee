@@ -17,6 +17,8 @@ struct ImageCanvasView: NSViewRepresentable {
     let navigationDirection: Int?
     let onPrevious: () -> Void
     let onNext: () -> Void
+    let onRotateLeft: () -> Void
+    let onRotateRight: () -> Void
     let onReset: () -> Void
     let onClose: () -> Void
     let onZoomRequestHandled: (Int) -> Void
@@ -50,6 +52,8 @@ struct ImageCanvasView: NSViewRepresentable {
         view.rotationDegrees = rotationDegrees
         view.onPrevious = onPrevious
         view.onNext = onNext
+        view.onRotateLeft = onRotateLeft
+        view.onRotateRight = onRotateRight
         view.onReset = onReset
         view.onClose = onClose
         view.onZoomRequestHandled = onZoomRequestHandled
@@ -79,6 +83,8 @@ struct ImageCanvasView: NSViewRepresentable {
                                animationID: transformAnimationID, imageChanged: imageChanged)
         nsView.onPrevious = onPrevious
         nsView.onNext = onNext
+        nsView.onRotateLeft = onRotateLeft
+        nsView.onRotateRight = onRotateRight
         nsView.onReset = onReset
         nsView.onClose = onClose
         nsView.onZoomRequestHandled = onZoomRequestHandled
@@ -661,6 +667,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     var onPanChanged: ((CGSize) -> Void)?
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
+    var onRotateLeft: (() -> Void)?
+    var onRotateRight: (() -> Void)?
     var onReset: (() -> Void)?
     var onClose: (() -> Void)?
     var canTrashImage = false
@@ -1232,6 +1240,10 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             onPrevious?()
         case .next:
             onNext?()
+        case .rotateLeft:
+            if image != nil { onRotateLeft?() }
+        case .rotateRight:
+            if image != nil { onRotateRight?() }
         case .toggleSlideshowPause:
             slideshow?.togglePause()
         case .endSlideshow:

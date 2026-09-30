@@ -576,6 +576,14 @@ final class WindowManager {
             case .next:
                 viewModel?.navigateToNext()
                 return nil
+            case .rotateLeft:
+                guard viewModel?.image != nil else { return event }
+                viewModel?.rotateLeft()
+                return nil
+            case .rotateRight:
+                guard viewModel?.image != nil else { return event }
+                viewModel?.rotateRight()
+                return nil
             case .toggleSlideshowPause:
                 viewModel?.slideshow.togglePause()
                 return nil

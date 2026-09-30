@@ -257,3 +257,5 @@
 "按住右键向下再向右划动（↓ →），松开关闭" = "Hold the right mouse button, drag down then right (↓ →), and release to close.";
 "设为桌面壁纸" = "Set as Desktop Wallpaper";
 "设置桌面壁纸失败" = "Couldn’t Set Desktop Wallpaper";
+"向左旋转 90 度（⌘←）" = "Rotate Left 90° (⌘←)";
+"向右旋转 90 度（⌘→）" = "Rotate Right 90° (⌘→)";

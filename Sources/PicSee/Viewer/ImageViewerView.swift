@@ -71,6 +71,8 @@ struct ImageViewerView: View {
                     navigationDirection: viewModel.navigationDirection,
                     onPrevious: viewModel.navigateToPrevious,
                     onNext: viewModel.navigateToNext,
+                    onRotateLeft: viewModel.rotateLeft,
+                    onRotateRight: viewModel.rotateRight,
                     onReset: viewModel.resetViewTransform,
                     onClose: { NSApp.terminate(nil) },
                     onZoomRequestHandled: viewModel.clearZoomRequest,
@@ -600,9 +602,9 @@ struct ImageToolBar: View {
                     toolbarButton(.zoomIn, label: L10n.text("放大图片"), action: onZoomIn)
                         .help(L10n.text("放大图片"))
                     toolbarButton(.rotateLeft, label: L10n.text("向左旋转 90 度"), action: onRotateLeft)
-                        .help(L10n.text("向左旋转 90 度"))
+                        .help(L10n.text("向左旋转 90 度（⌘←）"))
                     toolbarButton(.rotateRight, label: L10n.text("向右旋转 90 度"), action: onRotateRight)
-                        .help(L10n.text("向右旋转 90 度"))
+                        .help(L10n.text("向右旋转 90 度（⌘→）"))
                     toolbarButton(.copy, label: L10n.text("复制图片"), action: onCopy)
                         .help(L10n.text("复制图片到剪贴板"))
                 }

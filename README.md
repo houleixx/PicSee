@@ -16,6 +16,8 @@ macOS 自带的「预览」在快速看图时有两处常见不便：**鼠标滚
 
 PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并通过底部工具栏完成适合窗口、原始尺寸、缩放、旋转、复制，以及图片裁剪与标注等操作。
 
+看图时按 `⌘←` 向左旋转 90°，按 `⌘→` 向右旋转 90°；每按一次继续旋转，四次回到原方向。隐藏工具栏时仍可使用，文字输入、截图编辑及弹窗期间不触发；长按不连续旋转，普通方向键继续用于翻页。
+
 点击旋转按钮右侧的复制按钮，可将当前整张图片按原始像素尺寸复制到系统剪贴板，保留当前旋转方向，方便粘贴到其他应用。成功后显示“已复制到剪贴板”，提示约 2 秒后自动消失。
 
 <p align="center">
@@ -126,7 +128,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.67 PICSEE_BUILD_NUMBER=67 Scripts/build-app.sh
+PICSEE_VERSION=0.2.68 PICSEE_BUILD_NUMBER=68 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -143,15 +145,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.67.dmg`
+- DMG: `build/dmg/PicSee-0.2.68.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.67 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.68 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.67.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.68.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -281,14 +283,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.67
-git push origin v0.2.67
+git tag v0.2.68
+git push origin v0.2.68
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.67`
-- Asset: `PicSee-0.2.67.dmg`
+- Release: `v0.2.68`
+- Asset: `PicSee-0.2.68.dmg`
 
 ## Release 说明
 

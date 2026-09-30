@@ -9,8 +9,9 @@ enum ImageCloseGesturePreference {
     }
 }
 
-/// Canvas coordinates have Y pointing up. Require two distinct, deliberate
-/// legs; a click, diagonal swipe or a third/reversed leg never closes a window.
+/// Canvas coordinates have Y pointing up. Follow downward and then rightward
+/// trends, allowing diagonal strokes and rounded corners without requiring a
+/// precise angle. Clicks, horizontal strokes and reversed legs do not close.
 struct ImageCloseGesture {
     enum Result: Equatable { case menu, close, cancelled }
     private enum Phase { case down, right, invalid }
@@ -41,7 +42,7 @@ struct ImageCloseGesture {
         switch phase {
         case .down:
             let down = start.y - point.y
-            if down < -12 || abs(point.x - start.x) > max(8, down * 0.65) {
+            if down < -12 {
                 cancel()
             } else if down >= 10 {
                 turn = point
@@ -49,6 +50,14 @@ struct ImageCloseGesture {
                 phase = .right
             }
         case .right:
+            // The first leg may lean left. Follow it until a rightward trend
+            // actually starts, rather than treating its drift as a reversal.
+            if !startedRight, point.x < turn.x, point.y <= turn.y + 12 {
+                turn.x = point.x
+                turn.y = min(turn.y, point.y)
+                furthestRight = point.x
+                break
+            }
             // The first leg can be longer than the minimum recognition distance.
             // Keep its turn point at the bottom until the horizontal leg starts.
             if !startedRight, abs(point.x - turn.x) < 16, point.y <= turn.y {
@@ -60,21 +69,20 @@ struct ImageCloseGesture {
             }
             if point.x - turn.x >= 16 { startedRight = true }
             let horizontalTravel = point.x - turn.x
-            // Allow a rounded corner, then lock the horizontal baseline once
-            // recognized so a third vertical leg still cancels the gesture.
+            // Allow a sloped or rounded rightward stroke. A separate vertical
+            // leg with no rightward progress still cancels the gesture.
             let verticalDrift = abs(point.y - (rightBaselineY ?? turn.y))
-            let verticalTolerance: CGFloat = rightBaselineY == nil ? max(24, horizontalTravel * 0.5) : 16
+            let right = point.x - previousPoint.x
+            let verticalTolerance: CGFloat = rightBaselineY == nil ? max(48, horizontalTravel * 2) : max(16, right * 2)
             if point.x < furthestRight - 12 || verticalDrift > verticalTolerance {
                 cancel()
             } else {
                 furthestRight = max(furthestRight, point.x)
                 isReady = horizontalTravel >= 16
                 if isReady {
-                    let right = point.x - previousPoint.x
-                    // Follow the shallow part of a rounded turn rather than
-                    // locking its Y too early when recognizing a short gesture.
-                    // A new vertical/reversed leg still keeps the old baseline.
-                    if rightBaselineY == nil || (right > 0 && abs(point.y - previousPoint.y) <= right * 0.65) {
+                    // Follow rightward progress through a sloped or rounded
+                    // stroke; a new vertical/reversed leg keeps the old baseline.
+                    if rightBaselineY == nil || right > 0 {
                         rightBaselineY = point.y
                     }
                 }

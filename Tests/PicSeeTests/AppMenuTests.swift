@@ -55,6 +55,13 @@ final class AppMenuTests: XCTestCase {
         }
         XCTAssertEqual(menu.items.first?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
         XCTAssertEqual(menu.items[1].action, #selector(CanvasNSView.exportImageForMenu(_:)))
+        let wallpaper = menu.items[2]
+        XCTAssertEqual(wallpaper.action, #selector(CanvasNSView.setDesktopWallpaperForMenu(_:)))
+        XCTAssertEqual(wallpaper.title, L10n.text("设为桌面壁纸"))
+        XCTAssertTrue(wallpaper.target === view)
+        XCTAssertFalse(view.validateMenuItem(wallpaper))
+        view.image = NSImage(size: NSSize(width: 12, height: 8))
+        XCTAssertTrue(view.validateMenuItem(wallpaper))
     }
 
     func testDisplayOptionsAreGroupedInAnIconFreeSubmenu() {

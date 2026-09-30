@@ -4,6 +4,38 @@ import Testing
 @testable import PicSee
 
 struct ImageCloseGestureTests {
+    @Test(arguments: [CGFloat(1), CGFloat(2)], [1, 4, 100])
+    func leftLeaningDownThenRightFromScreenshotCloses(displayScale: CGFloat, stepSize: Int) {
+        let screenPoints: [CGPoint] = [
+            CGPoint(x: 516, y: 185), CGPoint(x: 512, y: 200),
+            CGPoint(x: 498, y: 222), CGPoint(x: 470, y: 258),
+            CGPoint(x: 439, y: 292), CGPoint(x: 423, y: 313),
+            CGPoint(x: 412, y: 332), CGPoint(x: 411, y: 349),
+            CGPoint(x: 419, y: 361), CGPoint(x: 439, y: 374),
+            CGPoint(x: 464, y: 382), CGPoint(x: 487, y: 386),
+            CGPoint(x: 541, y: 388), CGPoint(x: 597, y: 388), CGPoint(x: 656, y: 380)
+        ]
+        var gesture = ImageCloseGesture(start: CGPoint(x: 516 / displayScale, y: -185 / displayScale))
+        for (previous, point) in zip(screenPoints, screenPoints.dropFirst()) {
+            let steps = max(1, Int(ceil(max(abs(point.x - previous.x), abs(point.y - previous.y)) / CGFloat(stepSize))))
+            for step in 1...steps {
+                let fraction = CGFloat(step) / CGFloat(steps)
+                gesture.move(to: CGPoint(x: (previous.x + (point.x - previous.x) * fraction) / displayScale,
+                    y: -(previous.y + (point.y - previous.y) * fraction) / displayScale))
+            }
+        }
+        #expect(gesture.result == .close)
+    }
+
+    @Test(arguments: [1, 16])
+    func leftDiagonalWithoutRightTurnDoesNotClose(step: Int) {
+        var gesture = ImageCloseGesture(start: CGPoint(x: 100, y: 200))
+        for distance in stride(from: step, through: 80, by: step) {
+            gesture.move(to: CGPoint(x: 100 - distance, y: 200 - distance))
+        }
+        #expect(gesture.result == .cancelled)
+    }
+
     @Test(arguments: [16, 20, 24])
     func minimumSizedGestureCloses(right: Int) {
         var gesture = ImageCloseGesture(start: CGPoint(x: 100, y: 200))
@@ -37,12 +69,12 @@ struct ImageCloseGestureTests {
     }
 
     @Test(arguments: [1, 2, 4, 8, 16])
-    func diagonalSwipeDoesNotClose(step: Int) {
+    func diagonalDownAndRightTrendCanClose(step: Int) {
         var gesture = ImageCloseGesture(start: CGPoint(x: 100, y: 200))
         for distance in stride(from: step, through: 80, by: step) {
             gesture.move(to: CGPoint(x: 100 + distance, y: 200 - distance))
         }
-        #expect(gesture.result == .cancelled)
+        #expect(gesture.result == .close)
     }
 
     @Test(arguments: [10, 12, 16, 20, 24, 28])
@@ -99,7 +131,7 @@ struct ImageCloseGestureTests {
         ([CGPoint(x: 100, y: 168), CGPoint(x: 100, y: 140), CGPoint(x: 100, y: 100), CGPoint(x: 140, y: 100)], .close),
         ([CGPoint(x: 100, y: 100)], .cancelled),
         ([CGPoint(x: 150, y: 200)], .cancelled),
-        ([CGPoint(x: 130, y: 170), CGPoint(x: 160, y: 140)], .cancelled),
+        ([CGPoint(x: 130, y: 170), CGPoint(x: 160, y: 140)], .close),
         ([CGPoint(x: 100, y: 160), CGPoint(x: 112, y: 160)], .cancelled),
         ([CGPoint(x: 100, y: 160), CGPoint(x: 140, y: 160), CGPoint(x: 115, y: 160)], .cancelled),
         ([CGPoint(x: 100, y: 160), CGPoint(x: 140, y: 160), CGPoint(x: 140, y: 190)], .cancelled),

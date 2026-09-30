@@ -54,6 +54,8 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 右键菜单采用统一的系统图标，图片操作集中在顶部；标题栏、缩略图、文件信息、底部工具栏和图片参数开关收进“显示选项”子菜单。底部保留“设置…”与“检查更新”。
 
+右键选择“设为桌面壁纸”，将当前图片设置为看图窗口所在屏幕的壁纸，并沿用该屏幕的系统显示方式。壁纸副本会保存在应用支持目录，移动或删除原图不影响壁纸；动态图会转为静态壁纸。
+
 “打开方式”页可选择图片格式后点击“设为默认”；取消勾选只会排除本次设置，不会撤销已有文件关联。“关于”页可查看版本并手动检查更新，检查结果在设置内显示。启动时的自动检查不会显示“已经是最新版本了”提示。
 
 设置中的“打开方式”页和文件夹浏览支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP、常见 RAW、AVIF、SVG、ICO/ICNS、JPEG 2000、PSD/PSB、TGA、DDS、EXR/HDR 和 JPEG XL，可按需选择希望交给 PicSee 打开的图片类型。批量设置会跳过已是默认的格式；个别格式失败时继续处理其他格式，并显示具体错误及实际设置结果。专业格式是否能完整解码取决于当前 macOS 的 ImageIO 解码器及文件内嵌预览。
@@ -124,7 +126,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.66 PICSEE_BUILD_NUMBER=66 Scripts/build-app.sh
+PICSEE_VERSION=0.2.67 PICSEE_BUILD_NUMBER=67 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -141,15 +143,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.66.dmg`
+- DMG: `build/dmg/PicSee-0.2.67.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.66 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.67 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.66.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.67.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -168,7 +170,7 @@ PICSEE_VERSION=0.2.66 Scripts/build-dmg.sh
 - 光标移到可识别文字上：显示 I 形光标，可拖选文字
 - `Cmd + C`：复制选中的文字
 - `Esc`：关闭当前窗口并退出当前实例
-- 右键关闭手势（默认关闭）：在“设置 → 显示设置 → 窗口”开启后，按住右键向下再向右划动，松开即可关闭当前图片窗口。划动时只显示蓝色轨迹线，不显示文字提示；向下至少 10 点、向右至少 16 点即可识别，支持短距离圆弧转弯。普通右键点击改为松开后显示菜单；未识别的拖动不会关闭或弹出菜单，手势过程中按 `Esc` 可取消。按钮及截图编辑继续使用原有操作。
+- 右键关闭手势（默认关闭）：在“设置 → 显示设置 → 窗口”开启后，按住右键向下再向右划动，松开即可关闭当前图片窗口。划动时只显示蓝色轨迹线，不显示文字提示；向下至少 10 点、向右至少 16 点即可识别，按方向趋势判断，支持斜向划动、向左下后右转及短距离圆弧转弯。普通右键点击改为松开后显示菜单；未识别的拖动不会关闭或弹出菜单，手势过程中按 `Esc` 可取消。按钮及截图编辑继续使用原有操作。
 
 ### 3. 切图
 
@@ -279,14 +281,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.66
-git push origin v0.2.66
+git tag v0.2.67
+git push origin v0.2.67
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.66`
-- Asset: `PicSee-0.2.66.dmg`
+- Release: `v0.2.67`
+- Asset: `PicSee-0.2.67.dmg`
 
 ## Release 说明
 

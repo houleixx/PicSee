@@ -541,6 +541,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private static let themeMenuIdentifier = NSUserInterfaceItemIdentifier("PicSee.ThemeMenu")
 
     private let imageView = NSImageView(frame: .zero)
+    private var isSettingWallpaper = false
     private let transparencyBackground = TransparencyBackgroundView(frame: .zero)
     private let outgoingTransparencyBackground = TransparencyBackgroundView(frame: .zero)
     // Animate a container, leaving the image's rotation and AppKit layout independent.
@@ -1316,7 +1317,36 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         if menuItem.action == #selector(trashImageForMenu(_:)) { return canTrashImage }
         if menuItem.action == #selector(undoDeletionForMenu(_:)) { return canUndoDeletion }
         if menuItem.action == #selector(checkForUpdatesForMenu(_:)) { return onCheckForUpdates != nil }
+        if menuItem.action == #selector(setDesktopWallpaperForMenu(_:)) { return image != nil && !isSettingWallpaper }
         return true
+    }
+
+    @objc func setDesktopWallpaperForMenu(_ sender: Any?) {
+        guard !isSettingWallpaper, let image, let screen = window?.screen ?? NSScreen.main else { return }
+        slideshow?.pause()
+        isSettingWallpaper = true
+        Task { [weak self] in
+            defer { self?.isSettingWallpaper = false }
+            do {
+                try await DesktopWallpaperSetter().set(image) { url in
+                    let workspace = NSWorkspace.shared
+                    try workspace.setDesktopImageURL(
+                        url, for: screen, options: workspace.desktopImageOptions(for: screen) ?? [:]
+                    )
+                }
+            } catch {
+                guard let self else { return }
+                let alert = NSAlert()
+                LanguageSettings.bind(alert) {
+                    $0.messageText = L10n.text("设置桌面壁纸失败")
+                    $0.informativeText = L10n.errorDescription(error)
+                    $0.buttons.first?.title = L10n.text("好")
+                }
+                alert.addButton(withTitle: L10n.text("好"))
+                if let window = self.window { await alert.beginSheetModal(for: window) }
+                else { alert.runModal() }
+            }
+        }
     }
 
     @objc func exportImageForMenu(_ sender: Any?) {
@@ -1462,6 +1492,13 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             exportItem.isEnabled = image != nil
             menu.addItem(exportItem)
         }
+
+        let wallpaperItem = NSMenuItem(title: L10n.text("设为桌面壁纸"), action: #selector(setDesktopWallpaperForMenu(_:)), keyEquivalent: "")
+        wallpaperItem.image = contextMenuImage("desktopcomputer")
+        LanguageSettings.bind(wallpaperItem) { $0.title = L10n.text("设为桌面壁纸") }
+        wallpaperItem.target = self
+        wallpaperItem.isEnabled = image != nil && !isSettingWallpaper
+        menu.addItem(wallpaperItem)
 
         if onStartSlideshow != nil,
            !menu.items.contains(where: { $0.action == #selector(toggleSlideshowForMenu(_:)) }) {

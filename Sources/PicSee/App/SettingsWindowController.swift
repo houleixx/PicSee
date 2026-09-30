@@ -215,6 +215,12 @@ private struct BrowsingSettingsView: View {
                         detail: L10n.text("开启时记住当前图片窗口，之后打开图片时沿用"),
                         keyPath: \.fixedWindowEnabled
                     )
+                    Divider()
+                    preferenceRow(
+                        L10n.text("右键手势关闭图片"),
+                        detail: L10n.text("按住右键向下再向右划动（↓ →），松开关闭"),
+                        keyPath: \.rightMouseCloseGestureEnabled
+                    )
                 }
             }
             .padding(.horizontal, 24)

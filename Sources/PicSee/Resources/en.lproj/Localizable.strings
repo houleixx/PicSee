@@ -253,3 +253,5 @@
 "更新安装失败，原版本已保留。" = "Update installation failed. The previous version has been retained.";
 "可重试更新，或从发布页面手动安装。安装日志：%1$@" = "Retry the update or install it manually from the releases page. Installation log: %1$@";
 "输出尺寸超过当前内存预算，请减小选区或输出尺寸。" = "The output exceeds the current memory budget. Reduce the selection or output dimensions.";
+"右键手势关闭图片" = "Right-button gesture to close images";
+"按住右键向下再向右划动（↓ →），松开关闭" = "Hold the right mouse button, drag down then right (↓ →), and release to close.";

@@ -5,6 +5,57 @@ import Testing
 
 @MainActor
 struct AuthorizationFocusRecoveryTests {
+    @Test(arguments: ["com.apple.UserNotificationCenter", "com.apple.SecurityAgent"])
+    func folderConsentRestoresViewerWhenFileAccessResumes(agent: String) {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var restored: [NSWindow] = []
+        let recovery = ViewerAuthorizationFocusRecovery { restored.append($0) }
+        recovery.setFileAccessPending(true, for: window)
+        recovery.applicationActivated(bundleIdentifier: agent)
+        // Dismissing the system dialog can first hand activation back to Finder.
+        recovery.applicationActivated(bundleIdentifier: "com.apple.finder")
+        recovery.setFileAccessPending(true, for: window)
+        #expect(restored.isEmpty)
+        recovery.setFileAccessPending(false, for: window)
+        #expect(restored.count == 1)
+        #expect(restored.first === window)
+        recovery.setFileAccessPending(false, for: window)
+        #expect(restored.count == 1)
+    }
+
+    @Test func ordinaryFileLoadingAndManualApplicationSwitchDoNotReclaimFocus() {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var restores = 0
+        let recovery = ViewerAuthorizationFocusRecovery { _ in restores += 1 }
+        recovery.setFileAccessPending(true, for: window)
+        recovery.setFileAccessPending(false, for: window)
+        #expect(restores == 0)
+        recovery.setFileAccessPending(true, for: window)
+        recovery.applicationActivated(bundleIdentifier: "com.apple.UserNotificationCenter")
+        recovery.applicationActivated(bundleIdentifier: "com.apple.Safari")
+        recovery.setFileAccessPending(false, for: window)
+        #expect(restores == 0)
+    }
+
+    @Test func folderConsentDoesNotRaiseClosedOrMinimizedViewer() {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var restores = 0
+        let recovery = ViewerAuthorizationFocusRecovery { _ in restores += 1 }
+        recovery.setFileAccessPending(true, for: window)
+        recovery.applicationActivated(bundleIdentifier: "com.apple.UserNotificationCenter")
+        window.simulatedVisible = false
+        recovery.setFileAccessPending(false, for: window)
+        window.simulatedVisible = true
+        recovery.setFileAccessPending(true, for: window)
+        recovery.applicationActivated(bundleIdentifier: "com.apple.UserNotificationCenter")
+        window.simulatedMinimized = true
+        recovery.setFileAccessPending(false, for: window)
+        #expect(restores == 0)
+    }
+
     @Test(arguments: [OSStatus(noErr), OSStatus(errAEEventNotPermitted)])
     func completingInteractiveConsentRestoresTheRequestingWindow(response: OSStatus) async {
         _ = NSApplication.shared

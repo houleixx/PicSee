@@ -28,6 +28,7 @@ struct ViewerPreferencesSnapshot: Equatable {
     var alwaysOnTopEnabled: Bool
     var singleWindowEnabled: Bool
     var fixedWindowEnabled: Bool
+    var rightMouseCloseGestureEnabled: Bool
 
     init(defaults: UserDefaults) {
         theme = ViewerTheme.current(in: defaults)
@@ -39,6 +40,7 @@ struct ViewerPreferencesSnapshot: Equatable {
         alwaysOnTopEnabled = WindowPinningPreference.isEnabled(in: defaults)
         singleWindowEnabled = SingleWindowPreference.isEnabled(in: defaults)
         fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: defaults)
+        rightMouseCloseGestureEnabled = ImageCloseGesturePreference.isEnabled(in: defaults)
     }
 }
 
@@ -93,6 +95,7 @@ final class ViewerPreferences: ObservableObject {
         case \.alwaysOnTopEnabled: WindowPinningPreference.setEnabled(value, in: defaults)
         case \.singleWindowEnabled: SingleWindowPreference.setEnabled(value, in: defaults)
         case \.fixedWindowEnabled: WindowFramePreference.setFixedEnabled(value, in: defaults)
+        case \.rightMouseCloseGestureEnabled: ImageCloseGesturePreference.setEnabled(value, in: defaults)
         default: preconditionFailure("Unknown viewer preference")
         }
         reload()

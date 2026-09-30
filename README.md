@@ -124,7 +124,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.65 PICSEE_BUILD_NUMBER=65 Scripts/build-app.sh
+PICSEE_VERSION=0.2.66 PICSEE_BUILD_NUMBER=66 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -141,15 +141,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.65.dmg`
+- DMG: `build/dmg/PicSee-0.2.66.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.65 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.66 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.65.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.66.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -168,6 +168,7 @@ PICSEE_VERSION=0.2.65 Scripts/build-dmg.sh
 - 光标移到可识别文字上：显示 I 形光标，可拖选文字
 - `Cmd + C`：复制选中的文字
 - `Esc`：关闭当前窗口并退出当前实例
+- 右键关闭手势（默认关闭）：在“设置 → 显示设置 → 窗口”开启后，按住右键向下再向右划动，松开即可关闭当前图片窗口。划动时只显示蓝色轨迹线，不显示文字提示；向下至少 10 点、向右至少 16 点即可识别，支持短距离圆弧转弯。普通右键点击改为松开后显示菜单；未识别的拖动不会关闭或弹出菜单，手势过程中按 `Esc` 可取消。按钮及截图编辑继续使用原有操作。
 
 ### 3. 切图
 
@@ -183,6 +184,8 @@ PICSEE_VERSION=0.2.65 Scripts/build-dmg.sh
 翻页只自动跟随 Finder，不提供手动排序或文件夹排序偏好。在 Finder 改变排列后，重新打开看图窗口即可读取最新规则。相同字段值以名称自然升序确定稳定顺序。
 
 首次使用 Finder 自动化且尚未决定权限时，系统会弹出授权请求；等待授权与脚本查询超时分别处理。授权结束后恢复看图窗口焦点。若已拒绝授权，可在“系统设置 → 隐私与安全性 → 自动化 → PicSee”中重新启用 Finder。
+
+首次读取下载等受保护文件夹时，系统还可能单独请求文件夹访问权限。权限弹窗结束、图片和文件夹读取恢复后，会将发起读取的图片窗口恢复到前面；普通加载不会触发恢复，已关闭、最小化或不在当前桌面的窗口不会被拉回。读取期间主动切换到其他应用会取消这次恢复。
 
 **自动读取的限制：**
 - 找不到对应 Finder 窗口、未授权、查询失败或必要元数据缺失时，静默回退到名称自然升序。
@@ -276,14 +279,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.65
-git push origin v0.2.65
+git tag v0.2.66
+git push origin v0.2.66
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.65`
-- Asset: `PicSee-0.2.65.dmg`
+- Release: `v0.2.66`
+- Asset: `PicSee-0.2.66.dmg`
 
 ## Release 说明
 

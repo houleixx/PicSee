@@ -147,6 +147,8 @@ final class WindowManager {
     private var isConfirmingReplacement = false
     private var sheetObserver: AnyCancellable?
     private var initialImageObserver: AnyCancellable?
+    private var fileAccessObserver: AnyCancellable?
+    private var applicationActivationObserver: AnyCancellable?
     private let loadingMode: ImageLoadingMode
     private var titleObserver: AnyCancellable?
     private var appearanceObserver: AnyCancellable?
@@ -161,6 +163,13 @@ final class WindowManager {
     init(finderOrderProvider: (any FinderFolderOrderProviding)? = nil, loadingMode: ImageLoadingMode = .background) {
         self.loadingMode = loadingMode
         self.finderOrderProvider = finderOrderProvider
+        applicationActivationObserver = NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.didActivateApplicationNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+                self?.authorizationFocusRecovery.applicationActivated(bundleIdentifier: application.bundleIdentifier)
+            }
     }
 
     var hasOpenViewer: Bool {
@@ -316,6 +325,12 @@ final class WindowManager {
         window.setFrame(initialWindowFrame, display: false)
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
         bringViewerToFront(window)
+        fileAccessObserver = viewModel.$isImageLoading.combineLatest(viewModel.$isNavigationOrderReady)
+            .map { loading, ready in loading || !ready }
+            .removeDuplicates()
+            .sink { [weak self, weak window] pending in
+                self?.authorizationFocusRecovery.setFileAccessPending(pending, for: window)
+            }
         applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         installKeyboardMonitor(for: viewModel)
 
@@ -346,6 +361,8 @@ final class WindowManager {
                     self.saveWindowFrame(window)
                 }
                 self?.initialImageObserver = nil
+                self?.fileAccessObserver = nil
+                self?.authorizationFocusRecovery.setFileAccessPending(false, for: nil)
                 self?.titleObserver = nil
                 self?.appearanceObserver = nil
                 if let monitor = self?.keyEventMonitor {

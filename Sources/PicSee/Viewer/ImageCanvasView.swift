@@ -590,6 +590,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             let imageChanged = oldValue !== image
             if imageChanged {
                 cancelImageDragCandidate()
+                cancelCloseGesture()
                 prepareImageTransition()
                 imageView.layer?.removeAnimation(forKey: Self.rotationAnimationKey)
                 transparencyBackground.imageMask.removeAnimation(forKey: Self.rotationAnimationKey)
@@ -693,6 +694,15 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private var dragStartOffset: CGSize = .zero
     private var lastReportedDisplayScale: CGFloat = -1
     private var trackingArea: NSTrackingArea?
+    private var closeGestureMonitor: Any?
+    private var closeGesture: ImageCloseGesture?
+    private var closeGestureDownEvent: NSEvent?
+    private weak var closeGestureMenuView: NSView?
+    private let closeGestureOverlay = ImageCloseGestureOverlay(frame: .zero)
+    private var closeGestureEnabled = false
+    #if DEBUG
+    var debugCloseGestureMenuPresenter: ((NSMenu, NSEvent, NSView) -> Void)?
+    #endif
     private var pendingRotationAnimation: (from: Int, to: Int)?
     private var handledZoomRequestID: Int?
     private var minimapEnabled: Bool
@@ -770,6 +780,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         toolbarVisible = snapshot.toolbarVisible
         imageParametersVisible = snapshot.imageParametersVisible
         fixedWindowEnabled = snapshot.fixedWindowEnabled
+        closeGestureEnabled = snapshot.rightMouseCloseGestureEnabled
+        if !closeGestureEnabled { cancelCloseGesture() }
         window?.appearance = snapshot.theme.appearance
         needsLayout = true
         window?.invalidateCursorRects(for: self)
@@ -785,15 +797,118 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if let closeGestureMonitor { NSEvent.removeMonitor(closeGestureMonitor) }
+        closeGestureMonitor = nil
+        resetCloseGesture()
         window?.acceptsMouseMovedEvents = true
         slideshowWindowObservations.removeAll()
         guard let window else { return }
+        closeGestureEnabled = preferences.snapshot.rightMouseCloseGestureEnabled
+        closeGestureMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .rightMouseDragged, .rightMouseUp, .keyDown]) { [weak self] event in
+            guard let self else { return event }
+            return self.handleCloseGestureEvent(event)
+        }
+        NotificationCenter.default.publisher(for: NSWindow.willCloseNotification, object: window)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if let monitor = self.closeGestureMonitor { NSEvent.removeMonitor(monitor) }
+                self.closeGestureMonitor = nil
+                self.resetCloseGesture()
+            }
+            .store(in: &slideshowWindowObservations)
         NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification, object: window)
-            .sink { [weak self] _ in self?.slideshow?.pauseForWindowDeactivation() }
+            .sink { [weak self] _ in
+                self?.slideshow?.pauseForWindowDeactivation()
+                self?.cancelCloseGesture()
+            }
             .store(in: &slideshowWindowObservations)
         NotificationCenter.default.publisher(for: NSWindow.willBeginSheetNotification, object: window)
-            .sink { [weak self] _ in self?.slideshow?.pause() }
+            .sink { [weak self] _ in
+                self?.slideshow?.pause()
+                self?.cancelCloseGesture()
+            }
             .store(in: &slideshowWindowObservations)
+    }
+
+    /// Intercept before Live Text or a child image view opens its context menu.
+    /// Controls and other windows remain outside the gesture's scope.
+    private func handleCloseGestureEvent(_ event: NSEvent) -> NSEvent? {
+        guard let window, event.window === window else { return event }
+        if event.type == .keyDown {
+            guard closeGesture != nil, event.keyCode == 53 else { return event }
+            cancelCloseGesture()
+            return nil
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        if event.type == .rightMouseDown {
+            guard closeGestureEnabled, window.attachedSheet == nil, bounds.contains(point),
+                  event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+                  let content = window.contentView,
+                  let hit = content.hitTest(content.convert(event.locationInWindow, from: nil)),
+                  isCloseGestureImageHit(hit) else { return event }
+            slideshow?.pause()
+            interruptMotion()
+            closeGesture = ImageCloseGesture(start: point)
+            closeGestureDownEvent = event
+            closeGestureMenuView = hit
+            closeGestureOverlay.frame = bounds
+            closeGestureOverlay.autoresizingMask = [.width, .height]
+            addSubview(closeGestureOverlay, positioned: .above, relativeTo: nil)
+            return nil
+        }
+        guard closeGesture != nil else { return event }
+        if event.type == .rightMouseDragged || event.type == .rightMouseUp {
+            closeGesture?.move(to: point)
+            if !bounds.contains(point) || window.attachedSheet != nil { closeGesture?.cancel() }
+            closeGestureOverlay.gesture = closeGesture
+        }
+        guard event.type == .rightMouseUp else { return nil }
+        let result = closeGesture?.result
+        let down = closeGestureDownEvent ?? event
+        let menuView = closeGestureMenuView ?? self
+        resetCloseGesture()
+        switch result {
+        case .close: window.close()
+        case .menu:
+            if let menu = menuView.menu(for: down) ?? menu(for: down) {
+                presentCloseGestureMenu(menu, event: event, view: menuView)
+            }
+        default: break
+        }
+        return nil
+    }
+
+    private func isCloseGestureImageHit(_ hit: NSView) -> Bool {
+        var current: NSView? = hit
+        while let view = current {
+            if view is NSControl, !(view is NSImageView) { return false }
+            if view === self { return true }
+            current = view.superview
+        }
+        return false
+    }
+
+    private func presentCloseGestureMenu(_ menu: NSMenu, event: NSEvent, view: NSView) {
+        #if DEBUG
+        if let presenter = debugCloseGestureMenuPresenter {
+            presenter(menu, event, view)
+            return
+        }
+        #endif
+        _ = menu.popUp(positioning: nil, at: view.convert(event.locationInWindow, from: nil), in: view)
+    }
+
+    private func cancelCloseGesture() {
+        closeGesture?.cancel()
+        closeGestureOverlay.removeFromSuperview()
+    }
+
+    private func resetCloseGesture() {
+        closeGesture = nil
+        closeGestureDownEvent = nil
+        closeGestureMenuView = nil
+        closeGestureOverlay.gesture = nil
+        closeGestureOverlay.removeFromSuperview()
     }
 
     override func updateTrackingAreas() {
@@ -2266,6 +2381,8 @@ extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
 
 #if DEBUG
 extension CanvasNSView {
+    func debugHandleCloseGestureEvent(_ event: NSEvent) -> NSEvent? { handleCloseGestureEvent(event) }
+    func debugReloadGesturePreferences() { preferences.reload(); applyPreferences(preferences.snapshot) }
     var debugBackend: TextRecognitionBackend { backend }
     var debugMotionLayer: CALayer? { imageMotionView.layer }
     var debugLiveTextOverlay: ImageAnalysisOverlayView { liveTextOverlay }

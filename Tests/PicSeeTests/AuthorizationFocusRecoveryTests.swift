@@ -4,7 +4,60 @@ import Testing
 @testable import PicSee
 
 @MainActor
+@Suite(.serialized)
 struct AuthorizationFocusRecoveryTests {
+    @Test func initialImageLayoutFinishesBeforeRecoveryOrdersFront() async {
+        _ = NSApplication.shared
+        let scheduler = PendingAuthorizationRestoration()
+        let manager = WindowManager(authorizationRestorationScheduler: scheduler.schedule)
+        let window = AuthorizationTestWindow()
+        window.initialLayoutFinished = false
+        manager.debugRestoreViewerAfterFolderConsent(window)
+        // Image loading publishes completion before scheduling its initial
+        // window sizing, just as the view model and image observer do.
+        DispatchQueue.main.async { window.initialLayoutFinished = true }
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+        #expect(window.frontOrderCount == 0)
+        scheduler.finishSettling()
+        #expect(window.frontOrderCount == 1)
+        #expect(!window.orderedBeforeInitialLayout)
+    }
+
+    @Test func repeatedConsentCompletionsCoalesceBeforeOrderingFront() async {
+        _ = NSApplication.shared
+        let scheduler = PendingAuthorizationRestoration()
+        let manager = WindowManager(authorizationRestorationScheduler: scheduler.schedule)
+        let window = AuthorizationTestWindow()
+        manager.debugRestoreViewerAfterFolderConsent(window)
+        manager.debugRestoreViewerAfterFolderConsent(window)
+        #expect(window.frontOrderCount == 0, "Do not reorder while the system dialog is still being dismissed")
+        scheduler.finishSettling()
+        #expect(window.frontOrderCount == 1)
+    }
+
+    @Test func minimizingBeforeDeferredRecoveryCancelsFrontOrdering() async {
+        _ = NSApplication.shared
+        let scheduler = PendingAuthorizationRestoration()
+        let manager = WindowManager(authorizationRestorationScheduler: scheduler.schedule)
+        let window = AuthorizationTestWindow()
+        manager.debugRestoreViewerAfterFolderConsent(window)
+        window.simulatedMinimized = true
+        scheduler.finishSettling()
+        #expect(window.frontOrderCount == 0)
+    }
+
+    @Test func folderConsentOrdersViewerFrontOnlyOnce() async {
+        _ = NSApplication.shared
+        let scheduler = PendingAuthorizationRestoration()
+        let manager = WindowManager(authorizationRestorationScheduler: scheduler.schedule)
+        let window = AuthorizationTestWindow()
+        manager.debugRestoreViewerAfterFolderConsent(window)
+        scheduler.finishSettling()
+        #expect(window.frontOrderCount == 1, "Permission recovery must not repeatedly reorder the viewer")
+    }
+
     @Test(arguments: ["com.apple.UserNotificationCenter", "com.apple.SecurityAgent"])
     func folderConsentRestoresViewerWhenFileAccessResumes(agent: String) {
         _ = NSApplication.shared
@@ -155,13 +208,35 @@ struct AuthorizationFocusRecoveryTests {
 }
 
 @MainActor
+private final class PendingAuthorizationRestoration {
+    private var actions: [@MainActor @Sendable () -> Void] = []
+
+    func schedule(_ action: @escaping @MainActor @Sendable () -> Void) { actions.append(action) }
+
+    func finishSettling() {
+        let pending = actions
+        actions.removeAll()
+        for action in pending { action() }
+    }
+}
+
+@MainActor
 private final class AuthorizationTestWindow: NSWindow {
+    var frontOrderCount = 0
+    var initialLayoutFinished = true
+    var orderedBeforeInitialLayout = false
     var simulatedVisible = true
     var simulatedMinimized = false
     var simulatedOnActiveSpace = true
     override var isVisible: Bool { simulatedVisible }
     override var isMiniaturized: Bool { simulatedMinimized }
     override var isOnActiveSpace: Bool { simulatedOnActiveSpace }
+    override func orderFrontRegardless() { frontOrderCount += 1 }
+    override func makeKey() {}
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        frontOrderCount += 1
+        if !initialLayoutFinished { orderedBeforeInitialLayout = true }
+    }
 }
 
 private actor AuthorizationCheckRecorder {

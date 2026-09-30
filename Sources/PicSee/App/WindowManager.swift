@@ -140,6 +140,8 @@ final class ViewerWindow: NSWindow {
 
 @MainActor
 final class WindowManager {
+    typealias AuthorizationRestorationScheduler = @MainActor (@escaping @MainActor @Sendable () -> Void) -> Void
+
     let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
     private(set) var currentWindow: NSWindow?
     private(set) var currentViewModel: ImageViewerViewModel?
@@ -156,13 +158,30 @@ final class WindowManager {
     private let finderOrderProvider: (any FinderFolderOrderProviding)?
     private let deletionConfirmation = ImageDeletionConfirmation()
     private let minimumWindowSize = NSSize(width: 320, height: 220)
+    private var authorizationRestoreRevision = 0
+    private let authorizationRestorationScheduler: AuthorizationRestorationScheduler
     private lazy var authorizationFocusRecovery = ViewerAuthorizationFocusRecovery { [weak self] window in
-        self?.bringViewerToFront(window)
+        self?.restoreViewerAfterAuthorization(window)
     }
 
-    init(finderOrderProvider: (any FinderFolderOrderProviding)? = nil, loadingMode: ImageLoadingMode = .background) {
+    #if DEBUG
+    func debugRestoreViewerAfterFolderConsent(_ window: NSWindow) {
+        authorizationFocusRecovery.setFileAccessPending(true, for: window)
+        authorizationFocusRecovery.applicationActivated(bundleIdentifier: "com.apple.UserNotificationCenter")
+        authorizationFocusRecovery.setFileAccessPending(false, for: window)
+    }
+    #endif
+
+    init(
+        finderOrderProvider: (any FinderFolderOrderProviding)? = nil,
+        loadingMode: ImageLoadingMode = .background,
+        authorizationRestorationScheduler: @escaping AuthorizationRestorationScheduler = { restore in
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(250)) { restore() }
+        }
+    ) {
         self.loadingMode = loadingMode
         self.finderOrderProvider = finderOrderProvider
+        self.authorizationRestorationScheduler = authorizationRestorationScheduler
         applicationActivationObserver = NSWorkspace.shared.notificationCenter
             .publisher(for: NSWorkspace.didActivateApplicationNotification)
             .receive(on: RunLoop.main)
@@ -433,6 +452,21 @@ final class WindowManager {
     }
 
     private static var delegateAssociationKey: UInt8 = 0
+
+    private func restoreViewerAfterAuthorization(_ window: NSWindow) {
+        authorizationRestoreRevision += 1
+        let revision = authorizationRestoreRevision
+        // A file read resumes before the permission dismissal animation and
+        // initial image/window sizing finish. Give both time to settle, then
+        // restore only if the system has not already returned focus itself.
+        authorizationRestorationScheduler { [weak self, weak window] in
+            guard let self, self.authorizationRestoreRevision == revision,
+                  let window, ViewerAuthorizationFocusRecovery.canRestore(window) else { return }
+            guard !NSApp.isActive || !window.isKeyWindow else { return }
+            if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
 
     private func bringViewerToFront(_ window: NSWindow) {
         NSRunningApplication.current.activate(options: [.activateAllWindows])

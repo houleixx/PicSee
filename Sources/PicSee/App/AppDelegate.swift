@@ -41,6 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        Task { await windowManager.updateChecker?.checkForUpdatesIfNeeded() }
+    }
+
     @objc func showAboutSettings(_ sender: Any?) {
         showSettings(page: .about)
     }

@@ -192,31 +192,95 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(checker.availableUpdate?.version, latest.version)
     }
 
-    func testFailedUpdateCheckDoesNotConsumeDailyCheck() async throws {
+    func testFailedAutomaticCheckCoolsDownWithoutConsumingPeriod() async throws {
         struct TestError: Error {}
-
-        let current = try XCTUnwrap(AppVersion("0.2.11"))
         let latest = release("0.2.14")
         var fetchCount = 0
+        var now = date("2026-06-04T09:00:00Z")
         let checker = UpdateChecker(
-            currentVersion: current,
-            defaults: defaults,
+            currentVersion: try XCTUnwrap(AppVersion("0.2.11")), defaults: defaults,
             fetchLatestRelease: {
                 fetchCount += 1
-                if fetchCount == 1 {
-                    throw TestError()
-                }
+                if fetchCount == 1 { throw TestError() }
                 return latest
-            },
-            downloadAndOpen: { _, _ in },
-            now: { self.date("2026-06-04T09:00:00Z") }
+            }, downloadAndOpen: { _, _ in }, now: { now }
         )
-
         await checker.checkForUpdatesIfNeeded()
+        XCTAssertNil(defaults.object(forKey: UpdateChecker.lastCheckDateDefaultsKey))
+        now = date("2026-06-04T09:59:59Z")
         await checker.checkForUpdatesIfNeeded()
-
+        XCTAssertEqual(fetchCount, 1)
+        now = date("2026-06-04T10:00:00Z")
+        await checker.checkForUpdatesIfNeeded()
         XCTAssertEqual(fetchCount, 2)
         XCTAssertEqual(checker.availableUpdate?.version, latest.version)
+        XCTAssertNil(defaults.object(forKey: UpdateChecker.lastAutomaticFailureDefaultsKey))
+    }
+
+    func testNaturalPeriodsUseLocalTimeAndMondayWeeks() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
+        calendar.firstWeekday = 1 // Frequency must still use Monday.
+        let cases: [(UpdateCheckFrequency, String, String, Bool)] = [
+            (.daily, "2026-06-04T15:59:59Z", "2026-06-04T16:00:00Z", true),
+            (.daily, "2026-06-04T16:00:00Z", "2026-06-05T15:59:59Z", false),
+            (.weekly, "2026-06-06T16:00:00Z", "2026-06-07T15:59:59Z", false),
+            (.weekly, "2026-06-07T15:59:59Z", "2026-06-07T16:00:00Z", true),
+            (.weekly, "2026-12-31T16:00:00Z", "2027-01-03T15:59:59Z", false),
+            (.weekly, "2027-01-03T15:59:59Z", "2027-01-03T16:00:00Z", true),
+            (.monthly, "2026-06-01T00:00:00Z", "2026-06-30T15:59:59Z", false),
+            (.monthly, "2026-06-30T15:59:59Z", "2026-06-30T16:00:00Z", true),
+            (.monthly, "2026-12-31T15:59:59Z", "2026-12-31T16:00:00Z", true)
+        ]
+        for (frequency, last, now, expected) in cases {
+            XCTAssertEqual(frequency.isDue(lastCheck: date(last), now: date(now), calendar: calendar), expected,
+                           "\(frequency): \(last) → \(now)")
+        }
+        for frequency in UpdateCheckFrequency.allCases {
+            XCTAssertEqual(frequency.isDue(lastCheck: nil, now: Date(), calendar: calendar), frequency != .never)
+        }
+    }
+
+    func testFrequencyPersistsAndManualCheckCountsTowardsPeriod() async throws {
+        let latest = release("0.2.14")
+        var fetchCount = 0
+        let makeChecker = {
+            UpdateChecker(currentVersion: latest.version, defaults: self.defaults,
+                          fetchLatestRelease: { fetchCount += 1; return latest },
+                          downloadAndOpen: { _, _ in })
+        }
+        let checker = makeChecker()
+        XCTAssertEqual(checker.frequency, .daily)
+        checker.setFrequency(.never)
+        XCTAssertEqual(makeChecker().frequency, .never)
+        await checker.checkForUpdatesIfNeeded()
+        XCTAssertEqual(fetchCount, 0)
+        let upToDate = await checker.checkForUpdatesManually()
+        XCTAssertTrue(upToDate)
+        XCTAssertEqual(fetchCount, 1)
+        XCTAssertNotNil(defaults.object(forKey: UpdateChecker.lastCheckDateDefaultsKey))
+        checker.setFrequency(.monthly)
+        await checker.checkForUpdatesIfNeeded()
+        XCTAssertEqual(fetchCount, 1)
+        checker.setFrequency(.weekly)
+        XCTAssertEqual(makeChecker().frequency, .weekly)
+    }
+
+    func testManualCheckBypassesAutomaticFailureCooldown() async throws {
+        struct TestError: Error {}
+        let latest = release("0.2.14")
+        var fetchCount = 0
+        let checker = UpdateChecker(currentVersion: latest.version, defaults: defaults,
+            fetchLatestRelease: {
+                fetchCount += 1
+                if fetchCount == 1 { throw TestError() }
+                return latest
+            }, downloadAndOpen: { _, _ in })
+        await checker.checkForUpdatesIfNeeded()
+        let upToDate = await checker.checkForUpdatesManually()
+        XCTAssertTrue(upToDate)
+        await checker.checkForUpdatesIfNeeded()
+        XCTAssertEqual(fetchCount, 2)
     }
 
     func testDownloadUsesAvailableReleaseURL() async throws {

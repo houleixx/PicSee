@@ -22,6 +22,16 @@ struct LocalizationTests {
                 == "(Current display scale: 25%)")
     }
 
+    @Test func updateFrequencyAndAboutHaveEnglishTranslations() {
+        #expect(L10n.render("自动检查更新：", language: "en") == "Automatically check for updates:")
+        #expect(L10n.render("每天", language: "en") == "Daily")
+        #expect(L10n.render("每周", language: "en") == "Weekly")
+        #expect(L10n.render("每月", language: "en") == "Monthly")
+        #expect(L10n.render("从不", language: "en") == "Never")
+        #expect(L10n.render("关于", language: "en") == "About")
+        #expect(L10n.render("关于…", language: "en") == "About…")
+    }
+
     @Test @MainActor func preferencePersistsAndReloadsWithoutRestart() throws {
         let name = "PicSee.LocalizationTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))

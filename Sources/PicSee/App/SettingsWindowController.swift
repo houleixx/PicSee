@@ -374,6 +374,16 @@ private struct SettingsUpdateView: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            Picker(L10n.text("自动检查更新："), selection: Binding(
+                get: { updateChecker.frequency }, set: { updateChecker.setFrequency($0) }
+            )) {
+                ForEach(UpdateCheckFrequency.allCases) { frequency in
+                    Text(frequency.title).tag(frequency)
+                }
+            }
+            .id(language.revision)
+            .fixedSize()
+
             Button(updateChecker.checkError == nil ? L10n.text("检查更新") : L10n.text("重试检查")) {
                 Task { isUpToDate = await updateChecker.checkForUpdatesManually() }
             }

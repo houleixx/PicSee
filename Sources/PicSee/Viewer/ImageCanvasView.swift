@@ -1672,6 +1672,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             updateItem.isEnabled = onCheckForUpdates != nil
             menu.addItem(updateItem)
         }
+
+        if !menu.items.contains(where: { $0.action == #selector(AppDelegate.showAboutSettings(_:)) }) {
+            let aboutItem = NSMenuItem(title: L10n.text("关于…"), action: #selector(AppDelegate.showAboutSettings(_:)), keyEquivalent: "")
+            aboutItem.image = contextMenuImage("info.circle")
+            LanguageSettings.bind(aboutItem) { $0.title = L10n.text("关于…") }
+            aboutItem.target = NSApplication.shared.delegate
+            menu.addItem(aboutItem)
+        }
     }
 
     private func contextMenuImage(_ symbolName: String) -> NSImage? {

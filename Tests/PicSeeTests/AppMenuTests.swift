@@ -46,11 +46,11 @@ final class AppMenuTests: XCTestCase {
     func testContextMenuKeepsApplicationSettingsInSettingsWindow() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
         let menu = view.menu(for: rightClickEvent())!
-        XCTAssertEqual(menu.items.last?.action, #selector(CanvasNSView.checkForUpdatesForMenu(_:)))
-        XCTAssertEqual(menu.items[menu.items.count - 2].action, #selector(AppDelegate.showSettings(_:)))
-        XCTAssertFalse(view.validateMenuItem(menu.items.last!))
-        for action in [#selector(AppDelegate.showAboutSettings(_:)),
-                       #selector(AppDelegate.showDefaultImageAppSettings(_:))] {
+        XCTAssertEqual(menu.items.last?.action, #selector(AppDelegate.showAboutSettings(_:)))
+        XCTAssertEqual(menu.items[menu.items.count - 2].action, #selector(CanvasNSView.checkForUpdatesForMenu(_:)))
+        XCTAssertEqual(menu.items[menu.items.count - 3].action, #selector(AppDelegate.showSettings(_:)))
+        XCTAssertFalse(view.validateMenuItem(menu.items[menu.items.count - 2]))
+        for action in [#selector(AppDelegate.showDefaultImageAppSettings(_:))] {
             XCTAssertFalse(menu.items.contains { $0.action == action })
         }
         XCTAssertEqual(menu.items.first?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))

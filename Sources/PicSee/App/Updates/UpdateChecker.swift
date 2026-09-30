@@ -1,6 +1,39 @@
 import AppKit
 import Foundation
 
+enum UpdateCheckFrequency: String, CaseIterable, Identifiable {
+    case daily, weekly, monthly, never
+
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .daily: L10n.text("每天")
+        case .weekly: L10n.text("每周")
+        case .monthly: L10n.text("每月")
+        case .never: L10n.text("从不")
+        }
+    }
+
+    func isDue(lastCheck: Date?, now: Date, calendar: Calendar) -> Bool {
+        guard self != .never else { return false }
+        guard let lastCheck else { return true }
+        // Gregorian months and Monday-based weeks, in the user's local time zone.
+        var localCalendar = Calendar(identifier: .gregorian)
+        localCalendar.timeZone = calendar.timeZone
+        localCalendar.firstWeekday = 2
+        localCalendar.minimumDaysInFirstWeek = 4
+        let component: Calendar.Component
+        switch self {
+        case .daily: component = .day
+        case .weekly: component = .weekOfYear
+        case .monthly: component = .month
+        case .never: return false
+        }
+        guard let period = localCalendar.dateInterval(of: component, for: now) else { return true }
+        return lastCheck < period.start || lastCheck >= period.end
+    }
+}
+
 enum UpdateStatus: Equatable {
     case idle
     case checking
@@ -13,6 +46,10 @@ enum UpdateStatus: Equatable {
 @MainActor
 final class UpdateChecker: ObservableObject {
     static let ignoredVersionDefaultsKey = "PicSee.IgnoredUpdateVersion"
+    static let frequencyDefaultsKey = "PicSee.UpdateCheckFrequency"
+    static let lastAutomaticFailureDefaultsKey = "PicSee.LastAutomaticUpdateCheckFailure"
+    @Published private(set) var frequency: UpdateCheckFrequency
+
     static let lastCheckDateDefaultsKey = "PicSee.LastUpdateCheckDate"
 
     @Published private(set) var availableUpdate: GitHubRelease?
@@ -46,11 +83,12 @@ final class UpdateChecker: ObservableObject {
 
         self.currentVersion = currentVersion
         self.defaults = defaults
+        self.frequency = UpdateCheckFrequency(rawValue: defaults.string(forKey: Self.frequencyDefaultsKey) ?? "") ?? .daily
         self.fetchLatestRelease = { try await releaseClient.fetchLatestRelease() }
         self.downloadAndOpen = { try await Self.downloadAndOpenDMG(from: $0, progress: $1) }
         self.prepareInstall = { NSApp.terminate(nil) }
         self.now = Date.init
-        self.calendar = .current
+        self.calendar = .autoupdatingCurrent
     }
 
     init(
@@ -64,6 +102,7 @@ final class UpdateChecker: ObservableObject {
     ) {
         self.currentVersion = currentVersion
         self.defaults = defaults
+        self.frequency = UpdateCheckFrequency(rawValue: defaults.string(forKey: Self.frequencyDefaultsKey) ?? "") ?? .daily
         self.fetchLatestRelease = fetchLatestRelease
         self.downloadAndOpen = downloadAndOpen
         self.prepareInstall = prepareInstall
@@ -71,15 +110,26 @@ final class UpdateChecker: ObservableObject {
         self.calendar = calendar
     }
 
+    func setFrequency(_ frequency: UpdateCheckFrequency) {
+        self.frequency = frequency
+        defaults.set(frequency.rawValue, forKey: Self.frequencyDefaultsKey)
+        defaults.synchronize()
+    }
+
     func checkForUpdatesIfNeeded() async {
+        defaults.synchronize()
+        frequency = UpdateCheckFrequency(rawValue: defaults.string(forKey: Self.frequencyDefaultsKey) ?? "") ?? .daily
+        guard status != .checking, status != .downloading else { return }
         let currentDate = now()
-        if let lastCheckDate = defaults.object(forKey: Self.lastCheckDateDefaultsKey) as? Date,
-           calendar.isDate(lastCheckDate, inSameDayAs: currentDate) {
+        let lastCheck = defaults.object(forKey: Self.lastCheckDateDefaultsKey) as? Date
+        guard frequency.isDue(lastCheck: lastCheck, now: currentDate, calendar: calendar) else { return }
+        if let lastFailure = defaults.object(forKey: Self.lastAutomaticFailureDefaultsKey) as? Date,
+           currentDate.timeIntervalSince(lastFailure) < 3600 {
             return
         }
-
-        if await performUpdateCheck() {
-            defaults.set(currentDate, forKey: Self.lastCheckDateDefaultsKey)
+        if !(await performUpdateCheck()) {
+            defaults.set(now(), forKey: Self.lastAutomaticFailureDefaultsKey)
+            defaults.synchronize()
         }
     }
 
@@ -103,6 +153,9 @@ final class UpdateChecker: ObservableObject {
 
         do {
             let release = try await fetchLatestRelease()
+            defaults.set(now(), forKey: Self.lastCheckDateDefaultsKey)
+            defaults.removeObject(forKey: Self.lastAutomaticFailureDefaultsKey)
+            defaults.synchronize()
             guard shouldShow(release: release, ignoresSkippedVersion: ignoresSkippedVersion) else {
                 availableUpdate = nil
                 status = .idle

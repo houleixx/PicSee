@@ -36,12 +36,16 @@ final class SettingsMenuRoutingTests: XCTestCase {
             windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 0
         ))
         let menu = try XCTUnwrap(view.menu(for: event))
+        XCTAssertEqual(menu.items.last?.title, L10n.text("关于…"))
+        XCTAssertEqual(menu.items.last?.action, #selector(AppDelegate.showAboutSettings(_:)))
         let applicationMenu = try XCTUnwrap(AppMenu.buildMainMenu(appName: "PicSee").items.first?.submenu)
         let entries: [(String, SettingsPage)] = [
             (L10n.text("设置…"), .browsing),
+            (L10n.text("关于…"), .about),
             (L10n.text("默认打开方式…"), .defaultApps),
             (L10n.text("关于 %1$@", "PicSee"), .about),
             (L10n.text("设置…"), .browsing),
+            (L10n.text("关于…"), .about),
             (L10n.text("关于 %1$@", "PicSee"), .about),
             (L10n.text("默认打开方式…"), .defaultApps)
         ]
@@ -49,7 +53,7 @@ final class SettingsMenuRoutingTests: XCTestCase {
         for (index, entry) in entries.enumerated() {
             // Exercise both an already-visible window and a reopened window.
             if index >= 3 { window.orderOut(nil) }
-            let source = entry.1 == .browsing ? menu : applicationMenu
+            let source = entry.1 == .browsing || entry.0 == L10n.text("关于…") ? menu : applicationMenu
             let item = try XCTUnwrap(source.items.first { $0.title == entry.0 })
             if source === applicationMenu { item.target = delegate }
             let action = try XCTUnwrap(item.action)

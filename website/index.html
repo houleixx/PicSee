@@ -2,15 +2,20 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <script src="/assets/language-e5aed07f.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PicSee — 免费开源的 Mac 图片查看器，支持 OCR 与裁剪标注</title>
   <meta name="description" content="PicSee 是免费开源、无广告的原生 Mac 图片查看器，支持滚轮缩放、图片裁剪与标注、OCR 图片文字识别复制和方向键切图。Finder 双击即开，关闭窗口即退出。适用于 macOS 14 及以上，兼容 Apple 芯片与 Intel。">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#F7F7F4">
   <link rel="canonical" href="https://picsee.pages.dev/">
-  <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-702c6ce4.png">
+  <link rel="alternate" hreflang="zh-CN" href="https://picsee.pages.dev/">
+  <link rel="alternate" hreflang="en" href="https://picsee.pages.dev/en/">
+  <link rel="alternate" hreflang="x-default" href="https://picsee.pages.dev/">
+  <link rel="icon" type="image/png" sizes="96x96" href="/assets/favicon-702c6ce4.png">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="zh_CN">
+  <meta property="og:locale:alternate" content="en_US">
   <meta property="og:site_name" content="PicSee">
   <meta property="og:url" content="https://picsee.pages.dev/">
   <meta property="og:title" content="PicSee — 免费开源的 Mac 图片查看器">
@@ -61,573 +66,7 @@
     ]
   }
   </script>
-  <style>
-    /* ========== Reset & Base ========== */
-    *, *::before, *::after {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html {
-      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
-      font-size: 16px;
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      scroll-behavior: smooth;
-    }
-
-    body {
-      background: var(--canvas);
-      color: var(--ink);
-    }
-
-    img {
-      display: block;
-      max-width: 100%;
-      height: auto;
-    }
-
-    a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    :focus-visible {
-      outline: 3px solid var(--primary);
-      outline-offset: 4px;
-    }
-
-    [id] {
-      scroll-margin-top: 80px;
-    }
-
-    .skip-link {
-      position: fixed;
-      top: 8px;
-      left: 16px;
-      z-index: 200;
-      padding: 10px 16px;
-      background: var(--surface);
-      border-radius: var(--radius-sm);
-      transform: translateY(-150%);
-    }
-
-    .skip-link:focus {
-      transform: translateY(0);
-    }
-
-    /* ========== Design Tokens ========== */
-    :root {
-      --canvas: #F7F7F4;
-      --surface: #FFFFFF;
-      --ink: #171716;
-      --muted: #6C6C68;
-      --primary: #1677E8;
-      --warm: #FC543D;
-      --border: rgba(23, 23, 22, 0.08);
-      --border-strong: rgba(23, 23, 22, 0.15);
-      --radius: 15px;
-      --radius-sm: 8px;
-      --page-padding: clamp(22px, 5.5vw, 88px);
-    }
-
-    /* ========== Typography ========== */
-    .display-title {
-      font-size: clamp(44px, 5.5vw, 86px);
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      line-height: 1.05;
-      color: var(--ink);
-    }
-
-    .hero-title-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
-    }
-
-    .hero-badge {
-      font-size: 16px;
-      font-weight: 600;
-      color: #fff;
-      background: var(--warm);
-      padding: 7px 18px;
-      border-radius: 100px;
-      letter-spacing: 0.01em;
-      line-height: 1.4;
-      white-space: nowrap;
-    }
-
-    .section-title {
-      font-size: clamp(26px, 3.2vw, 44px);
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      line-height: 1.2;
-    }
-
-    /* ========== Layout ========== */
-    .container {
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 0 var(--page-padding);
-    }
-
-    /* ========== Navigation ========== */
-    .nav {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: var(--canvas);
-      border-bottom: 1px solid var(--border);
-      height: 56px;
-      display: flex;
-      align-items: center;
-    }
-
-    .nav-inner {
-      width: 100%;
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 0 var(--page-padding);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .nav-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .nav-brand img {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-    }
-
-    .nav-brand-name {
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }
-
-    .nav-brand-kind {
-      padding-left: 10px;
-      border-left: 1px solid var(--border-strong);
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 400;
-      letter-spacing: 0;
-    }
-
-    .nav-links {
-      display: flex;
-      flex-shrink: 0;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .nav-link {
-      font-size: 13px;
-      color: var(--muted);
-      transition: color 200ms ease;
-    }
-
-    .nav-link:hover {
-      color: var(--ink);
-    }
-
-    .nav-download {
-      font-size: 13px;
-      font-weight: 500;
-      color: #fff;
-      background: var(--primary);
-      padding: 7px 18px;
-      border-radius: var(--radius-sm);
-      transition: opacity 200ms ease;
-    }
-
-    .nav-download:hover {
-      opacity: 0.88;
-      color: #fff;
-    }
-
-    /* ========== Hero ========== */
-    .hero {
-      padding: clamp(64px, 10vw, 120px) 0 clamp(48px, 7vw, 96px);
-    }
-
-    .hero-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-      gap: clamp(40px, 5vw, 80px);
-      align-items: center;
-    }
-
-    .hero-tagline {
-      font-size: clamp(17px, 2vw, 22px);
-      line-height: 1.5;
-      color: var(--muted);
-      margin-top: 20px;
-      max-width: 420px;
-    }
-
-    .hero-tagline strong {
-      display: block;
-      margin-bottom: 12px;
-      color: var(--ink);
-      font-weight: 600;
-    }
-
-    .hero-features {
-      list-style: none;
-      margin-top: 32px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .hero-features li {
-      font-size: 14px;
-      color: var(--muted);
-      padding-left: 16px;
-      position: relative;
-    }
-
-    .hero-features li::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 9px;
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: var(--warm);
-    }
-
-    .hero-ctas {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 20px;
-      margin-top: 40px;
-    }
-
-    .btn-primary {
-      display: inline-flex;
-      white-space: nowrap;
-      align-items: center;
-      font-size: 14px;
-      font-weight: 500;
-      color: #fff;
-      background: var(--primary);
-      padding: 12px 28px;
-      border-radius: var(--radius-sm);
-      transition: opacity 200ms ease;
-      border: none;
-      cursor: pointer;
-    }
-
-    .btn-primary:hover {
-      opacity: 0.88;
-    }
-
-    .btn-text {
-      font-size: 14px;
-      color: var(--muted);
-      transition: color 200ms ease;
-    }
-
-    .btn-text:hover {
-      color: var(--ink);
-    }
-
-    .github-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .hero-image {
-      position: relative;
-      aspect-ratio: 6 / 5;
-      overflow: hidden;
-      border-radius: var(--radius);
-      box-shadow: 0 -6px 20px rgba(23, 23, 22, 0.08), 0 12px 40px rgba(23, 23, 22, 0.12), 0 4px 10px rgba(23, 23, 22, 0.06);
-    }
-
-    .hero-image img {
-      width: 100%;
-      height: 100%;
-      display: block;
-      object-fit: cover;
-      object-position: center;
-    }
-
-    /* ========== Story Sections ========== */
-    .story {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      grid-template-areas: "text image";
-      gap: clamp(40px, 5vw, 80px);
-      align-items: center;
-      padding: clamp(60px, 9vw, 120px) 0;
-      border-top: 1px solid var(--border);
-    }
-
-    .story:nth-child(even) {
-      grid-template-areas: "image text";
-    }
-
-    .story-image {
-      grid-area: image;
-      min-width: 0;
-    }
-
-    .story-text {
-      grid-area: text;
-      min-width: 0;
-    }
-
-    .story-number {
-      display: block;
-      font-size: clamp(2.25rem, 3.2vw, 2.75rem);
-      font-weight: 600;
-      color: var(--warm);
-      line-height: 1.2;
-      letter-spacing: 0.02em;
-      font-variant-numeric: tabular-nums;
-      margin-bottom: 1rem;
-    }
-
-    .story-title {
-      font-size: clamp(1.75rem, 3vw, 2.5rem);
-      line-height: 1.3;
-      margin-bottom: 1rem;
-    }
-
-    .story-title span {
-      display: block;
-    }
-
-    .story-desc {
-      font-size: 16px;
-      line-height: 1.75;
-      color: var(--muted);
-    }
-
-    .story-image img {
-      width: 100%;
-      border-radius: var(--radius);
-      box-shadow: 0 -6px 20px rgba(23, 23, 22, 0.08), 0 12px 40px rgba(23, 23, 22, 0.12), 0 4px 10px rgba(23, 23, 22, 0.06);
-    }
-
-    /* ========== Format Strip ========== */
-    .formats {
-      padding: clamp(48px, 7vw, 96px) 0;
-      border-top: 1px solid var(--border);
-    }
-
-    .formats-label {
-      font-size: 13px;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 24px;
-    }
-
-    .formats-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .format-tag {
-      max-width: 100%;
-      overflow-wrap: anywhere;
-      font-size: 13px;
-      font-weight: 500;
-      padding: 8px 16px;
-      border: 1px solid var(--border-strong);
-      border-radius: 100px;
-      color: var(--ink);
-      background: var(--surface);
-      transition: border-color 200ms ease, background 200ms ease;
-    }
-
-    .format-tag:hover {
-      border-color: var(--primary);
-      background: rgba(22, 119, 232, 0.04);
-    }
-
-    .format-tag .ext {
-      color: var(--muted);
-      font-weight: 400;
-      margin-left: 4px;
-    }
-
-    .formats-note {
-      margin: 18px 0 0;
-      font-size: 13px;
-      line-height: 1.6;
-      color: var(--muted);
-    }
-
-    /* ========== System Info ========== */
-    .system {
-      padding: clamp(48px, 7vw, 96px) 0;
-      border-top: 1px solid var(--border);
-    }
-
-    .system-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: clamp(24px, 3vw, 48px);
-    }
-
-    .system-item {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .system-item .label {
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .system-item .value {
-      font-size: 15px;
-      font-weight: 500;
-      color: var(--ink);
-    }
-
-    /* ========== Footer ========== */
-    .footer {
-      padding: clamp(32px, 4vw, 48px) 0;
-      border-top: 1px solid var(--border);
-    }
-
-    .footer-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .footer-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .footer-left img {
-      width: 20px;
-      height: 20px;
-      border-radius: 5px;
-    }
-
-    .footer-left span {
-      font-size: 13px;
-      color: var(--muted);
-    }
-
-    .footer-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-    }
-
-    .footer-links a {
-      font-size: 13px;
-      color: var(--muted);
-      transition: color 200ms ease;
-    }
-
-    .footer-links a:hover {
-      color: var(--ink);
-    }
-
-    /* ========== Responsive ========== */
-    @media (max-width: 768px) {
-      .hero-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-image {
-        order: -1;
-      }
-
-      .hero-tagline {
-        max-width: none;
-      }
-
-      .story,
-      .story:nth-child(even) {
-        grid-template-columns: 1fr;
-        grid-template-areas: "image" "text";
-      }
-
-      .story-title {
-        display: flex;
-        flex-wrap: wrap;
-        column-gap: 0.5em;
-        row-gap: 0.1em;
-      }
-
-      .system-grid {
-        grid-template-columns: 1fr;
-        gap: 20px;
-      }
-
-      .footer-inner {
-        flex-direction: column;
-        gap: 16px;
-        align-items: flex-start;
-      }
-
-      .nav-links {
-        gap: 14px;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .nav-brand {
-        flex: 0 0 auto;
-        white-space: nowrap;
-      }
-
-      .nav-brand-name {
-        font-size: 14px;
-      }
-
-      .nav-brand-kind {
-        display: none;
-      }
-
-      .hero-features {
-        gap: 8px;
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      html {
-        scroll-behavior: auto;
-      }
-
-      a, .format-tag {
-        transition: none;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="/assets/styles-6183db54.css">
 </head>
 <body>
   <a class="skip-link" href="#main">跳到主要内容</a>
@@ -636,11 +75,16 @@
   <nav class="nav" aria-label="主导航">
     <div class="nav-inner">
       <a href="/" class="nav-brand">
-        <img src="assets/brand-mark-916d1749.png" alt="" width="28" height="28">
+        <img src="/assets/brand-mark-916d1749.png" alt="" width="28" height="28">
         <span class="nav-brand-name">PicSee</span>
         <span class="nav-brand-kind">macOS 图片查看器</span>
       </a>
       <div class="nav-links">
+        <div class="language-switch" role="group" aria-label="选择语言">
+          <a href="/" lang="zh-CN" hreflang="zh-CN" aria-current="page">中文</a>
+          <span aria-hidden="true">/</span>
+          <a href="/en/" lang="en" hreflang="en" aria-label="Switch to English">EN</a>
+        </div>
         <a href="https://github.com/houleixx/PicSee" class="nav-link" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/houleixx/PicSee/releases/latest/download/PicSee.dmg" target="_blank" rel="noopener" class="nav-download">下载</a>
       </div>
@@ -670,7 +114,7 @@
           </div>
         </div>
         <div class="hero-image">
-          <img src="assets/hero-app-preview-ee584887.webp" alt="PicSee 柔和立体图片窗口，轻松浏览海湾与旅行风景" width="1200" height="1000" fetchpriority="high">
+          <img src="/assets/hero-app-preview-ee584887.webp" alt="PicSee 柔和立体图片窗口，轻松浏览海湾与旅行风景" width="1200" height="1000" fetchpriority="high">
         </div>
       </div>
     </div>
@@ -690,7 +134,7 @@
           </p>
         </div>
         <div class="story-image">
-          <img src="assets/feature-zoom-pan-30c78c69.webp" alt="PicSee 放大查看海湾帆船细节并拖动平移" width="1080" height="720" loading="lazy">
+          <img src="/assets/feature-zoom-pan-30c78c69.webp" alt="PicSee 放大查看海湾帆船细节并拖动平移" width="1080" height="720" loading="lazy">
         </div>
       </article>
 
@@ -704,7 +148,7 @@
           </p>
         </div>
         <div class="story-image">
-          <img src="assets/feature-crop-annotate-971acecf.webp" alt="PicSee 在海湾照片中框选裁剪区域，并用箭头标注帆船" width="1080" height="720" loading="lazy">
+          <img src="/assets/feature-crop-annotate-971acecf.webp" alt="PicSee 在海湾照片中框选裁剪区域，并用箭头标注帆船" width="1080" height="720" loading="lazy">
         </div>
       </article>
 
@@ -718,7 +162,7 @@
           </p>
         </div>
         <div class="story-image">
-          <img src="assets/feature-ocr-select-copy-c080be11.webp" alt="PicSee 选中海湾明信片中的文字，通过 ⌘C 直接复制" width="1080" height="720" loading="lazy">
+          <img src="/assets/feature-ocr-select-copy-c080be11.webp" alt="PicSee 选中海湾明信片中的文字，通过 ⌘C 直接复制" width="1080" height="720" loading="lazy">
         </div>
       </article>
 
@@ -732,7 +176,7 @@
           </p>
         </div>
         <div class="story-image">
-          <img src="assets/feature-keyboard-navigation-f21eb3a3.webp" alt="PicSee 使用方向键依次浏览不同风景图片" width="1080" height="720" loading="lazy">
+          <img src="/assets/feature-keyboard-navigation-f21eb3a3.webp" alt="PicSee 使用方向键依次浏览不同风景图片" width="1080" height="720" loading="lazy">
         </div>
       </article>
 
@@ -746,7 +190,7 @@
           </p>
         </div>
         <div class="story-image">
-          <img src="assets/feature-default-viewer-5f46796a.webp" alt="将 JPEG、PNG、HEIC 和 RAW 图片交由 PicSee 默认打开" width="1080" height="720" loading="lazy">
+          <img src="/assets/feature-default-viewer-5f46796a.webp" alt="将 JPEG、PNG、HEIC 和 RAW 图片交由 PicSee 默认打开" width="1080" height="720" loading="lazy">
         </div>
       </article>
 
@@ -808,7 +252,7 @@
     <div class="container">
       <div class="footer-inner">
         <div class="footer-left">
-          <img src="assets/brand-mark-916d1749.png" alt="" width="20" height="20">
+          <img src="/assets/brand-mark-916d1749.png" alt="" width="20" height="20">
           <span>PicSee</span>
           <span>© 2026 holly</span>
         </div>

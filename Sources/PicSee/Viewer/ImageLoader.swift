@@ -1,4 +1,6 @@
-import AppKit
+// Older SDKs do not annotate NSImage as Sendable. This immutable snapshot is
+// decoded on one worker and never mutated there after handing it to the viewer.
+@preconcurrency import AppKit
 import Foundation
 import ImageIO
 

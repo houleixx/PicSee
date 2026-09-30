@@ -7,7 +7,6 @@ final class UpdateCheckerTests: XCTestCase {
     private let suiteName = "PicSee.UpdateCheckerTests"
 
     override func setUp() async throws {
-        try await super.setUp()
         defaults = UserDefaults(suiteName: suiteName)
         defaults.removePersistentDomain(forName: suiteName)
     }
@@ -15,7 +14,6 @@ final class UpdateCheckerTests: XCTestCase {
     override func tearDown() async throws {
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
-        try await super.tearDown()
     }
 
     func testShowsAvailableUpdateWhenLatestIsNewer() async throws {

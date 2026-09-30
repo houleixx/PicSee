@@ -1,0 +1,27 @@
+name: Project checks
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Swift logic and regression tests
+        run: bash Scripts/test-swift.sh logic
+      - name: Localization coverage
+        run: python3 Scripts/check-localizations.py
+      - name: Website language tests
+        run: node --test Tests/Website/language.test.cjs
+      - name: DMG build script tests
+        run: bash Tests/build-dmg-tests.sh

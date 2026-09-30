@@ -4,6 +4,15 @@ import XCTest
 
 final class ImageExporterTests: XCTestCase {
     @MainActor
+    func testCGBackedImageReportsSourcePixelsRatherThanRetinaSnapshotDimensions() throws {
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 80, pixelsHigh: 40,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let image = NSImage(cgImage: try XCTUnwrap(bitmap.cgImage), size: CGSize(width: 80, height: 40))
+        XCTAssertEqual(ImageExporter.pixelSize(of: image), CGSize(width: 80, height: 40))
+    }
+
+    @MainActor
     func testAccessoryViewHidesJPEGQualityControlsForPNGWithoutCollapsingRow() {
         let accessoryView = ImageExportAccessoryView(defaultPixelSize: CGSize(width: 100, height: 80))
 

@@ -219,6 +219,8 @@ struct ImageViewerView: View {
                 .task {
                     await presentNavigationDiscoveryIfNeeded()
                 }
+            } else if viewModel.isImageLoading {
+                ProgressView().controlSize(.small)
             } else if viewModel.isFolderEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "photo.on.rectangle")
@@ -478,7 +480,7 @@ struct ImageViewerView: View {
     }
 
     private func beginScreenshot() {
-        guard screenshotDocument == nil, let image = viewModel.image else { return }
+        guard screenshotDocument == nil, !viewModel.isImageLoading, let image = viewModel.image else { return }
         viewModel.slideshow.pause()
         do {
             screenshotDocument = try ScreenshotDocument(image: image, rotationDegrees: viewModel.rotationDegrees)
@@ -748,7 +750,7 @@ private struct UpdatePromptView: View {
 
     private func message(for update: GitHubRelease) -> String {
         if updateChecker.status == .failed {
-            return L10n.text("下载失败")
+            return updateChecker.downloadError ?? L10n.text("下载失败")
         }
         return L10n.text("发现新版本 %1$@", String(describing: update.version.displayString))
     }

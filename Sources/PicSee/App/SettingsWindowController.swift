@@ -411,7 +411,7 @@ private struct SettingsUpdateView: View {
                 Text(L10n.text("正在下载更新…")).foregroundStyle(.secondary)
             } else if updateChecker.availableUpdate != nil {
                 if updateChecker.status == .failed {
-                    Text(L10n.text("下载失败，请重试。")).foregroundStyle(.secondary)
+                    Text(updateChecker.downloadError ?? L10n.text("下载失败，请重试。")).foregroundStyle(.secondary)
                 }
                 Button(updateChecker.status == .failed ? L10n.text("重试下载") : L10n.text("下载并安装")) {
                     Task { await updateChecker.downloadAvailableUpdate() }

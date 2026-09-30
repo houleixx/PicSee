@@ -59,6 +59,14 @@ final class FolderImageNavigator {
         }
     }
 
+    /// A worker has already enumerated and validated this immutable snapshot.
+    init(currentImageURL: URL, snapshot: [URL], fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+        let current = currentImageURL.standardizedFileURL
+        images = snapshot.contains(current) ? snapshot : [current]
+        currentIndex = images.firstIndex(of: current) ?? 0
+    }
+
     static func isSupportedImage(_ url: URL) -> Bool {
         let pathExtension = url.pathExtension.lowercased()
         return !pathExtension.isEmpty && supportedExtensions.contains(pathExtension)

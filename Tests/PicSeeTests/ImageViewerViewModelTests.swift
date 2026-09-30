@@ -23,7 +23,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let first = try writePNG(named: "001.png", color: .red)
         let second = try writePNG(named: "002.png", color: .blue)
 
-        let viewModel = ImageViewerViewModel(imageURL: first)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first)
 
         XCTAssertEqual(viewModel.currentURL, first.standardizedFileURL)
         XCTAssertNotNil(viewModel.image)
@@ -39,7 +39,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let third = try writePNG(named: "003.png", color: .green)
         let provider = StubFinderOrderProvider(orderedURLs: [third, first, second])
 
-        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
         try await waitUntil { viewModel.previousURL == third.standardizedFileURL }
 
         XCTAssertEqual(viewModel.previousURL, third.standardizedFileURL)
@@ -53,7 +53,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let provider = SlowFinderOrderProvider(delay: 0.3)
         let start = ContinuousClock.now
 
-        _ = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        _ = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
 
         XCTAssertLessThan(start.duration(to: .now), .milliseconds(100))
     }
@@ -64,7 +64,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let second = try writePNG(named: "002.png", color: .blue)
         let provider = SlowFinderOrderProvider(delay: 0.2)
 
-        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
 
         XCTAssertNil(viewModel.nextURL)
         try await Task.sleep(for: .milliseconds(250))
@@ -76,7 +76,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let first = try writePNG(named: "001.png", color: .red)
         let second = try writePNG(named: "002.png", color: .blue)
         let provider = SlowFinderOrderProvider(delay: 0.2)
-        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
 
         viewModel.navigateToNext()
         XCTAssertEqual(viewModel.currentURL, first.standardizedFileURL)
@@ -94,7 +94,7 @@ final class ImageViewerViewModelTests: XCTestCase {
             delay: 0.2,
             orderedURLs: [first, third, second]
         )
-        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
 
         viewModel.navigateToNext()
         XCTAssertEqual(viewModel.currentURL, second.standardizedFileURL)
@@ -116,7 +116,7 @@ final class ImageViewerViewModelTests: XCTestCase {
             }, permissionRequester: { true },
             settingsReader: { _ in FinderStoredViewSettings(records: [:], columnOptions: [:]) }
         )
-        let model = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
         XCTAssertFalse(model.isNavigationOrderReady)
         model.navigateToNext()
         XCTAssertEqual(model.currentURL, first)
@@ -130,11 +130,11 @@ final class ImageViewerViewModelTests: XCTestCase {
         let second = try writePNG(named: "002.png", color: .blue)
         let third = try writePNG(named: "003.png", color: .green)
         let provider = StubFinderOrderProvider(orderedURLs: [first, third, second])
-        let original = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let original = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
         try await waitUntil { original.isNavigationOrderReady }
         XCTAssertEqual(original.nextURL, third)
         provider.orderedURLs = [first, second, third]
-        let reopened = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let reopened = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
         try await waitUntil { reopened.isNavigationOrderReady }
         XCTAssertEqual(reopened.nextURL, second)
         XCTAssertEqual(provider.requestedFolders.count, 2)
@@ -146,7 +146,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let second = try writePNG(named: "002.png", color: .blue)
         let third = try writePNG(named: "003.png", color: .green)
         let provider = StubFinderOrderProvider(orderedURLs: [first, third, second])
-        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
         try await waitUntil { viewModel.nextURL == third.standardizedFileURL }
 
         provider.orderedURLs = [first, second, third]
@@ -163,7 +163,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let deleted = try writePNG(named: "002.png", color: .blue)
         let third = try writePNG(named: "003.png", color: .green)
         let provider = StubFinderOrderProvider(orderedURLs: [first, deleted, third])
-        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
         try await waitUntil { viewModel.nextURL == deleted.standardizedFileURL }
         try FileManager.default.removeItem(at: deleted)
 
@@ -181,7 +181,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         try Data("not an image".utf8).write(to: invalid)
         let third = try writePNG(named: "003.png", color: .green)
         let provider = StubFinderOrderProvider(orderedURLs: [first, invalid, third])
-        let viewModel = ImageViewerViewModel(imageURL: first, finderOrderProvider: provider)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
         try await waitUntil { viewModel.nextURL == invalid.standardizedFileURL }
 
         viewModel.navigateToNext()
@@ -197,7 +197,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let invalid = temporaryDirectory.appendingPathComponent("broken.jpg")
         try Data("not an image".utf8).write(to: invalid)
 
-        let viewModel = ImageViewerViewModel(imageURL: invalid)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: invalid)
 
         XCTAssertNil(viewModel.image)
         XCTAssertEqual(viewModel.currentURL, invalid.standardizedFileURL)
@@ -210,7 +210,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let first = try writePNG(named: "001.png", color: .red)
         let second = try writePNG(named: "002.png", color: .blue)
 
-        let viewModel = ImageViewerViewModel(imageURL: first)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first)
         viewModel.zoomScale = 3
         viewModel.panOffset = CGSize(width: 40, height: 50)
         viewModel.rotateRight()
@@ -227,7 +227,7 @@ final class ImageViewerViewModelTests: XCTestCase {
     @MainActor
     func testShowActualSizeAdjustsZoomToOneHundredPercentDisplayScale() throws {
         let imageURL = try writePNG(named: "001.png", color: .red)
-        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
         viewModel.zoomScale = 1
         viewModel.displayScale = 0.5
         viewModel.panOffset = CGSize(width: 20, height: 30)
@@ -241,7 +241,7 @@ final class ImageViewerViewModelTests: XCTestCase {
     @MainActor
     func testFitToWindowResetsZoomAndPan() throws {
         let imageURL = try writePNG(named: "001.png", color: .red)
-        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
         viewModel.zoomScale = 2
         viewModel.panOffset = CGSize(width: 20, height: 30)
 
@@ -254,7 +254,7 @@ final class ImageViewerViewModelTests: XCTestCase {
     @MainActor
     func testZoomButtonsCreateFixedStepZoomRequests() throws {
         let imageURL = try writePNG(named: "001.png", color: .red)
-        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
 
         viewModel.zoomIn()
         let zoomInRequest = try XCTUnwrap(viewModel.zoomRequest)
@@ -272,7 +272,7 @@ final class ImageViewerViewModelTests: XCTestCase {
     @MainActor
     func testRotationWrapsInNinetyDegreeStepsAndResetsPan() throws {
         let imageURL = try writePNG(named: "001.png", color: .red)
-        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
         viewModel.panOffset = CGSize(width: 20, height: 30)
 
         viewModel.rotateLeft()
@@ -290,7 +290,7 @@ final class ImageViewerViewModelTests: XCTestCase {
     func testImagePixelSizeTextUsesLoadedImageDimensions() throws {
         let imageURL = try writePNG(named: "001.png", color: .red, size: NSSize(width: 12, height: 34))
 
-        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
 
         XCTAssertEqual(viewModel.imagePixelSizeText, "12 × 34 px")
     }
@@ -301,7 +301,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let expectedFileSize = ByteCountFormatStyle(style: .file, spellsOutZero: false, locale: L10n.locale)
             .format(Int64(try Data(contentsOf: imageURL).count))
 
-        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
 
         XCTAssertEqual(viewModel.imageMetadataText, "sample image.png | \(expectedFileSize) | 12 × 34 px")
     }
@@ -311,7 +311,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let imageURL = try writePNG(named: "sample image.png", color: .red, size: NSSize(width: 12, height: 34))
         let expectedFileSize = ByteCountFormatStyle(style: .file, spellsOutZero: false, locale: L10n.locale)
             .format(Int64(try Data(contentsOf: imageURL).count))
-        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
         viewModel.displayScale = 1.25
 
         XCTAssertEqual(viewModel.titleBarText, "sample image.png | \(expectedFileSize) | 12 × 34 px | 125%")
@@ -373,7 +373,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let creationDate = try XCTUnwrap(components.date)
         try FileManager.default.setAttributes([.creationDate: creationDate], ofItemAtPath: imageURL.path)
 
-        let viewModel = ImageViewerViewModel(imageURL: imageURL)
+        let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
 
         XCTAssertTrue(viewModel.imageParametersText?.contains(L10n.text("创建时间") + ": " + (L10n.languageCode == "en" ? "2016-07-25 15:30" : "2016年07月25日 15:30")) ?? false)
     }

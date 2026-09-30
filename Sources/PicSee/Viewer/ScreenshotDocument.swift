@@ -75,7 +75,20 @@ struct ScreenshotState {
 final class ScreenshotDocument: ObservableObject {
     let image: NSImage
     let pixelSize: CGSize
-    let mosaicImage: NSImage
+    private(set) var hasPreparedMosaic = false
+    private lazy var mosaicImage: NSImage? = {
+        hasPreparedMosaic = true
+        let smallSize = CGSize(width: max(1, ceil(pixelSize.width / 16)), height: max(1, ceil(pixelSize.height / 16)))
+        guard let small = try? Self.bitmap(size: smallSize) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: small)
+        NSGraphicsContext.current?.imageInterpolation = .high
+        image.draw(in: CGRect(origin: .zero, size: smallSize))
+        let result = NSImage(size: smallSize)
+        result.addRepresentation(small)
+        return result
+    }()
     @Published var state = ScreenshotState()
     @Published var tool: ScreenshotTool = .crop
     @Published var color = NSColor.systemRed
@@ -95,27 +108,26 @@ final class ScreenshotDocument: ObservableObject {
         let swapsAxes = rotation == 90 || rotation == 270
         pixelSize = CGSize(width: swapsAxes ? source.height : source.width,
                            height: swapsAxes ? source.width : source.height)
-        let bitmap = try Self.bitmap(size: pixelSize)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
-        let context = NSGraphicsContext.current!.cgContext
-        context.translateBy(x: pixelSize.width / 2, y: pixelSize.height / 2)
-        context.rotate(by: CGFloat(rotation) * .pi / 180)
-        context.draw(source, in: CGRect(x: -CGFloat(source.width) / 2, y: -CGFloat(source.height) / 2,
-                                       width: CGFloat(source.width), height: CGFloat(source.height)))
-        NSGraphicsContext.restoreGraphicsState()
-        self.image = NSImage(size: pixelSize)
-        self.image.addRepresentation(bitmap)
-
-        let smallSize = CGSize(width: max(1, ceil(pixelSize.width / 16)), height: max(1, ceil(pixelSize.height / 16)))
-        let small = try Self.bitmap(size: smallSize)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: small)
-        NSGraphicsContext.current?.imageInterpolation = .high
-        self.image.draw(in: CGRect(origin: .zero, size: smallSize))
-        NSGraphicsContext.restoreGraphicsState()
-        mosaicImage = NSImage(size: smallSize)
-        mosaicImage.addRepresentation(small)
+        if rotation == 0 {
+            // Match logical dimensions to oriented pixels without copying pixel data.
+            self.image = NSImage(cgImage: source, size: pixelSize)
+            self.image.cacheMode = .never
+        } else {
+            let bitmap = try Self.bitmap(size: pixelSize)
+            NSGraphicsContext.saveGraphicsState()
+            defer { NSGraphicsContext.restoreGraphicsState() }
+            guard let graphics = NSGraphicsContext(bitmapImageRep: bitmap) else {
+                throw ImageExporterError.failedToRender
+            }
+            NSGraphicsContext.current = graphics
+            let context = graphics.cgContext
+            context.translateBy(x: pixelSize.width / 2, y: pixelSize.height / 2)
+            context.rotate(by: CGFloat(rotation) * .pi / 180)
+            context.draw(source, in: CGRect(x: -CGFloat(source.width) / 2, y: -CGFloat(source.height) / 2,
+                                           width: CGFloat(source.width), height: CGFloat(source.height)))
+            self.image = NSImage(size: pixelSize)
+            self.image.addRepresentation(bitmap)
+        }
     }
 
     var bounds: CGRect { CGRect(origin: .zero, size: pixelSize) }
@@ -290,7 +302,12 @@ final class ScreenshotDocument: ObservableObject {
                 NSGraphicsContext.current?.cgContext.addPath(mask)
                 NSGraphicsContext.current?.cgContext.clip()
                 NSGraphicsContext.current?.imageInterpolation = .none
-                mosaicImage.draw(in: bounds)
+                if let mosaicImage { mosaicImage.draw(in: bounds) }
+                else {
+                    // A redaction must stay opaque even when its bitmap allocation fails.
+                    NSColor.black.setFill()
+                    NSBezierPath(rect: bounds).fill()
+                }
                 NSGraphicsContext.restoreGraphicsState()
             case .crop, .eraser: break
             }
@@ -333,11 +350,12 @@ final class ScreenshotDocument: ObservableObject {
                 ty: -crop.minY * size.height / crop.height)
             let scaled = CIImage(cgImage: source).clampedToExtent().samplingLinear()
                 .transformed(by: transform, highQualityDownsample: false)
-            guard let sampled = Self.screenImageContext.createCGImage(scaled,
-                from: CGRect(origin: .zero, size: size), format: .RGBA8,
-                colorSpace: CGColorSpaceCreateDeviceRGB()) else {
-                throw ImageExporterError.failedToRender
-            }
+            let outputRect = CGRect(origin: .zero, size: size)
+            let sampled = Self.screenImageContext.createCGImage(scaled, from: outputRect,
+                format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+                ?? Self.softwareScreenImageContext.createCGImage(scaled, from: outputRect,
+                    format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+            guard let sampled else { throw ImageExporterError.failedToRender }
             // Already at final pixel size: composite once, then draw vector annotations.
             NSGraphicsContext.current?.cgContext.draw(sampled, in: CGRect(origin: .zero, size: size))
         }
@@ -356,9 +374,14 @@ final class ScreenshotDocument: ObservableObject {
         .workingColorSpace: NSNull(), .cacheIntermediates: false
     ])
 
+    private static let softwareScreenImageContext = CIContext(options: [
+        .workingColorSpace: NSNull(), .cacheIntermediates: false, .useSoftwareRenderer: true
+    ])
+
     private static func bitmap(size: CGSize) throws -> NSBitmapImageRep {
-        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width),
-            pixelsHigh: Int(size.height), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+        let dimensions = try ImageRenderBudget.dimensions(for: size)
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: dimensions.width,
+            pixelsHigh: dimensions.height, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
             isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
             throw ImageExporterError.failedToRender
         }

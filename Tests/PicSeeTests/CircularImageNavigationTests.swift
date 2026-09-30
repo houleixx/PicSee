@@ -61,7 +61,7 @@ struct CircularImageNavigationTests {
             try data.write(to: url)
             return url
         }
-        let model = ImageViewerViewModel(imageURL: urls[2])
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: urls[2])
 
         #expect(model.nextURL == urls[0])
         model.navigateToNext()

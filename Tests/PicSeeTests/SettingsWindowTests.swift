@@ -48,7 +48,7 @@ final class SettingsWindowTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("language-\(UUID()).png")
         try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
-        let model = ImageViewerViewModel(imageURL: url)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url)
         model.zoomScale = 2.5
         model.panOffset = CGSize(width: 10, height: 20)
         model.rotationDegrees = 90

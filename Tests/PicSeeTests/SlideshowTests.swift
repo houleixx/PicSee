@@ -350,7 +350,7 @@ struct SlideshowTests {
             let urls = urls
             let provider = OrderProvider(urls: (order ?? Array(0..<count)).map { urls[$0] },
                 clock: deferredOrder ? orderClock : nil)
-            model = ImageViewerViewModel(imageURL: urls[startIndex], finderOrderProvider: provider, slideshow: controller)
+            model = ImageViewerViewModel(loadingMode: .immediate, imageURL: urls[startIndex], finderOrderProvider: provider, slideshow: controller)
         }
 
         func start() async throws {

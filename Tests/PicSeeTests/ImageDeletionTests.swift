@@ -25,7 +25,7 @@ final class ImageDeletionTests: XCTestCase {
 
     func testConfirmationDefaultsToCancelAndDoesNotDeleteUntilConfirmed() throws {
         let url = try writePNG("确认测试.png")
-        let model = ImageViewerViewModel(imageURL: url, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url, imageTrash: trash)
         var completion: ((NSApplication.ModalResponse) -> Void)?
         let confirmation = ImageDeletionConfirmation(defaults: defaults) { alert, _, reply in
             XCTAssertEqual(alert.messageText, L10n.text("将图片移到废纸篓？"))
@@ -50,7 +50,7 @@ final class ImageDeletionTests: XCTestCase {
 
     func testCancelDoesNotDeleteOrRememberSuppression() throws {
         let url = try writePNG("only.png")
-        let model = ImageViewerViewModel(imageURL: url, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url, imageTrash: trash)
         var presentations = 0
         let confirmation = ImageDeletionConfirmation(defaults: defaults) { alert, _, reply in
             presentations += 1
@@ -68,7 +68,7 @@ final class ImageDeletionTests: XCTestCase {
     func testSuppressionPersistsForNextConfirmationController() throws {
         let first = try writePNG("1.png")
         _ = try writePNG("2.png")
-        let model = ImageViewerViewModel(imageURL: first, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, imageTrash: trash)
         let confirmation = ImageDeletionConfirmation(defaults: defaults) { alert, _, reply in
             alert.suppressionButton.state = .on
             reply(.alertSecondButtonReturn)
@@ -86,7 +86,7 @@ final class ImageDeletionTests: XCTestCase {
 
     func testRepeatedRequestDoesNotOpenMultipleConfirmations() throws {
         let url = try writePNG("only.png")
-        let model = ImageViewerViewModel(imageURL: url, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url, imageTrash: trash)
         var presentations = 0
         var completion: ((NSApplication.ModalResponse) -> Void)?
         let confirmation = ImageDeletionConfirmation(defaults: defaults) { _, _, reply in
@@ -106,7 +106,7 @@ final class ImageDeletionTests: XCTestCase {
     func testStaleConfirmationCannotDeleteADifferentImage() throws {
         let first = try writePNG("1.png")
         let second = try writePNG("2.png")
-        let model = ImageViewerViewModel(imageURL: first, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, imageTrash: trash)
         var completion: ((NSApplication.ModalResponse) -> Void)?
         let confirmation = ImageDeletionConfirmation(defaults: defaults) { alert, _, reply in
             alert.suppressionButton.state = .on
@@ -121,7 +121,7 @@ final class ImageDeletionTests: XCTestCase {
 
     func testConfirmationDoesNotOpenWhileEditing() throws {
         let url = try writePNG("only.png")
-        let model = ImageViewerViewModel(imageURL: url, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url, imageTrash: trash)
         model.isScreenshotEditing = true
         let confirmation = ImageDeletionConfirmation(defaults: defaults) { _, _, _ in
             XCTFail("Editing must not open deletion confirmation")
@@ -134,7 +134,7 @@ final class ImageDeletionTests: XCTestCase {
         let first = try writePNG("1.png")
         let second = try writePNG("2.png")
         let third = try writePNG("3.png")
-        let model = ImageViewerViewModel(imageURL: second, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: second, imageTrash: trash)
         model.zoomScale = 2
         model.rotationDegrees = 90
 
@@ -160,7 +160,7 @@ final class ImageDeletionTests: XCTestCase {
 
     func testLastDeletionShowsEmptyStateAndCanBeUndone() throws {
         let url = try writePNG("only.png")
-        let model = ImageViewerViewModel(imageURL: url, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url, imageTrash: trash)
         model.trashCurrentImage()
         XCTAssertTrue(model.isFolderEmpty)
         XCTAssertNil(model.image)
@@ -182,7 +182,7 @@ final class ImageDeletionTests: XCTestCase {
     func testTrashFailurePreservesImageAndNavigation() throws {
         let first = try writePNG("1.png")
         let second = try writePNG("2.png")
-        let model = ImageViewerViewModel(imageURL: first, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, imageTrash: trash)
         let image = model.image
         trash.shouldFail = true
         model.trashCurrentImage()
@@ -196,7 +196,7 @@ final class ImageDeletionTests: XCTestCase {
 
     func testUndoDoesNotOverwriteNewFileAndCanBeRetried() throws {
         let url = try writePNG("only.png")
-        let model = ImageViewerViewModel(imageURL: url, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url, imageTrash: trash)
         model.trashCurrentImage()
         let replacement = Data("new file".utf8)
         try replacement.write(to: url)
@@ -216,7 +216,7 @@ final class ImageDeletionTests: XCTestCase {
         let missing = try writePNG("2.png")
         try Data("invalid".utf8).write(to: directory.appendingPathComponent("3.png"))
         let last = try writePNG("4.png")
-        let model = ImageViewerViewModel(imageURL: first, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, imageTrash: trash)
         try FileManager.default.removeItem(at: missing)
         model.trashCurrentImage()
         XCTAssertEqual(model.currentURL, last)
@@ -225,7 +225,7 @@ final class ImageDeletionTests: XCTestCase {
 
     func testNewImageInFolderPreventsEmptyState() throws {
         let first = try writePNG("1.png")
-        let model = ImageViewerViewModel(imageURL: first, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, imageTrash: trash)
         let added = try writePNG("2.png")
         model.trashCurrentImage()
         XCTAssertEqual(model.currentURL, added)
@@ -235,7 +235,7 @@ final class ImageDeletionTests: XCTestCase {
     func testScreenshotEditingDisablesDeletionAndUndo() throws {
         let first = try writePNG("1.png")
         _ = try writePNG("2.png")
-        let model = ImageViewerViewModel(imageURL: first, imageTrash: trash)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, imageTrash: trash)
         model.isScreenshotEditing = true
         model.trashCurrentImage()
         XCTAssertEqual(trash.trashCalls, 0)
@@ -252,6 +252,7 @@ final class ImageDeletionTests: XCTestCase {
         let second = try writePNG("2.png")
         let third = try writePNG("3.png")
         let model = ImageViewerViewModel(
+            loadingMode: .immediate,
             imageURL: first, finderOrderProvider: DeletionOrderProvider(order: [third, first, second]), imageTrash: trash
         )
         XCTAssertFalse(model.canTrashCurrentImage)

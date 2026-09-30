@@ -51,6 +51,7 @@ enum L10n {
     }
 
     static func errorDescription(_ error: Error) -> String {
+        if let error = error as? UpdateInstaller.Failure { return error.errorDescription ?? "" }
         if let error = error as? ImageExporterError { return error.errorDescription ?? "" }
         if let error = error as? DefaultImageAppError { return error.errorDescription ?? "" }
         let error = error as NSError

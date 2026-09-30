@@ -146,6 +146,8 @@ final class WindowManager {
     private var pendingOpenURL: URL?
     private var isConfirmingReplacement = false
     private var sheetObserver: AnyCancellable?
+    private var initialImageObserver: AnyCancellable?
+    private let loadingMode: ImageLoadingMode
     private var titleObserver: AnyCancellable?
     private var appearanceObserver: AnyCancellable?
     private var keyEventMonitor: Any?
@@ -156,7 +158,8 @@ final class WindowManager {
         self?.bringViewerToFront(window)
     }
 
-    init(finderOrderProvider: (any FinderFolderOrderProviding)? = nil) {
+    init(finderOrderProvider: (any FinderFolderOrderProviding)? = nil, loadingMode: ImageLoadingMode = .background) {
+        self.loadingMode = loadingMode
         self.finderOrderProvider = finderOrderProvider
     }
 
@@ -176,6 +179,7 @@ final class WindowManager {
         guard window.attachedSheet == nil, !isConfirmingReplacement else { return }
         pendingOpenURL = nil
         if url.standardizedFileURL == viewModel.currentURL, viewModel.image != nil, !viewModel.isFolderEmpty {
+            viewModel.openImage(url)
             return
         }
         guard viewModel.isScreenshotEditing else {
@@ -215,6 +219,7 @@ final class WindowManager {
         guard currentWindow == nil else { return }
 
         let viewModel = ImageViewerViewModel(
+            loadingMode: loadingMode,
             imageURL: url,
             finderOrderProvider: finderOrderProvider ?? FinderFolderOrderProvider(
                 onAuthorizationPromptWillBegin: { [weak self] in
@@ -279,6 +284,7 @@ final class WindowManager {
         window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
         titleObserver = viewModel.$currentURL
             .combineLatest(viewModel.$displayScale, viewModel.$image)
+            .receive(on: RunLoop.main)
             .sink { [weak window, weak viewModel] _, _, _ in
                 guard let window, let viewModel else { return }
                 window.title = ViewerTitleBarPreference.isVisible() ? viewModel.titleBarText : viewModel.currentFilename
@@ -313,6 +319,22 @@ final class WindowManager {
         applyWindowShape(to: window, titleBarVisible: titleBarVisible)
         installKeyboardMonitor(for: viewModel)
 
+        if viewModel.image == nil {
+            initialImageObserver = viewModel.$image.compactMap { $0 }.first()
+                .sink { [weak self, weak window] image in
+                    DispatchQueue.main.async { [weak self, weak window] in
+                        guard let self, let window, self.currentWindow === window,
+                              window.frame == initialWindowFrame,
+                              !WindowFramePreference.isFixedEnabled(),
+                              !window.styleMask.contains(.fullScreen) else { return }
+                        let frame = self.initialWindowContentFrame(for: image, styleMask: window.styleMask)
+                        let sized = self.initialWindowFrame(contentFrame: frame, styleMask: window.styleMask)
+                        window.setFrame(sized, display: true)
+                        window.fallbackFrameForTemporaryDesktopFullScreen = sized
+                    }
+                }
+        }
+
         let delegate = WindowDelegate(
             onFrameChanged: { [weak self, weak window] in
                 guard let self, let window else { return }
@@ -323,6 +345,7 @@ final class WindowManager {
                 if let self, let window {
                     self.saveWindowFrame(window)
                 }
+                self?.initialImageObserver = nil
                 self?.titleObserver = nil
                 self?.appearanceObserver = nil
                 if let monitor = self?.keyEventMonitor {

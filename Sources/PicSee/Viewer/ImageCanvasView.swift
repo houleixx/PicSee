@@ -41,8 +41,7 @@ struct ImageCanvasView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> CanvasNSView {
         let view = CanvasNSView()
-        view.imageURL = imageURL
-        view.image = image
+        view.setImage(image, url: imageURL)
         view.titleBarVisible = titleBarVisible
         view.fileInfoVisible = fileInfoVisible
         view.toolbarVisible = toolbarVisible
@@ -75,8 +74,7 @@ struct ImageCanvasView: NSViewRepresentable {
     func updateNSView(_ nsView: CanvasNSView, context: Context) {
         nsView.navigationDirection = navigationDirection
         let imageChanged = nsView.image !== image
-        nsView.imageURL = imageURL
-        nsView.image = image
+        nsView.setImage(image, url: imageURL)
         nsView.updateTransform(zoom: zoomScale, pan: panOffset, rotation: rotationDegrees,
                                animationID: transformAnimationID, imageChanged: imageChanged)
         nsView.onPrevious = onPrevious
@@ -111,25 +109,6 @@ struct ImageCanvasView: NSViewRepresentable {
         }
         nsView.needsDisplay = true
     }
-}
-
-private struct RecognizedTextFragment {
-    let text: String
-    let boundingBox: CGRect
-    let lineIndex: Int
-    let fragmentIndex: Int
-}
-
-private struct RecognizedTextLine {
-    let text: String
-    let boundingBox: CGRect
-    let fragments: [RecognizedTextFragment]
-}
-
-private struct RecognizedObservationLine {
-    let text: String
-    let boundingBox: CGRect
-    let candidate: VNRecognizedText
 }
 
 private struct FragmentLocation: Comparable, Hashable {
@@ -588,7 +567,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     // Live Text path
     private let liveTextOverlay = ImageAnalysisOverlayView()
-    private let analyzer = ImageAnalyzer()
+    private let textRecognizer = ImageTextRecognizer()
+    private var isUpdatingImage = false
 
     // Vision path
     private let selectionOverlayView = SelectionOverlayView(frame: .zero)
@@ -623,7 +603,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             imageView.image = image
             if imageChanged {
                 transparencyBackground.isHidden = image.map { !TransparencyBackground.needsCheckerboard(for: $0) } ?? true
-                analyzeImageIfPossible()
+                if !isUpdatingImage { analyzeImageIfPossible() }
             }
             needsLayout = true
             needsDisplay = true
@@ -635,9 +615,18 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             guard oldValue != imageURL else { return }
             cancelImageDragCandidate()
             if image != nil {
-                analyzeImageIfPossible()
+                if !isUpdatingImage { analyzeImageIfPossible() }
             }
         }
+    }
+
+    func setImage(_ newImage: NSImage, url: URL) {
+        let changed = image !== newImage || imageURL != url
+        isUpdatingImage = true
+        imageURL = url
+        image = newImage
+        isUpdatingImage = false
+        if changed { analyzeImageIfPossible() }
     }
 
     var zoomScale: CGFloat = 1 {
@@ -704,8 +693,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private var dragStartOffset: CGSize = .zero
     private var lastReportedDisplayScale: CGFloat = -1
     private var trackingArea: NSTrackingArea?
-    private var analysisTask: Task<Void, Never>?
-    private var analysisToken = 0
     private var pendingRotationAnimation: (from: Int, to: Int)?
     private var handledZoomRequestID: Int?
     private var minimapEnabled: Bool
@@ -793,7 +780,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     deinit {
-        analysisTask?.cancel()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
@@ -1622,140 +1608,13 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func analyzeImageIfPossible() {
-        analysisTask?.cancel()
-        analysisToken &+= 1
-        let token = analysisToken
-
-        switch backend {
-        case .liveText:
-            liveTextOverlay.analysis = nil
-            scheduleLiveTextControlReposition()
-            analyzeWithLiveText(token: token)
-        case .vision:
-            recognizedLines = []
-            analyzeWithVision(token: token)
-        }
-    }
-
-    private func analyzeWithLiveText(token: Int) {
-        guard
-            ImageAnalyzer.isSupported,
-            let image,
-            let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else { return }
-
-        let orientation = exifOrientation(for: imageURL)
-        let configuration = ImageAnalyzer.Configuration([.text, .machineReadableCode, .visualLookUp])
-
-        analysisTask = Task { [weak self, analyzer] in
-            do {
-                let analysis = try await analyzer.analyze(cgImage, orientation: orientation, configuration: configuration)
-                await MainActor.run { [weak self] in
-                    guard let self, !Task.isCancelled, token == self.analysisToken else { return }
-                    self.liveTextOverlay.analysis = analysis
-                    self.scheduleLiveTextControlReposition()
-                }
-            } catch {
-                await MainActor.run { [weak self] in
-                    guard let self, token == self.analysisToken else { return }
-                    self.liveTextOverlay.analysis = nil
-                    self.scheduleLiveTextControlReposition()
-                }
-            }
-        }
-    }
-
-    private func analyzeWithVision(token: Int) {
-        guard
-            let image,
-            let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else { return }
-
-        let orientation = exifOrientation(for: imageURL)
-        analysisTask = Task.detached(priority: .userInitiated) { [weak self] in
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            request.recognitionLanguages = ["zh-Hans", "en-US"]
-
-            let handler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation, options: [:])
-
-            do {
-                try handler.perform([request])
-                let observations = request.results ?? []
-                let sortedObservations = observations.compactMap { observation -> RecognizedObservationLine? in
-                    guard let candidate = observation.topCandidates(1).first else { return nil }
-                    let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { return nil }
-                    return RecognizedObservationLine(text: text, boundingBox: observation.boundingBox, candidate: candidate)
-                }
-                .sorted(by: Self.sortObservationLines)
-
-                let lines = sortedObservations.enumerated().map { lineOffset, line in
-                    RecognizedTextLine(
-                        text: line.text,
-                        boundingBox: line.boundingBox,
-                        fragments: Self.makeFragments(from: line.candidate, text: line.text, lineIndex: lineOffset)
-                    )
-                }
-
-                await MainActor.run { [weak self] in
-                    guard let self, !Task.isCancelled, token == self.analysisToken else { return }
-                    self.recognizedLines = lines
-                }
-            } catch {
-                await MainActor.run { [weak self] in
-                    guard let self, token == self.analysisToken else { return }
-                    self.recognizedLines = []
-                }
-            }
-        }
-    }
-
-    nonisolated private static func sortObservationLines(_ lhs: RecognizedObservationLine, _ rhs: RecognizedObservationLine) -> Bool {
-        let leftY = lhs.boundingBox.midY
-        let rightY = rhs.boundingBox.midY
-        if abs(leftY - rightY) > 0.01 {
-            return leftY > rightY
-        }
-        return lhs.boundingBox.minX < rhs.boundingBox.minX
-    }
-
-    nonisolated private static func makeFragments(
-        from candidate: VNRecognizedText,
-        text: String,
-        lineIndex: Int
-    ) -> [RecognizedTextFragment] {
-        var fragments: [RecognizedTextFragment] = []
-        var fragmentIndex = 0
-        var index = text.startIndex
-
-        while index < text.endIndex {
-            let nextIndex = text.index(after: index)
-            let range = index ..< nextIndex
-
-            if let observation = try? candidate.boundingBox(for: range) {
-                let rect = observation.boundingBox
-                guard !rect.isEmpty else {
-                    fragmentIndex += 1
-                    index = nextIndex
-                    continue
-                }
-                fragments.append(
-                    RecognizedTextFragment(
-                        text: String(text[range]),
-                        boundingBox: rect,
-                        lineIndex: lineIndex,
-                        fragmentIndex: fragmentIndex
-                    )
-                )
-            }
-
-            fragmentIndex += 1
-            index = nextIndex
-        }
-
-        return fragments
+        resetTextSelectionState()
+        scheduleLiveTextControlReposition()
+        textRecognizer.schedule(image: image, url: imageURL, backend: backend,
+            liveText: { [weak self] analysis in
+                self?.liveTextOverlay.analysis = analysis
+                self?.scheduleLiveTextControlReposition()
+            }, vision: { [weak self] lines in self?.recognizedLines = lines })
     }
 
     private func currentGeometry() -> ImageDisplayGeometry {
@@ -2371,18 +2230,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         return .arrow
     }
 
-    private func exifOrientation(for url: URL?) -> CGImagePropertyOrientation {
-        guard
-            let url,
-            let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-            let rawValue = properties[kCGImagePropertyOrientation] as? UInt32,
-            let orientation = CGImagePropertyOrientation(rawValue: rawValue)
-        else {
-            return .up
-        }
-        return orientation
-    }
+
 }
 
 extension CanvasNSView: ImageAnalysisOverlayViewDelegate {

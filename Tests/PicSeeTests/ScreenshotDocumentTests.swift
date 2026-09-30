@@ -21,6 +21,19 @@ final class ScreenshotDocumentTests: XCTestCase {
     }
 
     @MainActor
+    func testMosaicIsNotPreparedUntilAMosaicAnnotationIsDrawn() throws {
+        let document = try self.document()
+        XCTAssertFalse(document.hasPreparedMosaic)
+        document.selectAll()
+        _ = try document.renderedImage()
+        XCTAssertFalse(document.hasPreparedMosaic)
+        document.state.annotations.append(document.makeAnnotation(tool: .mosaic,
+            points: [CGPoint(x: 10, y: 10)], displayScale: 1))
+        _ = try document.renderedImage()
+        XCTAssertTrue(document.hasPreparedMosaic)
+    }
+
+    @MainActor
     func testCropUsesSourcePixelsAndBottomLeftCoordinates() throws {
         let document = try document()
         XCTAssertEqual(document.pixelSize, CGSize(width: 80, height: 40))
@@ -678,7 +691,7 @@ final class ScreenshotDocumentTests: XCTestCase {
         image.addRepresentation(bitmap)
         let document = try ScreenshotDocument(image: image, rotationDegrees: 0)
         document.selectAll()
-        let original = try XCTUnwrap(document.image.representations.first as? NSBitmapImageRep)
+        let original = NSBitmapImageRep(cgImage: try XCTUnwrap(document.image.cgImage(forProposedRect: nil, context: nil, hints: nil)))
         func difference(_ rendered: NSBitmapImageRep, _ x: Int, _ y: Int) throws -> CGFloat {
             let before = try XCTUnwrap(original.colorAt(x: x, y: 39 - y)?.usingColorSpace(.deviceRGB))
             let after = try XCTUnwrap(rendered.colorAt(x: x, y: 39 - y)?.usingColorSpace(.deviceRGB))

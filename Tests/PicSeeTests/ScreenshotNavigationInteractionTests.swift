@@ -18,7 +18,7 @@ final class ScreenshotNavigationInteractionTests: XCTestCase {
         }
         for repeatCount in [0, 1, 3] {
             for delay in [0.0, 0.01, 0.05, 0.18, 0.3] {
-                let model = ImageViewerViewModel(imageURL: urls[0], finderOrderProvider: ScreenshotTestOrder(urls: urls))
+                let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: urls[0], finderOrderProvider: ScreenshotTestOrder(urls: urls))
                 let host = NSHostingView(rootView: ImageViewerView(viewModel: model, updateChecker: nil,
                     onTitleBarVisibilityChanged: { _ in }, onFixedWindowChanged: { _ in }, onRequestDeletion: {}))
                 let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 800, height: 600),

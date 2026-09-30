@@ -50,7 +50,7 @@ struct SingleWindowTests {
     @Test func replacementResetsSessionAndNavigatesNewFolder() async throws {
         let fixture = try Images()
         defer { fixture.remove() }
-        let model = ImageViewerViewModel(imageURL: fixture.a)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: fixture.a)
         model.zoomScale = 4
         model.panOffset = CGSize(width: 80, height: 20)
         model.rotateLeft()
@@ -77,7 +77,7 @@ struct SingleWindowTests {
     @Test func sameImagePreservesTransformsAndFailedOpenPreservesSession() async throws {
         let fixture = try Images()
         defer { fixture.remove() }
-        let model = ImageViewerViewModel(imageURL: fixture.b)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: fixture.b)
         try await ready(model)
         model.zoomScale = 3
         model.panOffset = CGSize(width: 8, height: 12)
@@ -101,7 +101,7 @@ struct SingleWindowTests {
     @Test func sameFolderRefreshesNewFilesAndStopsPlayback() async throws {
         let fixture = try Images()
         defer { fixture.remove() }
-        let model = ImageViewerViewModel(imageURL: fixture.b)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: fixture.b)
         try await ready(model)
         let added = fixture.c.deletingLastPathComponent().appendingPathComponent("03.png")
         try FileManager.default.copyItem(at: fixture.c, to: added)
@@ -116,7 +116,7 @@ struct SingleWindowTests {
     @Test func lateOldFolderOrderCannotOverrideNewSession() async throws {
         let fixture = try Images()
         defer { fixture.remove() }
-        let model = ImageViewerViewModel(imageURL: fixture.a, finderOrderProvider: DelayedOrder())
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: fixture.a, finderOrderProvider: DelayedOrder())
         model.navigateToNext() // queued in the old session
         #expect(model.openImage(fixture.b))
         try await Task.sleep(for: .milliseconds(250))
@@ -128,7 +128,7 @@ struct SingleWindowTests {
         _ = NSApplication.shared
         let fixture = try Images()
         defer { fixture.remove() }
-        let manager = WindowManager(finderOrderProvider: FilenameFolderOrderProvider())
+        let manager = WindowManager(finderOrderProvider: FilenameFolderOrderProvider(), loadingMode: .immediate)
         manager.openInExistingViewer(for: fixture.a)
         let window = try #require(manager.currentWindow)
         defer { window.close() }

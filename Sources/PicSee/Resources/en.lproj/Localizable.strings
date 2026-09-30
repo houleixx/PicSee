@@ -247,3 +247,9 @@
 "导出图片" = "Export Image";
 
 "显示选项" = "Display Options";
+"更新下载不完整或服务器响应无效，请重试。" = "The update download is incomplete or the server response is invalid. Please retry.";
+"更新应用未通过身份或签名验证，请从发布页面手动安装。" = "The update failed identity or signature verification. Please install it manually from the releases page.";
+"更新安装失败，原版本已保留。\n%1$@" = "Update installation failed. The previous version has been retained.\n%1$@";
+"更新安装失败，原版本已保留。" = "Update installation failed. The previous version has been retained.";
+"可重试更新，或从发布页面手动安装。安装日志：%1$@" = "Retry the update or install it manually from the releases page. Installation log: %1$@";
+"输出尺寸超过当前内存预算，请减小选区或输出尺寸。" = "The output exceeds the current memory budget. Reduce the selection or output dimensions.";

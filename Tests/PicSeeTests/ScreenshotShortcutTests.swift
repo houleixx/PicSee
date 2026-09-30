@@ -24,7 +24,7 @@ struct ScreenshotShortcutTests {
         }
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/ocr-test.png")
-        let model = ImageViewerViewModel(imageURL: url)
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url)
         let host = NSHostingView(rootView: ImageViewerView(viewModel: model, updateChecker: nil,
             onTitleBarVisibilityChanged: { _ in }, onFixedWindowChanged: { _ in }, onRequestDeletion: {}))
         let window = ViewerWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),

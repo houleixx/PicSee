@@ -13,7 +13,17 @@ struct ImageZoomRequest: Equatable {
 final class ImageViewerViewModel: ObservableObject {
     @Published private(set) var sessionID = UUID()
     @Published private(set) var currentURL: URL
+    @Published private(set) var isImageLoading = false
     @Published private(set) var image: NSImage?
+    private var loadedMetadata: ImageParameterMetadata?
+    private var loadedByteCount: Int64?
+    private var loadedPixelSize: CGSize?
+    private let loadingMode: ImageLoadingMode
+    private let readImage: @Sendable (URL) async -> LoadedImage?
+    private var imageLoadTask: Task<Void, Never>?
+    private var imageLoadRevision = 0
+    private var requestedURL: URL?
+
     @Published private var imageOpenFailed = false
     var errorMessage: String? { imageOpenFailed ? L10n.text("PicSee 无法打开此图片。") : nil }
     @Published private(set) var isFolderEmpty = false
@@ -53,20 +63,32 @@ final class ImageViewerViewModel: ObservableObject {
     private var nextZoomRequestID = 0
 
     init(
+        loadingMode: ImageLoadingMode = .background,
         imageURL: URL,
         finderOrderProvider: any FinderFolderOrderProviding = FilenameFolderOrderProvider(),
         fileManager: FileManager = .default,
         imageTrash: any ImageTrashing = ImageTrash(),
-        slideshow: SlideshowController = SlideshowController()
+        slideshow: SlideshowController = SlideshowController(),
+        readImage: @escaping @Sendable (URL) async -> LoadedImage? = ImageLoadWorker.load
     ) {
+        self.loadingMode = loadingMode
+        self.readImage = readImage
         self.slideshow = slideshow
         self.finderOrderProvider = finderOrderProvider
         self.currentURL = imageURL.standardizedFileURL
         self.fileManager = fileManager
         self.imageTrash = imageTrash
         self.isNavigationOrderReady = finderOrderProvider.isOrderingAvailableImmediately
-        establishNavigator(for: imageURL, preferredOrder: nil)
-        _ = load(imageURL: imageURL)
+        if loadingMode == .immediate {
+            establishNavigator(for: imageURL, preferredOrder: nil)
+            _ = load(imageURL: imageURL)
+        } else {
+            isNavigationOrderReady = false
+            requestImage(imageURL) { model, loaded in
+                _ = model.applyLoad(imageURL: imageURL, loaded: loaded)
+                if model.isNavigationOrderReady { model.applyPendingNavigation() }
+            }
+        }
 
         slideshow.onAdvance = { [weak self] in
             guard let self else { return false }
@@ -78,6 +100,11 @@ final class ImageViewerViewModel: ObservableObject {
         startImageOrder(waitForResult: false)
     }
 
+    deinit {
+        finderOrderTask?.cancel()
+        imageLoadTask?.cancel()
+    }
+
     private func startImageOrder(waitForResult: Bool) {
         slideshow.setReady(false)
         finderOrderTask?.cancel()
@@ -87,16 +114,28 @@ final class ImageViewerViewModel: ObservableObject {
         let initialRevision = navigationRevision
         let folderURL = initialURL.deletingLastPathComponent()
         let provider = finderOrderProvider
-        isNavigationOrderReady = !waitForResult && provider.isOrderingAvailableImmediately
+        isNavigationOrderReady = loadingMode == .immediate && !waitForResult && provider.isOrderingAvailableImmediately
+        let mode = loadingMode
+        let files = fileManager
         finderOrderTask = Task { [weak self] in
             let result = await provider.ordering(for: folderURL)
+            guard !Task.isCancelled else { return }
+            let snapshot: [URL]?
+            if mode == .background {
+                let preferredOrder = result.urls
+                snapshot = await Task.detached(priority: .userInitiated) {
+                    try? FolderImageNavigator(currentImageURL: initialURL, fileManager: FileManager(), preferredOrder: preferredOrder).images
+                }.value
+            } else { snapshot = nil }
             guard !Task.isCancelled, let self,
                   self.navigationRevision == initialRevision,
                   self.currentURL == initialURL else { return }
-            self.establishNavigator(for: initialURL, preferredOrder: result.urls)
+            if let snapshot {
+                self.navigator = FolderImageNavigator(currentImageURL: initialURL, snapshot: snapshot, fileManager: files)
+            } else { self.establishNavigator(for: initialURL, preferredOrder: result.urls) }
             self.isNavigationOrderReady = true
-            self.applyPendingNavigation()
-            self.slideshow.setReady(true)
+            if !self.isImageLoading { self.applyPendingNavigation() }
+            self.slideshow.setReady(!self.isImageLoading)
         }
     }
 
@@ -110,12 +149,12 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     var imagePixelSizeText: String? {
-        guard let image, let pixelSize = image.pixelSize else { return nil }
-        return "\(pixelSize.width) × \(pixelSize.height) px"
+        guard image != nil, let size = loadedPixelSize else { return nil }
+        return "\(Int(size.width)) × \(Int(size.height)) px"
     }
 
     var fileSizeText: String? {
-        guard let byteCount = currentURL.fileByteCount else { return nil }
+        guard let byteCount = loadedByteCount else { return nil }
         return ByteCountFormatStyle(style: .file, spellsOutZero: false, locale: L10n.locale).format(byteCount)
     }
 
@@ -126,7 +165,7 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     var imageParametersText: String? {
-        ImageParameterMetadata(url: currentURL)?.displayText
+        loadedMetadata?.displayText
     }
 
     var titleBarText: String {
@@ -147,10 +186,10 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     var canTrashCurrentImage: Bool {
-        image != nil && isNavigationOrderReady && !isScreenshotEditing && !isFolderEmpty
+        image != nil && isNavigationOrderReady && !isImageLoading && !isScreenshotEditing && !isFolderEmpty
     }
 
-    var canUndoDeletion: Bool { !deletions.isEmpty && !isScreenshotEditing }
+    var canUndoDeletion: Bool { !deletions.isEmpty && !isScreenshotEditing && !isImageLoading }
 
     func trashCurrentImage() {
         guard canTrashCurrentImage else { return }
@@ -169,35 +208,83 @@ final class ImageViewerViewModel: ObservableObject {
             deletionNoticeID = UUID()
             fileOperationError = nil
 
-            // Continue forward in the existing Finder order, then work backwards.
-            // Include files added since the navigation snapshot was taken.
-            let folderContents = (try? fileManager.contentsOfDirectory(
-                at: originalURL.deletingLastPathComponent(),
-                includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]
-            )) ?? []
-            let addedImages = folderContents.map(\.standardizedFileURL).filter {
-                !order.contains($0) && FolderImageNavigator.isSupportedImage($0)
-                    && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
-            }.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-            let candidates = Array(order.dropFirst(index + 1)) + Array(order.prefix(index).reversed()) + addedImages
-            for candidate in candidates where fileManager.fileExists(atPath: candidate.path) {
-                if load(imageURL: candidate) {
-                    establishNavigator(for: candidate, preferredOrder: order + addedImages)
-                    return
-                }
-            }
-            slideshow.stop()
-            navigator = nil
-            currentURL = originalURL
-            isFolderEmpty = true
-            image = nil
-            imageOpenFailed = false
-            resetViewTransform()
-            rotationDegrees = 0
-            zoomRequest = nil
+            continueAfterDeletion(originalURL: originalURL, order: order, index: index)
         } catch {
             fileOperationMessage = { L10n.text("无法将“%1$@”移到废纸篓。\n%2$@", String(describing: originalURL.lastPathComponent), String(describing: L10n.errorDescription(error))) }
         }
+    }
+
+    private func continueAfterDeletion(originalURL: URL, order: [URL], index: Int) {
+        let folder = originalURL.deletingLastPathComponent()
+        let files = fileManager
+        let readAdded: @Sendable (FileManager) -> [URL] = { files in
+            let existing = Set(order)
+            let contents = (try? files.contentsOfDirectory(at: folder,
+                includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])) ?? []
+            return contents.map(\.standardizedFileURL).filter {
+                !existing.contains($0) && FolderImageNavigator.isSupportedImage($0)
+                && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            }.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        }
+        if loadingMode == .immediate {
+            completeDeletion(originalURL: originalURL, order: order, index: index, added: readAdded(files))
+        } else {
+            imageLoadRevision += 1
+            let revision = imageLoadRevision
+            imageLoadTask?.cancel()
+            isImageLoading = true
+            imageLoadTask = Task { [weak self] in
+                let added = await Task.detached(priority: .userInitiated) { readAdded(FileManager()) }.value
+                guard !Task.isCancelled, let self, self.imageLoadRevision == revision else { return }
+                self.isImageLoading = false
+                self.completeDeletion(originalURL: originalURL, order: order, index: index, added: added)
+            }
+        }
+    }
+
+    private func completeDeletion(originalURL: URL, order: [URL], index: Int, added: [URL]) {
+        let candidates = Array(order.dropFirst(index + 1)) + Array(order.prefix(index).reversed()) + added
+        if loadingMode == .background {
+            loadAfterDeletion(candidates, order: order + added, originalURL: originalURL)
+            return
+        }
+        for candidate in candidates where fileManager.fileExists(atPath: candidate.path) {
+            if load(imageURL: candidate) {
+                establishNavigator(for: candidate, preferredOrder: order + added)
+                return
+            }
+        }
+        showEmptyFolder(originalURL: originalURL)
+    }
+
+    private func loadAfterDeletion(_ candidates: [URL], order: [URL], originalURL: URL) {
+        guard let candidate = candidates.first else {
+            showEmptyFolder(originalURL: originalURL)
+            return
+        }
+        requestImage(candidate) { model, loaded in
+            if model.applyLoad(imageURL: candidate, loaded: loaded, preservesCurrentImageOnFailure: true) {
+                model.navigator = FolderImageNavigator(currentImageURL: candidate,
+                    snapshot: order.filter { $0 != originalURL }, fileManager: model.fileManager)
+            } else {
+                model.loadAfterDeletion(Array(candidates.dropFirst()), order: order, originalURL: originalURL)
+            }
+        }
+    }
+
+    private func showEmptyFolder(originalURL: URL) {
+        slideshow.stop()
+        navigator = nil
+        currentURL = originalURL
+        isFolderEmpty = true
+        loadedMetadata = nil
+        loadedByteCount = nil
+        loadedPixelSize = nil
+        image = nil
+        imageOpenFailed = false
+        resetViewTransform()
+        rotationDegrees = 0
+        zoomRequest = nil
     }
 
     func undoDeletion() {
@@ -210,8 +297,15 @@ final class ImageViewerViewModel: ObservableObject {
             finderOrderTask?.cancel()
             pendingNavigationDirections.removeAll()
             isNavigationOrderReady = true
-            establishNavigator(for: deletion.originalURL, preferredOrder: deletion.order)
-            _ = load(imageURL: deletion.originalURL)
+            if loadingMode == .immediate {
+                establishNavigator(for: deletion.originalURL, preferredOrder: deletion.order)
+                _ = load(imageURL: deletion.originalURL)
+            } else {
+                navigator = FolderImageNavigator(currentImageURL: deletion.originalURL, snapshot: deletion.order, fileManager: fileManager)
+                requestImage(deletion.originalURL) { model, loaded in
+                    _ = model.applyLoad(imageURL: deletion.originalURL, loaded: loaded)
+                }
+            }
             deletionNoticeID = nil
             fileOperationError = nil
         } catch {
@@ -240,6 +334,10 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func navigate(to url: URL) {
+        if loadingMode == .background {
+            requestExternalImage(url, startsNewSession: false)
+            return
+        }
         slideshow.stop()
         let standardizedURL = url.standardizedFileURL
         let changedFolder = standardizedURL.deletingLastPathComponent() != currentURL.deletingLastPathComponent()
@@ -254,6 +352,11 @@ final class ImageViewerViewModel: ObservableObject {
     /// External opens start a fresh browsing session; failed loads leave it intact.
     @discardableResult
     func openImage(_ url: URL) -> Bool {
+        if loadingMode == .background {
+            // Accepted asynchronously. Session state changes only after a valid load.
+            requestExternalImage(url, startsNewSession: true)
+            return true
+        }
         let url = url.standardizedFileURL
         if url == currentURL, image != nil, !isFolderEmpty { return true }
         guard load(imageURL: url, preservesCurrentImageOnFailure: true) else {
@@ -336,6 +439,10 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     private func navigateUsingSnapshot(direction: NavigationDirection) {
+        if loadingMode == .background {
+            requestNavigation(direction: direction, wrapping: true, skipsInvalid: slideshow.isActive)
+            return
+        }
         if slideshow.isActive {
             if !advanceSlideshow(forward: direction == .next, wrapping: true) { slideshow.stop() }
             return
@@ -359,13 +466,16 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func startSlideshow() {
-        guard image != nil, !isFolderEmpty, !isScreenshotEditing else { return }
+        guard image != nil, !isFolderEmpty, !isScreenshotEditing, !isImageLoading else { return }
         resetViewTransform()
         slideshow.start(ready: isNavigationOrderReady)
     }
 
     /// A bounded snapshot avoids wrapping forever when every remaining file is bad.
     private func advanceSlideshow(forward: Bool, wrapping: Bool) -> Bool {
+        if loadingMode == .background {
+            return requestNavigation(direction: forward ? .next : .previous, wrapping: wrapping, skipsInvalid: true)
+        }
         guard isNavigationOrderReady, !isScreenshotEditing, let navigator else { return false }
         let images = navigator.images
         guard let index = images.firstIndex(of: currentURL) else { return false }
@@ -392,8 +502,20 @@ final class ImageViewerViewModel: ObservableObject {
         preservesCurrentImageOnFailure: Bool = false,
         direction: Int? = nil
     ) -> Bool {
+        applyLoad(imageURL: imageURL, loaded: LoadedImage.read(imageURL),
+                  preservesCurrentImageWhenMissing: preservesCurrentImageWhenMissing,
+                  preservesCurrentImageOnFailure: preservesCurrentImageOnFailure, direction: direction)
+    }
+
+    @discardableResult
+    private func applyLoad(
+        imageURL: URL, loaded: LoadedImage?,
+        preservesCurrentImageWhenMissing: Bool = false,
+        preservesCurrentImageOnFailure: Bool = false,
+        direction: Int? = nil
+    ) -> Bool {
         let standardizedURL = imageURL.standardizedFileURL
-        guard let loadedImage = NSImage(contentsOf: standardizedURL), loadedImage.isValid else {
+        guard let loaded else {
             if preservesCurrentImageOnFailure { return false }
             if preservesCurrentImageWhenMissing,
                !fileManager.fileExists(atPath: standardizedURL.path) {
@@ -404,6 +526,9 @@ final class ImageViewerViewModel: ObservableObject {
             resetViewTransform()
             rotationDegrees = 0
             zoomRequest = nil
+            loadedMetadata = nil
+            loadedByteCount = nil
+            loadedPixelSize = nil
             image = nil
             imageOpenFailed = true
             navigator?.move(to: standardizedURL)
@@ -416,374 +541,105 @@ final class ImageViewerViewModel: ObservableObject {
         rotationDegrees = 0
         zoomRequest = nil
         navigationDirection = direction
-        image = loadedImage
+        TransparencyBackground.remember(loaded.containsTransparency, for: loaded.image)
+        loadedMetadata = loaded.metadata
+        loadedByteCount = loaded.byteCount
+        loadedPixelSize = loaded.pixelSize
+        image = loaded.image
         imageOpenFailed = false
         navigator?.move(to: standardizedURL)
         return true
+    }
+
+    /// Revision checks apply even when a decoder cannot stop midway through a file.
+    private func requestImage(_ url: URL, completion: @escaping @MainActor (ImageViewerViewModel, LoadedImage?) -> Void) {
+        imageLoadRevision += 1
+        let revision = imageLoadRevision
+        imageLoadTask?.cancel()
+        requestedURL = url.standardizedFileURL
+        isImageLoading = true
+        slideshow.setReady(false)
+        let reader = readImage
+        imageLoadTask = Task { [weak self] in
+            let loaded = await reader(url)
+            guard !Task.isCancelled, let self, self.imageLoadRevision == revision else { return }
+            self.requestedURL = nil
+            self.isImageLoading = false
+            completion(self, loaded)
+            self.slideshow.setReady(self.isNavigationOrderReady && !self.isImageLoading)
+        }
+    }
+
+    private func requestExternalImage(_ url: URL, startsNewSession: Bool) {
+        let url = url.standardizedFileURL
+        if url == currentURL, image != nil, !isFolderEmpty {
+            // Reopening the displayed file supersedes a pending replacement,
+            // while preserving its zoom, editing state and session identity.
+            imageLoadRevision += 1
+            imageLoadTask?.cancel()
+            imageLoadTask = nil
+            requestedURL = nil
+            isImageLoading = false
+            slideshow.setReady(isNavigationOrderReady)
+            return
+        }
+        slideshow.pause()
+        requestImage(url) { model, loaded in
+            guard model.applyLoad(imageURL: url, loaded: loaded, preservesCurrentImageOnFailure: true) else {
+                model.fileOperationMessage = { L10n.text("无法打开“%1$@”，当前图片已保留。", String(describing: url.lastPathComponent)) }
+                return
+            }
+            model.slideshow.stop()
+            if startsNewSession {
+                model.isScreenshotEditing = false
+                model.deletions.removeAll()
+                model.deletionNoticeID = nil
+                model.displayScale = 1
+                model.transformAnimationID = 0
+                model.sessionID = UUID()
+            }
+            model.fileOperationError = nil
+            model.startImageOrder(waitForResult: true)
+        }
+    }
+
+    @discardableResult
+    private func requestNavigation(direction: NavigationDirection, wrapping: Bool, skipsInvalid: Bool) -> Bool {
+        guard isNavigationOrderReady, !isScreenshotEditing, let navigator else { return false }
+        let images = navigator.images
+        guard let index = images.firstIndex(of: requestedURL ?? currentURL) else { return false }
+        let candidates: [URL]
+        if direction == .next {
+            candidates = Array(images.dropFirst(index + 1)) + (wrapping ? Array(images.prefix(index + 1)) : [])
+        } else {
+            candidates = Array(images.prefix(index).reversed()) + (wrapping ? Array(images.dropFirst(index).reversed()) : [])
+        }
+        guard images.count > 1, !candidates.isEmpty else { return false }
+        let eligible = skipsInvalid ? candidates.filter { $0 != currentURL } : candidates
+        guard !eligible.isEmpty else { return false }
+        loadNavigationCandidates(eligible, direction: direction, skipsInvalid: skipsInvalid)
+        return true
+    }
+
+    private func loadNavigationCandidates(_ candidates: [URL], direction: NavigationDirection, skipsInvalid: Bool) {
+        guard let candidate = candidates.first else {
+            if slideshow.isActive { slideshow.stop() }
+            return
+        }
+        requestImage(candidate) { model, loaded in
+            let exists = model.fileManager.fileExists(atPath: candidate.path)
+            if loaded == nil, !exists || skipsInvalid {
+                model.navigator?.removeFromSnapshot(candidate)
+                model.loadNavigationCandidates(Array(candidates.dropFirst()), direction: direction, skipsInvalid: skipsInvalid)
+                return
+            }
+            _ = model.applyLoad(imageURL: candidate, loaded: loaded, direction: direction == .next ? 1 : -1)
+        }
     }
 
     private func requestZoom(multiplier: CGFloat) {
         slideshow.pause()
         nextZoomRequestID += 1
         zoomRequest = ImageZoomRequest(id: nextZoomRequestID, multiplier: multiplier)
-    }
-}
-
-struct ImageParameterMetadata: Equatable {
-    let size: String?
-    let creationTime: String?
-    let colorSpace: String?
-    let resolution: String?
-    let camera: String?
-    let lens: String?
-    let shutterSpeed: String?
-    let aperture: String?
-    let iso: String?
-    let focalLength: String?
-    let exposureCompensation: String?
-    let flash: String?
-
-    init?(url: URL) {
-        guard
-            let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        else {
-            return nil
-        }
-
-        self.init(url: url, properties: properties)
-    }
-
-    init?(url: URL, properties: [CFString: Any]) {
-        let width = Self.pixelDimension(properties[kCGImagePropertyPixelWidth])
-        let height = Self.pixelDimension(properties[kCGImagePropertyPixelHeight])
-        let sizeValue = Self.imageSize(width: width, height: height)
-
-        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
-        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
-
-        let creationTimeValue = Self.creationTime(
-            exifDate: exif?[kCGImagePropertyExifDateTimeOriginal],
-            digitizedDate: exif?[kCGImagePropertyExifDateTimeDigitized],
-            tiffDate: tiff?[kCGImagePropertyTIFFDateTime],
-            fileURL: url
-        )
-        let colorSpaceValue = Self.colorSpace(
-            profileName: properties[kCGImagePropertyProfileName],
-            colorModel: properties[kCGImagePropertyColorModel]
-        )
-        let resolutionValue = Self.resolution(
-            width: Self.doubleValue(properties[kCGImagePropertyDPIWidth]),
-            height: Self.doubleValue(properties[kCGImagePropertyDPIHeight])
-        )
-        let cameraValue = Self.camera(make: tiff?[kCGImagePropertyTIFFMake], model: tiff?[kCGImagePropertyTIFFModel])
-        let lensValue = Self.stringValue(exif?[kCGImagePropertyExifLensModel])
-        let shutterSpeedValue = Self.shutterSpeed(exif?[kCGImagePropertyExifExposureTime])
-        let apertureValue = Self.aperture(exif?[kCGImagePropertyExifFNumber])
-        let isoValue = Self.iso(exif?[kCGImagePropertyExifISOSpeedRatings])
-        let focalLengthValue = Self.focalLength(exif?[kCGImagePropertyExifFocalLength])
-        let exposureCompensationValue = Self.exposureCompensation(exif?[kCGImagePropertyExifExposureBiasValue])
-        let flashValue = Self.flash(exif?[kCGImagePropertyExifFlash])
-
-        guard [
-            creationTimeValue,
-            sizeValue,
-            resolutionValue,
-            colorSpaceValue,
-            cameraValue,
-            lensValue,
-            shutterSpeedValue,
-            apertureValue,
-            isoValue,
-            focalLengthValue,
-            exposureCompensationValue,
-            flashValue
-        ].contains(where: { $0 != nil }) else { return nil }
-
-        size = sizeValue
-        creationTime = creationTimeValue
-        colorSpace = colorSpaceValue
-        resolution = resolutionValue
-        camera = cameraValue
-        lens = lensValue
-        shutterSpeed = shutterSpeedValue
-        aperture = apertureValue
-        iso = isoValue
-        focalLength = focalLengthValue
-        exposureCompensation = exposureCompensationValue
-        flash = flashValue
-    }
-
-    init?(properties: [CFString: Any]) {
-        let width = Self.pixelDimension(properties[kCGImagePropertyPixelWidth])
-        let height = Self.pixelDimension(properties[kCGImagePropertyPixelHeight])
-        let sizeValue = Self.imageSize(width: width, height: height)
-
-        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
-        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
-
-        let creationTimeValue = Self.creationTime(
-            exifDate: exif?[kCGImagePropertyExifDateTimeOriginal],
-            digitizedDate: exif?[kCGImagePropertyExifDateTimeDigitized],
-            tiffDate: tiff?[kCGImagePropertyTIFFDateTime],
-            fileURL: nil
-        )
-        let colorSpaceValue = Self.colorSpace(
-            profileName: properties[kCGImagePropertyProfileName],
-            colorModel: properties[kCGImagePropertyColorModel]
-        )
-        let resolutionValue = Self.resolution(
-            width: Self.doubleValue(properties[kCGImagePropertyDPIWidth]),
-            height: Self.doubleValue(properties[kCGImagePropertyDPIHeight])
-        )
-        let cameraValue = Self.camera(make: tiff?[kCGImagePropertyTIFFMake], model: tiff?[kCGImagePropertyTIFFModel])
-        let lensValue = Self.stringValue(exif?[kCGImagePropertyExifLensModel])
-        let shutterSpeedValue = Self.shutterSpeed(exif?[kCGImagePropertyExifExposureTime])
-        let apertureValue = Self.aperture(exif?[kCGImagePropertyExifFNumber])
-        let isoValue = Self.iso(exif?[kCGImagePropertyExifISOSpeedRatings])
-        let focalLengthValue = Self.focalLength(exif?[kCGImagePropertyExifFocalLength])
-        let exposureCompensationValue = Self.exposureCompensation(exif?[kCGImagePropertyExifExposureBiasValue])
-        let flashValue = Self.flash(exif?[kCGImagePropertyExifFlash])
-
-        guard [
-            creationTimeValue,
-            sizeValue,
-            resolutionValue,
-            colorSpaceValue,
-            cameraValue,
-            lensValue,
-            shutterSpeedValue,
-            apertureValue,
-            isoValue,
-            focalLengthValue,
-            exposureCompensationValue,
-            flashValue
-        ].contains(where: { $0 != nil }) else { return nil }
-
-        size = sizeValue
-        creationTime = creationTimeValue
-        colorSpace = colorSpaceValue
-        resolution = resolutionValue
-        camera = cameraValue
-        lens = lensValue
-        shutterSpeed = shutterSpeedValue
-        aperture = apertureValue
-        iso = isoValue
-        focalLength = focalLengthValue
-        exposureCompensation = exposureCompensationValue
-        flash = flashValue
-    }
-
-    var displayRows: [(label: String, value: String)] {
-        [
-            (L10n.text("创建时间"), creationTime),
-            (L10n.text("尺寸"), size),
-            (L10n.text("分辨率"), resolution),
-            (L10n.text("色彩空间"), colorSpace),
-            (L10n.text("相机"), camera),
-            (L10n.text("镜头"), lens),
-            (L10n.text("快门"), shutterSpeed),
-            (L10n.text("光圈"), aperture),
-            ("ISO", iso),
-            (L10n.text("焦距"), focalLength),
-            (L10n.text("曝光补偿"), exposureCompensation),
-            (L10n.text("闪光灯"), flash)
-        ].compactMap { label, value in
-            guard let value, !value.isEmpty else { return nil }
-            return (label, value)
-        }
-    }
-
-    var displayText: String {
-        return displayRows.map { "\($0.label): \($0.value)" }.joined(separator: "\n")
-    }
-
-    private static func camera(make: Any?, model: Any?) -> String? {
-        let makeText = stringValue(make)
-        let modelText = stringValue(model)
-
-        switch (makeText, modelText) {
-        case let (make?, model?) where model.localizedCaseInsensitiveContains(make):
-            return model
-        case let (make?, model?):
-            return "\(make) \(model)"
-        case let (make?, nil):
-            return make
-        case let (nil, model?):
-            return model
-        case (nil, nil):
-            return nil
-        }
-    }
-
-    private static func stringValue(_ value: Any?) -> String? {
-        guard let value else { return nil }
-        if let string = value as? String {
-            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-        return "\(value)"
-    }
-
-    private static func shutterSpeed(_ value: Any?) -> String? {
-        guard let seconds = doubleValue(value), seconds > 0 else { return nil }
-        if seconds < 1 {
-            let denominator = max(1, Int((1 / seconds).rounded()))
-            return "1/\(denominator) s"
-        }
-        return "\(formatNumber(seconds)) s"
-    }
-
-    private static func aperture(_ value: Any?) -> String? {
-        guard let number = doubleValue(value), number > 0 else { return nil }
-        return "f/\(formatNumber(number))"
-    }
-
-    private static func iso(_ value: Any?) -> String? {
-        if let values = value as? [Any], let first = values.first {
-            return integerString(first)
-        }
-        return integerString(value)
-    }
-
-    private static func focalLength(_ value: Any?) -> String? {
-        guard let number = doubleValue(value), number > 0 else { return nil }
-        return "\(formatNumber(number)) mm"
-    }
-
-    private static func exposureCompensation(_ value: Any?) -> String? {
-        guard let number = doubleValue(value) else { return nil }
-        let formatted = formatNumber(number)
-        return number > 0 ? "+\(formatted) EV" : "\(formatted) EV"
-    }
-
-    private static func flash(_ value: Any?) -> String? {
-        guard let number = doubleValue(value) else { return nil }
-        switch Int(number.rounded()) {
-        case 0:
-            return L10n.text("否")
-        case 1:
-            return L10n.text("闪光")
-        default:
-            return "\(Int(number.rounded()))"
-        }
-    }
-
-    private static func pixelDimension(_ value: Any?) -> Int? {
-        guard let number = doubleValue(value), number > 0 else { return nil }
-        return Int(number.rounded())
-    }
-
-    private static func imageSize(width: Int?, height: Int?) -> String? {
-        guard let width, let height, width > 0, height > 0 else { return nil }
-        return "\(width) × \(height) px"
-    }
-
-    private static func creationTime(exifDate: Any?, digitizedDate: Any?, tiffDate: Any?, fileURL: URL?) -> String? {
-        [exifDate, digitizedDate, tiffDate]
-            .compactMap { $0 }
-            .compactMap(parseExifDate)
-            .first
-            .map(formatDate)
-        ?? fileURL.flatMap(fileCreationDate).map(formatDate)
-    }
-
-    private static func colorSpace(profileName: Any?, colorModel: Any?) -> String? {
-        stringValue(profileName) ?? stringValue(colorModel)
-    }
-
-    private static func resolution(width: Double?, height: Double?) -> String? {
-        guard let width, let height, width > 0, height > 0 else { return nil }
-        return "\(formatNumber(width))×\(formatNumber(height))"
-    }
-
-    private static func parseExifDate(_ value: Any) -> Date? {
-        guard let string = stringValue(value) else { return nil }
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
-        if let date = formatter.date(from: string) {
-            return date
-        }
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        if let date = formatter.date(from: string) {
-            return date
-        }
-        formatter.dateFormat = "yyyy:MM:dd HH:mm"
-        if let date = formatter.date(from: string) {
-            return date
-        }
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.date(from: string)
-    }
-
-    private static func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = L10n.locale
-        formatter.timeZone = .current
-        formatter.dateFormat = L10n.text("yyyy年MM月dd日 HH:mm")
-        return formatter.string(from: date)
-    }
-
-    private static func fileCreationDate(_ url: URL) -> Date? {
-        let keys: Set<URLResourceKey> = [.creationDateKey, .contentModificationDateKey]
-        guard let values = try? url.resourceValues(forKeys: keys) else { return nil }
-        return values.creationDate ?? values.contentModificationDate
-    }
-
-    private static func integerString(_ value: Any?) -> String? {
-        guard let number = doubleValue(value) else { return nil }
-        return "\(Int(number.rounded()))"
-    }
-
-    private static func doubleValue(_ value: Any?) -> Double? {
-        switch value {
-        case let number as NSNumber:
-            return number.doubleValue
-        case let double as Double:
-            return double
-        case let int as Int:
-            return Double(int)
-        case let string as String:
-            return Double(string)
-        default:
-            return nil
-        }
-    }
-
-    private static func formatNumber(_ number: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 1
-        return formatter.string(from: NSNumber(value: number)) ?? "\(number)"
-    }
-}
-
-private extension URL {
-    var fileByteCount: Int64? {
-        guard let value = try? resourceValues(forKeys: [.fileSizeKey]).fileSize else { return nil }
-        return Int64(value)
-    }
-}
-
-private extension NSImage {
-    var pixelSize: (width: Int, height: Int)? {
-        let bitmapRepresentations = representations.compactMap { representation -> (width: Int, height: Int)? in
-            guard representation.pixelsWide > 0, representation.pixelsHigh > 0 else { return nil }
-            return (representation.pixelsWide, representation.pixelsHigh)
-        }
-
-        if let largestRepresentation = bitmapRepresentations.max(by: { lhs, rhs in
-            lhs.width * lhs.height < rhs.width * rhs.height
-        }) {
-            return largestRepresentation
-        }
-
-        guard size.width > 0, size.height > 0 else { return nil }
-        return (Int(size.width.rounded()), Int(size.height.rounded()))
     }
 }

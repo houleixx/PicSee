@@ -15,6 +15,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ImageDragFileProvider().cleanupExpiredFiles()
+        do {
+            let target = Bundle.main.bundleURL
+            let status = target.deletingLastPathComponent().appendingPathComponent(".PicSee-update-status")
+            if (try? String(contentsOf: status, encoding: .utf8)) == "failed\n" {
+                try? FileManager.default.removeItem(at: status)
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.messageText = L10n.text("更新安装失败，原版本已保留。")
+                    alert.informativeText = L10n.text("可重试更新，或从发布页面手动安装。安装日志：%1$@", target.deletingLastPathComponent().appendingPathComponent(".PicSee-update.log").path)
+                    alert.addButton(withTitle: L10n.text("好"))
+                    alert.runModal()
+                }
+            }
+        }
         let info = Bundle.main.infoDictionary ?? [:]
         NSApp.mainMenu = AppMenu.buildMainMenu(appName: AppMenu.applicationName(from: info))
         languageObservation = LanguageSettings.shared.$revision.sink { _ in

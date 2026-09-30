@@ -265,13 +265,25 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(appURL.path, "/Users/holly/Applications/PicSee.app")
     }
 
-    func testInstallerScriptInstallsIntoCurrentAppPath() {
-        let script = UpdateChecker.installerScript()
-
-        XCTAssertTrue(script.contains("hdiutil attach"))
-        XCTAssertTrue(script.contains("ditto \"$SOURCE_APP\" \"$TEMP_APP\""))
-        XCTAssertTrue(script.contains("mv \"$TEMP_APP\" \"$TARGET_APP\""))
-        XCTAssertTrue(script.contains("open \"$TARGET_APP\""))
+    func testDownloadFailureDoesNotExitAndAllowsRetry() async throws {
+        let latest = release("0.2.13")
+        var fail = true
+        var exited = false
+        let checker = UpdateChecker(currentVersion: try XCTUnwrap(AppVersion("0.2.11")), defaults: defaults,
+            fetchLatestRelease: { latest }, downloadAndOpen: { _, _ in
+                if fail { throw UpdateInstaller.Failure.invalidResponse }
+            }, prepareInstall: { exited = true })
+        await checker.checkForUpdates()
+        await checker.downloadAvailableUpdate()
+        XCTAssertEqual(checker.status, .failed)
+        XCTAssertNotNil(checker.downloadError)
+        XCTAssertFalse(exited)
+        XCTAssertEqual(checker.availableUpdate, latest)
+        fail = false
+        await checker.downloadAvailableUpdate()
+        XCTAssertEqual(checker.status, .downloaded)
+        XCTAssertNil(checker.downloadError)
+        XCTAssertTrue(exited)
     }
 
     private func release(_ versionString: String) -> GitHubRelease {

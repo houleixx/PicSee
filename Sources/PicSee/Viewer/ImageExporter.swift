@@ -43,6 +43,7 @@ enum ImageExporterError: LocalizedError {
     case missingCGImage
     case invalidDestination
     case failedToRender
+    case renderTooLarge
     case failedToFinalize
 
     var errorDescription: String? {
@@ -50,6 +51,7 @@ enum ImageExporterError: LocalizedError {
         case .missingCGImage: L10n.text("无法读取图片像素。")
         case .invalidDestination: L10n.text("无法创建导出文件，请检查保存位置。")
         case .failedToRender: L10n.text("无法生成图片，请检查选区和尺寸。")
+        case .renderTooLarge: L10n.text("输出尺寸超过当前内存预算，请减小选区或输出尺寸。")
         case .failedToFinalize: L10n.text("无法完成图片保存。")
         }
     }
@@ -82,9 +84,13 @@ enum ImageExporter {
     }
 
     static func pixelSize(of image: NSImage) -> CGSize? {
+        // CG-backed snapshot representations can report screen-scaled dimensions
+        // (for example 160×80 for an 80×40 CGImage on Retina). Only bitmap
+        // representations carry authoritative stored-pixel dimensions.
         let sizes = image.representations.compactMap { representation -> CGSize? in
-            guard representation.pixelsWide > 0, representation.pixelsHigh > 0 else { return nil }
-            return CGSize(width: representation.pixelsWide, height: representation.pixelsHigh)
+            guard let bitmap = representation as? NSBitmapImageRep,
+                  bitmap.pixelsWide > 0, bitmap.pixelsHigh > 0 else { return nil }
+            return CGSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
         }
 
         if let largest = sizes.max(by: { lhs, rhs in
@@ -93,6 +99,9 @@ enum ImageExporter {
             return largest
         }
 
+        if let source = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            return CGSize(width: source.width, height: source.height)
+        }
         guard image.size.width > 0, image.size.height > 0 else { return nil }
         return CGSize(width: image.size.width.rounded(), height: image.size.height.rounded())
     }
@@ -102,11 +111,8 @@ enum ImageExporter {
         format: ImageExportFormat,
         pixelSize: CGSize?
     ) throws -> CGImage {
-        let targetWidth = Int((pixelSize?.width ?? CGFloat(source.width)).rounded())
-        let targetHeight = Int((pixelSize?.height ?? CGFloat(source.height)).rounded())
-        guard targetWidth > 0, targetHeight > 0 else {
-            throw ImageExporterError.failedToRender
-        }
+        let (targetWidth, targetHeight) = try ImageRenderBudget.dimensions(for: CGSize(
+            width: pixelSize?.width ?? CGFloat(source.width), height: pixelSize?.height ?? CGFloat(source.height)))
 
         if targetWidth == source.width, targetHeight == source.height, case .png = format {
             return source

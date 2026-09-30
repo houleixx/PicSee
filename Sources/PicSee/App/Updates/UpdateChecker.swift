@@ -21,6 +21,9 @@ final class UpdateChecker: ObservableObject {
     @Published private var checkFailed = false
     var checkError: String? { checkFailed ? L10n.text("检查更新失败，请检查网络后重试。") : nil }
 
+    @Published private var downloadFailure: (any Error)?
+    var downloadError: String? { downloadFailure.map(L10n.errorDescription) }
+
     private let currentVersion: AppVersion
     private let defaults: UserDefaults
     private let fetchLatestRelease: () async throws -> GitHubRelease
@@ -129,6 +132,7 @@ final class UpdateChecker: ObservableObject {
         guard let availableUpdate, status != .checking, status != .downloading else { return }
         status = .downloading
         downloadProgress = 0
+        downloadFailure = nil
 
         do {
             try await downloadAndOpen(availableUpdate.dmgURL) { [weak self] progress in
@@ -139,6 +143,7 @@ final class UpdateChecker: ObservableObject {
             status = .downloaded
             prepareInstall()
         } catch {
+            downloadFailure = error
             status = .failed
         }
     }
@@ -149,11 +154,12 @@ final class UpdateChecker: ObservableObject {
         return defaults.string(forKey: Self.ignoredVersionDefaultsKey) != release.version.displayString
     }
 
-    private static func downloadAndOpenDMG(
+    nonisolated private static func downloadAndOpenDMG(
         from sourceURL: URL,
         progress: @MainActor @Sendable @escaping (Double) -> Void
     ) async throws {
         let (bytes, response) = try await URLSession.shared.bytes(from: sourceURL)
+        try UpdateInstaller.validateResponse(response)
         let expectedContentLength = response.expectedContentLength
         let temporaryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -183,7 +189,7 @@ final class UpdateChecker: ObservableObject {
             if expectedContentLength > 0 {
                 let currentProgress = Double(downloadedBytes) / Double(expectedContentLength)
                 if currentProgress - lastReportedProgress >= 0.01 {
-                    progress(currentProgress)
+                    await progress(currentProgress)
                     lastReportedProgress = currentProgress
                 }
             }
@@ -192,13 +198,22 @@ final class UpdateChecker: ObservableObject {
         if !buffer.isEmpty {
             try fileHandle.write(contentsOf: buffer)
         }
-        progress(1)
+        try UpdateInstaller.validateLength(downloaded: downloadedBytes, expected: expectedContentLength)
+        try fileHandle.close()
+        await progress(1)
 
         let destinationURL = try updateDownloadDestination(for: sourceURL)
         let fileManager = FileManager.default
         try? fileManager.removeItem(at: destinationURL)
         try fileManager.moveItem(at: temporaryURL, to: destinationURL)
-        try startInstaller(forDMG: destinationURL, targetAppURL: currentAppBundleURL())
+        let target = currentAppBundleURL()
+        let staging = try await UpdateInstaller.prepare(dmg: destinationURL, target: target)
+        do {
+            try startInstaller(staging: staging, targetAppURL: target)
+        } catch {
+            try? fileManager.removeItem(at: staging)
+            throw error
+        }
     }
 
     static func installTargetDirectory(
@@ -207,7 +222,7 @@ final class UpdateChecker: ObservableObject {
         currentAppBundleURL(forExecutableURL: executableURL).deletingLastPathComponent()
     }
 
-    static func currentAppBundleURL(
+    nonisolated static func currentAppBundleURL(
         forExecutableURL executableURL: URL = Bundle.main.executableURL ?? URL(fileURLWithPath: "/Applications/PicSee.app/Contents/MacOS/PicSee")
     ) -> URL {
         let pathComponents = executableURL.standardizedFileURL.pathComponents
@@ -221,54 +236,39 @@ final class UpdateChecker: ObservableObject {
         return URL(fileURLWithPath: "/" + appComponents.dropFirst().joined(separator: "/"), isDirectory: true)
     }
 
-    static func installerScript() -> String {
-        """
-        #!/bin/zsh
-        set -euo pipefail
+    nonisolated static func installerScript() -> String { UpdateInstaller.script }
 
-        DMG_PATH="$1"
-        TARGET_APP="$2"
-        TARGET_DIR="$(dirname "$TARGET_APP")"
-        MOUNT_DIR="$(mktemp -d /tmp/picsee-update.XXXXXX)"
-        TEMP_APP="$TARGET_DIR/.PicSee.app.updating.$$"
-
-        cleanup() {
-          hdiutil detach "$MOUNT_DIR" -quiet >/dev/null 2>&1 || true
-          rm -rf "$MOUNT_DIR" "$TEMP_APP"
-          rm -f "$0"
-        }
-        trap cleanup EXIT
-
-        sleep 1
-        hdiutil attach "$DMG_PATH" -mountpoint "$MOUNT_DIR" -nobrowse -quiet
-
-        SOURCE_APP="$MOUNT_DIR/PicSee.app"
-        if [ ! -d "$SOURCE_APP" ]; then
-          exit 1
-        fi
-
-        rm -rf "$TEMP_APP"
-        ditto "$SOURCE_APP" "$TEMP_APP"
-        rm -rf "$TARGET_APP"
-        mv "$TEMP_APP" "$TARGET_APP"
-        xattr -dr com.apple.quarantine "$TARGET_APP" >/dev/null 2>&1 || true
-        open "$TARGET_APP"
-        """
-    }
-
-    private static func startInstaller(forDMG dmgURL: URL, targetAppURL: URL) throws {
+    nonisolated private static func startInstaller(staging: URL, targetAppURL: URL) throws {
         let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("picsee-install-\(UUID().uuidString)")
-            .appendingPathExtension("zsh")
+            .appendingPathComponent("picsee-install-\(UUID().uuidString).zsh")
         try installerScript().write(to: scriptURL, atomically: true, encoding: .utf8)
-
+        let directory = staging.deletingLastPathComponent()
+        let statusURL = directory.appendingPathComponent(".PicSee-update-status")
+        let logURL = directory.appendingPathComponent(".PicSee-update.log")
+        let lock = directory.appendingPathComponent(".PicSee-update-lock", isDirectory: true)
+        try FileManager.default.createDirectory(at: lock, withIntermediateDirectories: false)
+        var started = false
+        defer { if !started { try? FileManager.default.removeItem(at: lock) } }
+        try? FileManager.default.removeItem(at: statusURL)
+        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        let log = try FileHandle(forWritingTo: logURL)
+        defer { try? log.close() }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = [scriptURL.path, dmgURL.path, targetAppURL.path]
-        try process.run()
+        process.arguments = [scriptURL.path, staging.path, targetAppURL.path, statusURL.path,
+                             String(ProcessInfo.processInfo.processIdentifier)]
+        process.standardOutput = log
+        process.standardError = log
+        do {
+            try process.run()
+            started = true
+        } catch {
+            try? FileManager.default.removeItem(at: scriptURL)
+            throw error
+        }
     }
 
-    private static func updateDownloadDestination(for sourceURL: URL) throws -> URL {
+    nonisolated private static func updateDownloadDestination(for sourceURL: URL) throws -> URL {
         let cachesURL = try FileManager.default.url(
             for: .cachesDirectory,
             in: .userDomainMask,

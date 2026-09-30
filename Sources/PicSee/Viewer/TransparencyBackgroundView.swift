@@ -17,7 +17,11 @@ enum TransparencyBackground {
         return result
     }
 
-    private static func containsTransparency(_ image: NSImage) -> Bool {
+    static func remember(_ result: Bool, for image: NSImage) {
+        transparencyCache.setObject(NSNumber(value: result), forKey: image)
+    }
+
+    nonisolated static func containsTransparency(_ image: NSImage) -> Bool {
         // If AppKit cannot supply a bitmap, preserve the background for content
         // whose opacity is unknown rather than lose transparent details.
         guard let bitmap = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return true }
@@ -32,7 +36,8 @@ enum TransparencyBackground {
         if let result = transparencyInPixelData(bitmap) { return result }
         // Normalize uncommon formats at source resolution, never a thumbnail
         // (which could miss a tiny transparent region).
-        guard let context = CGContext(
+        guard (try? ImageRenderBudget.dimensions(for: CGSize(width: bitmap.width, height: bitmap.height))) != nil,
+              let context = CGContext(
             data: nil, width: bitmap.width, height: bitmap.height,
             bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
@@ -45,7 +50,7 @@ enum TransparencyBackground {
         }
     }
 
-    private static func transparencyInPixelData(_ bitmap: CGImage) -> Bool? {
+    nonisolated private static func transparencyInPixelData(_ bitmap: CGImage) -> Bool? {
         guard !bitmap.isMask, bitmap.bitsPerComponent == 8 else { return nil }
         let bytesPerPixel: Int
         switch (bitmap.colorSpace?.model, bitmap.bitsPerPixel) {
@@ -67,7 +72,7 @@ enum TransparencyBackground {
         }
     }
 
-    private static func scanAlpha(_ pixels: UnsafePointer<UInt8>, width: Int, height: Int,
+    nonisolated private static func scanAlpha(_ pixels: UnsafePointer<UInt8>, width: Int, height: Int,
                                   bytesPerRow: Int, bytesPerPixel: Int, alphaOffset: Int) -> Bool {
         for row in 0..<height {
             let start = row * bytesPerRow + alphaOffset

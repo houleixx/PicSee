@@ -333,7 +333,7 @@ bash Scripts/test-swift.sh all
 
 `logic` 包括加载状态、导航、编辑模型、更新回滚及文件操作回归；`ui` 包括真实窗口、呈现层、OCR、Core Image、剪贴板、Finder 脚本和跨进程／系统文件类型注册验证，需要正常的 macOS 桌面会话。桌面测试按独立进程运行 Swift Testing 套件，避免不同套件争抢应用焦点。分组定义位于 `Scripts/test-swift.sh`，也可传入 SwiftPM 的过滤和构建选项。
 
-PR 和 master 提交会运行 `.github/workflows/check.yml`，检查逻辑测试、本地化、网站语言和 DMG 脚本。发布工作流必须先通过同一检查，再构建、验证和发布安装包。
+PR 会运行 `.github/workflows/check.yml`，检查逻辑测试、本地化、网站语言和 DMG 脚本；直接推送 master 不触发检查。版本标签触发发布工作流后，必须先通过同一检查，再构建、验证和发布安装包。
 
 ### 应用内更新
 

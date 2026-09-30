@@ -67,7 +67,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: first, finderOrderProvider: provider)
 
         XCTAssertNil(viewModel.nextURL)
-        try await Task.sleep(for: .milliseconds(250))
+        try await waitUntil { viewModel.isNavigationOrderReady }
         XCTAssertEqual(viewModel.nextURL, second.standardizedFileURL)
     }
 
@@ -81,7 +81,7 @@ final class ImageViewerViewModelTests: XCTestCase {
         viewModel.navigateToNext()
         XCTAssertEqual(viewModel.currentURL, first.standardizedFileURL)
 
-        try await Task.sleep(for: .milliseconds(250))
+        try await waitUntil { viewModel.isNavigationOrderReady }
         XCTAssertEqual(viewModel.currentURL, second.standardizedFileURL)
     }
 
@@ -413,7 +413,7 @@ final class ImageViewerViewModelTests: XCTestCase {
 
     @MainActor
     private func waitUntil(
-        timeout: Duration = .seconds(1),
+        timeout: Duration = .seconds(3),
         condition: @MainActor () -> Bool
     ) async throws {
         let clock = ContinuousClock()

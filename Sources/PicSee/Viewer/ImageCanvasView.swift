@@ -904,14 +904,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         guard delta != 0 else { return }
         let step: CGFloat = event.hasPreciseScrollingDeltas ? 0.0018 : 0.018
         let multiplier = exp(abs(delta) * step)
-        applyZoom(multiplier: delta > 0 ? multiplier : 1 / multiplier)
+        applyZoom(multiplier: delta > 0 ? multiplier : 1 / multiplier, anchorPoint: zoomAnchor(for: event))
     }
 
     override func magnify(with event: NSEvent) {
         slideshow?.pause()
         interruptMotion()
         guard event.magnification != 0 else { return }
-        applyZoom(multiplier: 1 + event.magnification)
+        applyZoom(multiplier: 1 + event.magnification, anchorPoint: zoomAnchor(for: event))
     }
 
     func applyToolbarZoom(request: ImageZoomRequest) {
@@ -926,11 +926,18 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         onZoomRequestHandled?(request.id)
     }
 
-    private func applyZoom(multiplier: CGFloat) {
+    private func zoomAnchor(for event: NSEvent) -> CGPoint? {
+        let point = convert(event.locationInWindow, from: nil)
+        guard point.x.isFinite, point.y.isFinite, bounds.contains(point) else { return nil }
+        return CGPoint(x: point.x - bounds.minX, y: point.y - bounds.minY)
+    }
+
+    private func applyZoom(multiplier: CGFloat, anchorPoint: CGPoint? = nil) {
         let geometry = currentGeometry()
         let adjustment = ImageZoomAdjustment.adjustment(
             from: geometry,
-            multiplier: multiplier
+            multiplier: multiplier,
+            anchorPoint: anchorPoint
         )
         zoomScale = adjustment.zoomScale
         panOffset = adjustment.panOffset

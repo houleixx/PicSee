@@ -21,7 +21,7 @@ final class ImageDragFileProvider {
     }
 
     func fileURL(sourceURL: URL?, image: NSImage) throws -> URL {
-        cleanupExpiredFiles()
+        ImageDragCleanupWorker.schedule(root: root)
         let resolved = sourceURL.flatMap { $0.isFileURL ? $0.resolvingSymlinksInPath().standardizedFileURL : nil }
         if let resolved,
            (try? resolved.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,

@@ -20,6 +20,7 @@ final class ImageViewerViewModel: ObservableObject {
     private var loadedPixelSize: CGSize?
     private let loadingMode: ImageLoadingMode
     private let readImage: @Sendable (URL) async -> LoadedImage?
+    private let prefetchCache: ImagePrefetchCache
     private var imageLoadTask: Task<Void, Never>?
     private var imageLoadRevision = 0
     private var requestedURL: URL?
@@ -69,10 +70,12 @@ final class ImageViewerViewModel: ObservableObject {
         fileManager: FileManager = .default,
         imageTrash: any ImageTrashing = ImageTrash(),
         slideshow: SlideshowController = SlideshowController(),
-        readImage: @escaping @Sendable (URL) async -> LoadedImage? = ImageLoadWorker.load
+        readImage: @escaping @Sendable (URL) async -> LoadedImage? = ImageLoadWorker.load,
+        prefetchImage: @escaping @Sendable (URL, Int) async -> LoadedImage? = ImageLoadWorker.prefetch
     ) {
         self.loadingMode = loadingMode
         self.readImage = readImage
+        self.prefetchCache = ImagePrefetchCache(prefetchReader: prefetchImage)
         self.slideshow = slideshow
         self.finderOrderProvider = finderOrderProvider
         self.currentURL = imageURL.standardizedFileURL
@@ -193,6 +196,7 @@ final class ImageViewerViewModel: ObservableObject {
 
     func trashCurrentImage() {
         guard canTrashCurrentImage else { return }
+        prefetchCache.clear()
         slideshow.pause()
         let originalURL = currentURL
         let order = navigator?.images ?? [originalURL]
@@ -289,6 +293,7 @@ final class ImageViewerViewModel: ObservableObject {
 
     func undoDeletion() {
         guard canUndoDeletion, let deletion = deletions.last else { return }
+        prefetchCache.clear()
         slideshow.pause()
         do {
             try imageTrash.restore(deletion.trashedURL, to: deletion.originalURL)
@@ -522,6 +527,9 @@ final class ImageViewerViewModel: ObservableObject {
                 return false
             }
             isFolderEmpty = false
+            if loadingMode == .background {
+                prefetchCache.didDisplay(standardizedURL, image: nil, retainingPrevious: direction != nil && !slideshow.isActive)
+            }
             currentURL = standardizedURL
             resetViewTransform()
             rotationDegrees = 0
@@ -535,6 +543,9 @@ final class ImageViewerViewModel: ObservableObject {
             return false
         }
 
+        if loadingMode == .background {
+            prefetchCache.didDisplay(standardizedURL, image: loaded, retainingPrevious: direction != nil && !slideshow.isActive)
+        }
         isFolderEmpty = false
         currentURL = standardizedURL
         resetViewTransform()
@@ -560,8 +571,9 @@ final class ImageViewerViewModel: ObservableObject {
         isImageLoading = true
         slideshow.setReady(false)
         let reader = readImage
+        let cache = prefetchCache
         imageLoadTask = Task { [weak self] in
-            let loaded = await reader(url)
+            let loaded = await cache.load(url, reader: reader)
             guard !Task.isCancelled, let self, self.imageLoadRevision == revision else { return }
             self.requestedURL = nil
             self.isImageLoading = false
@@ -571,6 +583,7 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     private func requestExternalImage(_ url: URL, startsNewSession: Bool) {
+        prefetchCache.clear()
         let url = url.standardizedFileURL
         if url == currentURL, image != nil, !isFolderEmpty {
             // Reopening the displayed file supersedes a pending replacement,
@@ -633,7 +646,10 @@ final class ImageViewerViewModel: ObservableObject {
                 model.loadNavigationCandidates(Array(candidates.dropFirst()), direction: direction, skipsInvalid: skipsInvalid)
                 return
             }
-            _ = model.applyLoad(imageURL: candidate, loaded: loaded, direction: direction == .next ? 1 : -1)
+            let displayed = model.applyLoad(imageURL: candidate, loaded: loaded, direction: direction == .next ? 1 : -1)
+            if displayed, !model.slideshow.isActive {
+                model.prefetchCache.prefetch(direction == .next ? model.navigator?.nextURL() : model.navigator?.previousURL())
+            }
         }
     }
 

@@ -14,7 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        ImageDragFileProvider().cleanupExpiredFiles()
+        ImageDragCleanupWorker.schedule()
         do {
             let target = Bundle.main.bundleURL
             let status = target.deletingLastPathComponent().appendingPathComponent(".PicSee-update-status")

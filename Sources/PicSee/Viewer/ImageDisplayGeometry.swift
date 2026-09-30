@@ -18,14 +18,16 @@ struct ImageZoomAdjustment {
 
     static func adjustment(
         from geometry: ImageDisplayGeometry,
-        multiplier: CGFloat
+        multiplier: CGFloat,
+        anchorPoint: CGPoint? = nil
     ) -> ImageZoomAdjustment {
         let nextZoom = clampedZoom(currentZoom: geometry.zoomScale, multiplier: multiplier)
         let nextGeometry = ImageDisplayGeometry(
             imageSize: geometry.imageSize,
             viewportSize: geometry.viewportSize,
             zoomScale: nextZoom,
-            panOffset: geometry.panOffset
+            panOffset: geometry.panOffset,
+            rotationDegrees: geometry.rotationDegrees
         )
         let allowsPanAfterZoom = abs(nextGeometry.zoomScale - 1) > 0.001 || nextGeometry.canPan
 
@@ -36,7 +38,8 @@ struct ImageZoomAdjustment {
         return ImageZoomAdjustment(
             zoomScale: nextZoom,
             panOffset: geometry.constrainedPan(
-                preservingViewportCenterWhenZoomingTo: nextZoom,
+                preservingViewportPoint: anchorPoint ?? CGPoint(x: geometry.viewportSize.width / 2, y: geometry.viewportSize.height / 2),
+                whenZoomingTo: nextZoom,
                 allowSlackWhenFitted: true
             )
         )
@@ -186,24 +189,39 @@ struct ImageDisplayGeometry {
         preservingViewportCenterWhenZoomingTo nextZoomScale: CGFloat,
         allowSlackWhenFitted: Bool = false
     ) -> CGSize {
+        constrainedPan(
+            preservingViewportPoint: CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2),
+            whenZoomingTo: nextZoomScale,
+            allowSlackWhenFitted: allowSlackWhenFitted
+        )
+    }
+
+    /// The anchor uses viewport coordinates, in the same orientation as imageRect.
+    /// Uniform scaling preserves the corresponding pixel even on a rotated image.
+    func constrainedPan(
+        preservingViewportPoint anchor: CGPoint,
+        whenZoomingTo nextZoomScale: CGFloat,
+        allowSlackWhenFitted: Bool = false
+    ) -> CGSize {
         guard displayScale > 0 else {
             return panOffset
         }
 
         let viewportCenter = CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
-        let centeredImagePoint = CGPoint(
-            x: (viewportCenter.x - imageRect.minX) / displayScale,
-            y: (viewportCenter.y - imageRect.minY) / displayScale
+        let imagePoint = CGPoint(
+            x: (anchor.x - imageRect.minX) / displayScale,
+            y: (anchor.y - imageRect.minY) / displayScale
         )
         let nextGeometry = ImageDisplayGeometry(
             imageSize: imageSize,
             viewportSize: viewportSize,
             zoomScale: nextZoomScale,
-            panOffset: panOffset
+            panOffset: panOffset,
+            rotationDegrees: rotationDegrees
         )
         let proposed = CGSize(
-            width: nextGeometry.displaySize.width / 2 - centeredImagePoint.x * nextGeometry.displayScale,
-            height: nextGeometry.displaySize.height / 2 - centeredImagePoint.y * nextGeometry.displayScale
+            width: anchor.x - viewportCenter.x + nextGeometry.displaySize.width / 2 - imagePoint.x * nextGeometry.displayScale,
+            height: anchor.y - viewportCenter.y + nextGeometry.displaySize.height / 2 - imagePoint.y * nextGeometry.displayScale
         )
 
         return nextGeometry.constrainedPan(proposed, allowSlackWhenFitted: allowSlackWhenFitted)

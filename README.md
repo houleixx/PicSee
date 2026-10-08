@@ -62,6 +62,8 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 “打开方式”页可选择图片格式后点击“设为默认”；取消勾选只会排除本次设置，不会撤销已有文件关联。“关于”页可查看版本并手动检查更新，检查结果在设置内显示。自动检查可选择每天（默认）、每周、每月或从不，按本地自然日、周一开始的自然周和自然月计算。打开图片窗口或应用回到前台时判断是否到期；手动检查不受频率限制，成功后计入当前周期。自动检查失败后冷却一小时，不会显示“已经是最新版本了”提示。
 
+“关于”页右下角提供固定的“问题反馈”链接，检查更新和滚动内容时位置保持不变。点击后通过官网的 `/feedback` 地址跳转至小红书反馈帖；以后更换反馈帖只需更新网站跳转配置。
+
 设置中的“打开方式”页和文件夹浏览支持 JPEG、PNG、GIF、HEIC、TIFF、BMP、WebP、常见 RAW、AVIF、SVG、ICO/ICNS、JPEG 2000、PSD/PSB、TGA、DDS、EXR/HDR 和 JPEG XL，可按需选择希望交给 PicSee 打开的图片类型。批量设置会跳过已是默认的格式；个别格式失败时继续处理其他格式，并显示具体错误及实际设置结果。专业格式是否能完整解码取决于当前 macOS 的 ImageIO 解码器及文件内嵌预览。
 
 <p align="center">
@@ -130,7 +132,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.69 PICSEE_BUILD_NUMBER=69 Scripts/build-app.sh
+PICSEE_VERSION=0.2.70 PICSEE_BUILD_NUMBER=70 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -147,15 +149,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.69.dmg`
+- DMG: `build/dmg/PicSee-0.2.70.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.69 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.70 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.69.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.70.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -285,14 +287,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.69
-git push origin v0.2.69
+git tag v0.2.70
+git push origin v0.2.70
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.69`
-- Asset: `PicSee-0.2.69.dmg`
+- Release: `v0.2.70`
+- Asset: `PicSee-0.2.70.dmg`
 
 ## Release 说明
 

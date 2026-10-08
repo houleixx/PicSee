@@ -7,7 +7,7 @@
 - 中文首页为 `/`（`index.html`），英文首页为 `/en/`（`en/index.html`）。导航栏通过「中文 / EN」链接切换。根地址 `/`（含 `/index.html`）优先使用 `localStorage` 中的 `picsee-language` 手动选择；没有有效偏好时，按浏览器首选语言判断：`zh` 及其地区变体使用中文，其余使用英文。浏览器通常跟随系统语言，但可单独设置。
 - 直接访问 `/en/` 保持英文，不覆盖用户已保存的偏好；只有手动点击语言选项才保存偏好。自动跳转使用 `location.replace()`，保留查询参数和锚点，避免返回时反复跳转。
 - 语言脚本 `assets/language-*.js` 在页面头部执行，尽早决定语言。存储不可用时，手动切换通过 `?lang=zh-CN` 或 `?lang=en` 保持有效，但无法跨访问记住选择；禁用 JavaScript 时仍可通过普通链接浏览两页。
-- 两页共用 `assets/styles-*.css` 和图片。资源引用使用 `/assets/` 绝对路径，确保英文子目录也能正确加载。
+- 两页共用 `assets/styles-*.css` 和图片。资源使用相对路径：中文页引用 `assets/`，英文页引用 `../assets/`；语言切换使用对应的 `index.html` 相对路径，支持直接打开本地 HTML。SEO 与分享元信息保留正式网站的绝对地址。
 - 修改功能文案时需同步更新两份 HTML，包括图片 alt、辅助功能标签、标题、描述、分享卡片和 JSON-LD。英文页的中文语言选项有意保留中文。
 - 两页使用各自的 canonical，通过相同的 `hreflang` 链接关联 `zh-CN`、`en` 和指向中文首页的 `x-default`；站点地图包含两个首页。共用 404 页面提供中英文返回入口。
 - 修改共用 CSS 或语言脚本后，按文件内容的 SHA-256 前 8 位重命名，并同步更新两页引用，避免长期缓存旧样式。
@@ -27,6 +27,14 @@
 Release workflow 在最终 DMG 验证后复制并校验 `PicSee.dmg`，与带版本号的 DMG 一同上传。发布新版本无需修改网站下载 URL，也不需要 Worker、Pages Function 或 GitHub API 查询。
 首次部署此链接前，Latest Release 需要已包含 `PicSee.dmg`。
 
+## 问题反馈入口
+
+应用「设置 → 关于」页右下角的「问题反馈」链接打开固定地址 `https://picsee.pages.dev/feedback`。
+网站中英文首页底部也提供同一反馈入口，沿用页脚链接样式，并在新标签页打开。
+`_redirects` 将 `/feedback` 和 `/feedback/` 以 302 重定向到小红书反馈帖 `https://xhslink.cn/o/52f4yVk4Fku`，无需 JavaScript。
+更换帖子时修改 `_redirects` 中两条规则的目标地址并重新部署网站，应用无需升级。
+本地 Python 静态服务器不解析 `_redirects`；部署后用 `curl -I https://picsee.pages.dev/feedback` 检查 302 状态和 `Location`。
+
 ## 当前配图
 
 首页采用方案 2「柔和立体」，包含 Banner 和五个功能模块配图。
@@ -34,7 +42,9 @@ Release workflow 在最终 DMG 验证后复制并校验 `PicSee.dmg`，与带版
 资源文件名包含内容哈希，替换图片时应更新文件名和页面引用，以配合长期缓存。
 选定方案的提示词及压缩参数保存在 `../docs/website/image-prompts.json`。
 
-本地预览：`python3 -m http.server 8765 --bind 127.0.0.1 --directory website`，然后打开 `http://127.0.0.1:8765/`。
+可直接双击 `index.html` 或 `en/index.html` 预览，直接打开本地 HTML 时不自动跳转语言，可通过导航手动切换。反馈链接使用官网完整地址，需部署网站后生效。
+
+本地服务器预览：`python3 -m http.server 8765 --bind 127.0.0.1 --directory website`，然后打开 `http://127.0.0.1:8765/`。
 
 ## 搜索与分享
 

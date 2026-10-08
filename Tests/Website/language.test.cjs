@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const website = path.resolve(__dirname, '../../website');
 const scriptPath = fs.readFileSync(path.join(website, 'index.html'), 'utf8')
-  .match(/<script src="\/(assets\/language-[a-f0-9]+\.js)"><\/script>/)[1];
+  .match(/<script src="(assets\/language-[a-f0-9]+\.js)"><\/script>/)[1];
 const script = fs.readFileSync(path.join(website, scriptPath), 'utf8');
 
 function visit({ url = 'https://picsee.pages.dev/', languages = ['en-US'], saved, blocked = false } = {}) {
@@ -71,7 +71,7 @@ test('blocked storage does not break automatic detection or manual switching', (
   assert.equal(visit({ url, blocked: true }).redirect, undefined);
 });
 test('both pages load the same content-hashed script', () => {
-  assert.ok(fs.readFileSync(path.join(website, 'en/index.html'), 'utf8').includes(`src="/${scriptPath}"`));
+  assert.ok(fs.readFileSync(path.join(website, 'en/index.html'), 'utf8').includes(`src="../${scriptPath}"`));
   const hash = require('node:crypto').createHash('sha256').update(script).digest('hex').slice(0, 8);
   assert.ok(scriptPath.includes(hash));
 });

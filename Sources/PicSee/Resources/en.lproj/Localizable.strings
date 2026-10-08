@@ -26,6 +26,8 @@
 "固定窗口大小和位置" = "Remember Window Size and Position";
 "开启时记住当前图片窗口，之后打开图片时沿用" = "Save the current image window’s size and position for future images";
 "下载地址：" = "Download:";
+"问题反馈" = "Send Feedback";
+"前往小红书反馈" = "Share feedback on Xiaohongshu";
 "感谢“大脑袋范同学”提出的优化建议" = "Thanks to “Da Naodai Fan Tongxue” for the improvement suggestions";
 "当前构建缺少版本信息，无法检查更新。" = "This build has no version information and cannot check for updates.";
 "检查更新" = "Check for Updates";

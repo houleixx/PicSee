@@ -310,14 +310,57 @@ private struct DefaultAppsSettingsView: NSViewControllerRepresentable {
 
 private struct AboutSettingsView: View {
     @ObservedObject private var language = LanguageSettings.shared
+    @State private var isFeedbackHovered = false
     let updateChecker: UpdateChecker?
 
     var body: some View {
-        ScrollView {
-            content
-                .frame(maxWidth: .infinity)
-                .padding(.top, 64)
-                .padding(.bottom, 24)
+        VStack(spacing: 0) {
+            ScrollView {
+                content
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 64)
+                    .padding(.bottom, 24)
+            }
+
+            HStack {
+                Spacer()
+                Link(destination: AppMenu.feedbackURL) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "bubble.left")
+                            .font(.system(size: 11, weight: .regular))
+                            .accessibilityHidden(true)
+                        Text(L10n.text("问题反馈"))
+                            .font(.system(size: 12, weight: .regular))
+                            .underline(isFeedbackHovered)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 9, weight: .medium))
+                            .accessibilityHidden(true)
+                    }
+                    .foregroundStyle(Color(nsColor: .linkColor))
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    guard hovering != isFeedbackHovered else { return }
+                    isFeedbackHovered = hovering
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .onDisappear {
+                    if isFeedbackHovered {
+                        isFeedbackHovered = false
+                        NSCursor.pop()
+                    }
+                }
+                .help(L10n.text("前往小红书反馈"))
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
         }
     }
 

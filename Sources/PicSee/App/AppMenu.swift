@@ -73,6 +73,8 @@ enum AppMenu {
         URL(string: "https://picsee.pages.dev/")!
     }
 
+    static let feedbackURL = URL(string: "https://picsee.pages.dev/feedback")!
+
     private static func stringValue(for key: String, in info: [String: Any]) -> String? {
         guard let value = info[key] as? String, !value.isEmpty else { return nil }
         return value

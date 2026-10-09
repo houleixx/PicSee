@@ -56,6 +56,8 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 “显示设置 → 图片浏览 → 图片切换动画”默认开启。关闭后直接显示新图片，并立即清理正在播放或等待播放的过渡；不影响缩放和旋转动画。选择会保存并同步到已打开的看图窗口。开启时，快速连续切换仍直接显示图片，避免动画排队。
 
+“显示设置 → 图片浏览 → 全屏时小图显示方式”可选原始尺寸（100%，默认）、始终适应屏幕或智能放大。智能放大默认最多 2 倍，可选 1.5、2、3、4 倍；仅影响全屏下的小图，大图按比例缩小并完整显示，普通窗口保持原始尺寸上限。显示尺寸与百分比按图片原始像素和屏幕 backing scale 计算，不受文件 DPI 影响；Retina 屏幕上的 100% 表示一个图片像素对应一个屏幕实际像素。自动放大时双击可直接退出全屏；手动缩放或拖动后，第一次双击恢复当前模式默认显示，第二次退出。手动缩放不受智能放大的上限限制。
+
 “显示设置 → 语言”可选择“跟随系统”“简体中文”或“English”，切换立即生效、无需重启，并同步到其他 PicSee 进程。切换保留当前图片、缩放、旋转和截图编辑状态。菜单、应用弹窗、导出选项和工具提示均支持中英文；macOS 自身管理的文件面板导航及权限提示遵循系统语言设置。
 
 右键菜单采用统一的系统图标，图片操作集中在顶部；标题栏、缩略图、文件信息、底部工具栏和图片参数开关收进“显示选项”子菜单。底部提供“设置…”、“检查更新”与“关于…”；“关于…”直接打开设置的关于页。
@@ -134,7 +136,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.72 PICSEE_BUILD_NUMBER=72 Scripts/build-app.sh
+PICSEE_VERSION=0.2.74 PICSEE_BUILD_NUMBER=74 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -151,15 +153,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.72.dmg`
+- DMG: `build/dmg/PicSee-0.2.74.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.72 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.74 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.72.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.74.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -289,14 +291,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.72
-git push origin v0.2.72
+git tag v0.2.74
+git push origin v0.2.74
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.72`
-- Asset: `PicSee-0.2.72.dmg`
+- Release: `v0.2.74`
+- Asset: `PicSee-0.2.74.dmg`
 
 ## Release 说明
 

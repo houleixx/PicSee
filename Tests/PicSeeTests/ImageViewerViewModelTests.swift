@@ -342,7 +342,7 @@ final class ImageViewerViewModelTests: XCTestCase {
 
         XCTAssertTrue(text.contains(L10n.text("创建时间") + ": " + (L10n.languageCode == "en" ? "2016-07-25 15:27" : "2016年07月25日 15:27")))
         XCTAssertTrue(text.contains(L10n.text("像素尺寸") + ": " + "2448 × 3264 px"))
-        XCTAssertTrue(text.contains(L10n.text("分辨率（DPI）") + ": " + "72 × 72"))
+        XCTAssertTrue(text.contains(L10n.text("像素密度") + ": " + "72 PPI"))
         XCTAssertTrue(text.contains(L10n.text("色彩空间") + ": " + "sRGB IEC61966-2.1"))
         XCTAssertTrue(text.contains(L10n.text("相机") + ": " + "Fujifilm X100V"))
         XCTAssertTrue(text.contains(L10n.text("镜头") + ": " + "23mm F2"))
@@ -365,7 +365,23 @@ final class ImageViewerViewModelTests: XCTestCase {
         ]))
         XCTAssertEqual(metadata.size, "5184 × 3888 px")
         XCTAssertNil(metadata.resolution)
-        XCTAssertFalse(metadata.displayRows.contains { $0.label == L10n.text("分辨率（DPI）") })
+        XCTAssertFalse(metadata.displayRows.contains { $0.label == L10n.text("像素密度") })
+    }
+
+    func testImagePixelDensityShowsUnitsAndPreservesUnequalAxes() throws {
+        for (width, height, expected) in [(300.0, 300.0, "300 PPI"), (300.0, 200.0, "300 × 200 PPI")] {
+            let metadata = try XCTUnwrap(ImageParameterMetadata(properties: [
+                kCGImagePropertyDPIWidth: width, kCGImagePropertyDPIHeight: height
+            ]))
+            XCTAssertEqual(metadata.resolution, expected)
+        }
+        for value in [Double.zero, -1, .nan, .infinity] {
+            let metadata = try XCTUnwrap(ImageParameterMetadata(properties: [
+                kCGImagePropertyPixelWidth: 3000, kCGImagePropertyPixelHeight: 2000,
+                kCGImagePropertyDPIWidth: value, kCGImagePropertyDPIHeight: 300
+            ]))
+            XCTAssertNil(metadata.resolution)
+        }
     }
 
     @MainActor

@@ -220,7 +220,7 @@
 "无法打开“%1$@”，当前图片已保留。" = "Couldn’t open “%1$@”. The current image has been kept.";
 "创建时间" = "Created";
 "像素尺寸" = "Pixel dimensions";
-"分辨率（DPI）" = "Resolution (DPI)";
+"像素密度" = "Pixel density";
 "色彩空间" = "Color Space";
 "相机" = "Camera";
 "镜头" = "Lens";

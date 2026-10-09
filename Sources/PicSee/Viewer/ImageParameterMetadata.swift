@@ -96,7 +96,7 @@ struct ImageParameterMetadata: Equatable, Sendable {
         [
             (L10n.text("创建时间"), creationTime),
             (L10n.text("像素尺寸"), size),
-            (L10n.text("分辨率（DPI）"), resolution),
+            (L10n.text("像素密度"), resolution),
             (L10n.text("色彩空间"), colorSpace),
             (L10n.text("相机"), camera),
             (L10n.text("镜头"), lens),
@@ -210,8 +210,9 @@ struct ImageParameterMetadata: Equatable, Sendable {
     }
 
     private static func resolution(width: Double?, height: Double?) -> String? {
-        guard let width, let height, width > 0, height > 0 else { return nil }
-        return "\(formatNumber(width)) × \(formatNumber(height))"
+        guard let width, let height, width.isFinite, height.isFinite, width > 0, height > 0 else { return nil }
+        if width == height { return "\(formatNumber(width)) PPI" }
+        return "\(formatNumber(width)) × \(formatNumber(height)) PPI"
     }
 
     private static func parseExifDate(_ value: Any) -> Date? {

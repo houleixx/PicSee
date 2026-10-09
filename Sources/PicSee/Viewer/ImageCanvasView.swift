@@ -560,6 +560,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private var navigationToken = 0
     private var pendingNavigationAnimation = false
     private var lastNavigationTime: CFTimeInterval?
+    private var navigationAnimationEnabled = true
     var navigationTime: () -> CFTimeInterval = { CACurrentMediaTime() }
     var navigationDirection: Int?
     var motionPreference: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
@@ -777,12 +778,18 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func observePreferences() {
+        applyPreferences(preferences.snapshot)
         preferenceObservation = preferences.$snapshot.dropFirst().sink { [weak self] snapshot in
             self?.applyPreferences(snapshot)
         }
     }
 
     private func applyPreferences(_ snapshot: ViewerPreferencesSnapshot) {
+        if navigationAnimationEnabled != snapshot.imageNavigationAnimationEnabled {
+            navigationAnimationEnabled = snapshot.imageNavigationAnimationEnabled
+            lastNavigationTime = nil
+            if !navigationAnimationEnabled { cancelNavigationAnimation() }
+        }
         titleBarVisible = snapshot.titleBarVisible
         minimapEnabled = snapshot.minimapEnabled
         fileInfoVisible = snapshot.fileInfoVisible
@@ -2003,7 +2010,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         cancelNavigationAnimation()
         imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
         transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
-        guard imageView.image != nil, image != nil, navigationDirection != nil else {
+        guard navigationAnimationEnabled, imageView.image != nil, image != nil, navigationDirection != nil else {
             lastNavigationTime = nil
             return
         }
@@ -2031,6 +2038,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func animateImageTransition() {
+        guard navigationAnimationEnabled else { cancelNavigationAnimation(); return }
         guard let incoming = imageMotionView.layer, let outgoing = outgoingImageView.layer else { return }
         let offset: CGFloat = reduceMotion ? 0 : CGFloat(navigationDirection ?? 0) * 24
         let duration = reduceMotion ? 0.12 : 0.16
@@ -2446,6 +2454,8 @@ extension CanvasNSView {
     var debugRotationLayer: CALayer? { imageView.layer }
     var debugOutgoingImage: NSImage? { outgoingImageView.image }
     var debugOutgoingLayer: CALayer? { outgoingImageView.layer }
+    var debugNavigationAnimationEnabled: Bool { navigationAnimationEnabled }
+    func debugCancelTextRecognition() { textRecognizer.cancel() }
     func debugInterruptMotion() { interruptMotion() }
     func debugMotionPreferenceChanged() { accessibilityDisplayOptionsChanged() }
     var debugVisualTransform: ImageZoomAdjustment { visualTransform() }

@@ -197,6 +197,14 @@ private struct BrowsingSettingsView: View {
                     preferenceRow(L10n.text("显示图片参数"), detail: L10n.text("在右侧显示图片详细参数"), keyPath: \.imageParametersVisible)
                 }
 
+                settingsCard(L10n.text("图片浏览")) {
+                    preferenceRow(
+                        L10n.text("图片切换动画"),
+                        detail: L10n.text("切换图片时显示过渡效果，关闭后直接显示下一张"),
+                        keyPath: \.imageNavigationAnimationEnabled
+                    )
+                }
+
                 settingsCard(L10n.text("窗口")) {
                     preferenceRow(
                         L10n.text("单窗口看图"),

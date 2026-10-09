@@ -5,6 +5,169 @@ import XCTest
 
 @MainActor
 final class ImageCanvasAnimationTests: XCTestCase {
+    func testLongPNGOpeningAvoidsMainThreadStall() async throws {
+        guard let path = ProcessInfo.processInfo.environment["PICSEE_OPEN_BENCHMARK_FILE"] else {
+            throw XCTSkip("Set PICSEE_OPEN_BENCHMARK_FILE to reproduce long-image opening")
+        }
+        _ = NSApplication.shared
+        let url = URL(fileURLWithPath: path)
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+        let window = NSWindow(contentRect: CGRect(x: 100, y: 100, width: 1400, height: 850),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = view
+        window.orderFront(nil)
+        defer { window.orderOut(nil); view.debugCancelTextRecognition() }
+        var samples: [[String: Double]] = []
+        for _ in 0..<6 {
+            let start = CACurrentMediaTime()
+            let loaded = await ImageLoadWorker.load(url)
+            let snapshot = try XCTUnwrap(loaded)
+            let image = snapshot.image
+            let decoded = CACurrentMediaTime()
+            TransparencyBackground.remember(snapshot.containsTransparency, for: image)
+            view.setImage(image, url: url)
+            view.debugCancelTextRecognition()
+            let assigned = CACurrentMediaTime()
+            view.layoutSubtreeIfNeeded()
+            let laidOut = CACurrentMediaTime()
+            view.displayIfNeeded()
+            CATransaction.flush()
+            let submitted = CACurrentMediaTime()
+            samples.append(["loadMS": (decoded-start)*1000,
+                            "assignMS": (assigned-decoded)*1000,
+                            "layoutMS": (laidOut-assigned)*1000,
+                            "displayMS": (submitted-laidOut)*1000,
+                            "mainMS": (submitted-decoded)*1000])
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let output = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("build/verification/long-png-opening-results.json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(samples).write(to: output)
+        let sorted = samples.compactMap { $0["mainMS"] }.sorted()
+        XCTAssertLessThan(sorted[sorted.count/2], 100,
+                          "Opening the long PNG must not block the main thread for over 100ms")
+    }
+
+    /// Opt-in benchmark: generated fixtures and results stay under build/verification.
+    func testLargeImageNavigationBenchmark() async throws {
+        guard let directory = ProcessInfo.processInfo.environment["PICSEE_NAVIGATION_BENCHMARK"] else {
+            throw XCTSkip("Set PICSEE_NAVIGATION_BENCHMARK to the fixture directory")
+        }
+        _ = NSApplication.shared
+        let suite = "PicSee.NavigationBenchmark.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = ViewerPreferences(defaults: defaults)
+        let view = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        view.motionPreference = { false }
+        var logicalTime: CFTimeInterval = 0
+        view.navigationTime = { logicalTime }
+        view.navigationDirection = 1
+        let screen = try XCTUnwrap(NSScreen.main)
+        let size = NSSize(width: min(1600, screen.visibleFrame.width),
+                          height: min(900, screen.visibleFrame.height))
+        let window = NSWindow(contentRect: NSRect(origin: screen.visibleFrame.origin, size: size),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = view
+        window.orderFront(nil)
+        defer { window.orderOut(nil); view.debugCancelTextRecognition() }
+        struct Sample: Codable {
+            let size: String
+            let format: String
+            let mode: String
+            let animation: Bool
+            let iteration: Int
+            let decodeMS: Double
+            let submitMS: Double
+            let transactionMS: Double
+            let settledMS: Double
+        }
+        var samples: [Sample] = []
+        for label in ["4k", "8k"] {
+            for format in ["jpg", "png"] {
+                let urls = (0...1).map {
+                    URL(fileURLWithPath: directory).appendingPathComponent("\(label)-\($0).\(format)")
+                }
+                let images = try urls.map { try XCTUnwrap(LoadedImage.read($0)).image }
+                for mode in ["decoded", "reload"] {
+                    // Alternate A/B ordering to reduce thermal and warm-up bias.
+                    for iteration in 0..<14 {
+                        for enabled in (iteration.isMultiple(of: 2) ? [true, false] : [false, true]) {
+                            preferences.set(\.imageNavigationAnimationEnabled, to: enabled)
+                            for _ in 0..<200 {
+                                if view.debugNavigationAnimationEnabled == enabled { break }
+                                try await Task.sleep(for: .milliseconds(1))
+                            }
+                            XCTAssertEqual(view.debugNavigationAnimationEnabled, enabled)
+                            view.navigationDirection = nil
+                            view.image = images[0]
+                            view.debugCancelTextRecognition()
+                            view.layoutSubtreeIfNeeded()
+                            CATransaction.flush()
+                            try await Task.sleep(for: .milliseconds(30))
+                            logicalTime += 1 // Single page turns, outside the rapid-repeat cutoff.
+                            view.navigationDirection = 1
+                            let start = CACurrentMediaTime()
+                            let nextImage: NSImage
+                            if mode == "reload" {
+                                let loaded = await ImageLoadWorker.load(urls[1])
+                                nextImage = try XCTUnwrap(loaded).image
+                            } else {
+                                nextImage = images[1]
+                            }
+                            let decoded = CACurrentMediaTime()
+                            var completed = false
+                            CATransaction.begin()
+                            CATransaction.setDisableActions(true)
+                            CATransaction.setCompletionBlock {
+                                DispatchQueue.main.async { completed = true }
+                            }
+                            view.image = nextImage
+                            // Isolate navigation rendering from asynchronous OCR.
+                            view.debugCancelTextRecognition()
+                            view.layoutSubtreeIfNeeded()
+                            let animationKey = "PicSee.NavigationAnimation"
+                            XCTAssertEqual(view.debugMotionLayer?.animation(forKey: animationKey) != nil, enabled)
+                            CATransaction.commit()
+                            CATransaction.flush()
+                            let submitted = CACurrentMediaTime()
+                            while !completed, CACurrentMediaTime() - start < 5 {
+                                try await Task.sleep(for: .milliseconds(1))
+                            }
+                            XCTAssertTrue(completed)
+                            let end = CACurrentMediaTime()
+                            while view.debugMotionLayer?.animation(forKey: animationKey) != nil,
+                                  CACurrentMediaTime() - start < 5 {
+                                try await Task.sleep(for: .milliseconds(1))
+                            }
+                            XCTAssertNil(view.debugMotionLayer?.animation(forKey: animationKey))
+                            let settled = CACurrentMediaTime()
+                            if iteration >= 2 { // Discard two warm-up pairs per case.
+                                samples.append(Sample(size: label, format: format, mode: mode,
+                                    animation: enabled, iteration: iteration,
+                                    decodeMS: (decoded - start) * 1000,
+                                    submitMS: (submitted - decoded) * 1000,
+                                    transactionMS: (end - start) * 1000,
+                                    settledMS: (settled - start) * 1000))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(samples).write(to: URL(fileURLWithPath: directory).appendingPathComponent("results.json"))
+        let metadata = "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)\n"
+            + "memoryBytes \(ProcessInfo.processInfo.physicalMemory)\n"
+            + "windowPoints \(size.width)x\(size.height), backingScale \(window.backingScaleFactor)\n"
+            + "screenPixels \(screen.frame.width * screen.backingScaleFactor)x\(screen.frame.height * screen.backingScaleFactor)\n"
+        try metadata.write(to: URL(fileURLWithPath: directory).appendingPathComponent("environment.txt"),
+                           atomically: true, encoding: .utf8)
+    }
+
     private func canvas() -> CanvasNSView {
         let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
         view.motionPreference = { false }

@@ -54,6 +54,8 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 右键选择“设置…”或按 `⌘,` 会打开统一设置窗口的“显示设置”页，可在窗口顶部切换到“打开方式”和“关于”；应用菜单仍保留“默认打开方式…”和“关于 PicSee”快捷入口，复用同一设置窗口。直接启动 PicSee 时进入“打开方式”页。显示设置页可调整主题、标题栏、缩略图、文件信息、工具栏、图片参数、单窗口看图、窗口置顶以及固定窗口；修改立即生效，与保留的右键菜单双向同步，并沿用已有偏好记忆。多个 PicSee 进程之间也会同步这些浏览偏好。
 
+“显示设置 → 图片浏览 → 图片切换动画”默认开启。关闭后直接显示新图片，并立即清理正在播放或等待播放的过渡；不影响缩放和旋转动画。选择会保存并同步到已打开的看图窗口。开启时，快速连续切换仍直接显示图片，避免动画排队。
+
 “显示设置 → 语言”可选择“跟随系统”“简体中文”或“English”，切换立即生效、无需重启，并同步到其他 PicSee 进程。切换保留当前图片、缩放、旋转和截图编辑状态。菜单、应用弹窗、导出选项和工具提示均支持中英文；macOS 自身管理的文件面板导航及权限提示遵循系统语言设置。
 
 右键菜单采用统一的系统图标，图片操作集中在顶部；标题栏、缩略图、文件信息、底部工具栏和图片参数开关收进“显示选项”子菜单。底部提供“设置…”、“检查更新”与“关于…”；“关于…”直接打开设置的关于页。
@@ -132,7 +134,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.70 PICSEE_BUILD_NUMBER=70 Scripts/build-app.sh
+PICSEE_VERSION=0.2.71 PICSEE_BUILD_NUMBER=71 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -149,15 +151,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.70.dmg`
+- DMG: `build/dmg/PicSee-0.2.71.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.70 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.71 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.70.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.71.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -287,14 +289,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.70
-git push origin v0.2.70
+git tag v0.2.71
+git push origin v0.2.71
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.70`
-- Asset: `PicSee-0.2.70.dmg`
+- Release: `v0.2.71`
+- Asset: `PicSee-0.2.71.dmg`
 
 ## Release 说明
 
@@ -325,6 +327,8 @@ Tests/PicSeeTests/          单元测试与 OCR 回归测试
 ```
 
 ## 性能与回归检查
+
+较大的静态 8 位 RGB PNG 会在后台准备窗口预览表示，减少长图首次显示时的主线程绘制开销；全分辨率像素仍保留给放大查看和导出。高位深 PNG、动画 PNG 和其他格式沿用原生表示。
 
 正式应用在后台串行加载和验证图片，目录扫描与 Finder 排序不会阻塞看图主线程。快速连续翻页以最新请求为准，迟到的加载结果不会覆盖当前图片；外部打开失败保留原图、缩放、旋转和编辑状态。幻灯片在新图片加载完成后才开始下一个完整间隔。
 

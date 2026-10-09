@@ -29,6 +29,7 @@ struct ViewerPreferencesSnapshot: Equatable {
     var singleWindowEnabled: Bool
     var fixedWindowEnabled: Bool
     var rightMouseCloseGestureEnabled: Bool
+    var imageNavigationAnimationEnabled: Bool
 
     init(defaults: UserDefaults) {
         theme = ViewerTheme.current(in: defaults)
@@ -41,6 +42,7 @@ struct ViewerPreferencesSnapshot: Equatable {
         singleWindowEnabled = SingleWindowPreference.isEnabled(in: defaults)
         fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: defaults)
         rightMouseCloseGestureEnabled = ImageCloseGesturePreference.isEnabled(in: defaults)
+        imageNavigationAnimationEnabled = ImageNavigationAnimationPreference.isEnabled(in: defaults)
     }
 }
 
@@ -96,6 +98,7 @@ final class ViewerPreferences: ObservableObject {
         case \.singleWindowEnabled: SingleWindowPreference.setEnabled(value, in: defaults)
         case \.fixedWindowEnabled: WindowFramePreference.setFixedEnabled(value, in: defaults)
         case \.rightMouseCloseGestureEnabled: ImageCloseGesturePreference.setEnabled(value, in: defaults)
+        case \.imageNavigationAnimationEnabled: ImageNavigationAnimationPreference.setEnabled(value, in: defaults)
         default: preconditionFailure("Unknown viewer preference")
         }
         reload()

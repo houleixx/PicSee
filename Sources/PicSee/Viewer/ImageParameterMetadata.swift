@@ -95,8 +95,8 @@ struct ImageParameterMetadata: Equatable, Sendable {
     var displayRows: [(label: String, value: String)] {
         [
             (L10n.text("创建时间"), creationTime),
-            (L10n.text("尺寸"), size),
-            (L10n.text("分辨率"), resolution),
+            (L10n.text("像素尺寸"), size),
+            (L10n.text("分辨率（DPI）"), resolution),
             (L10n.text("色彩空间"), colorSpace),
             (L10n.text("相机"), camera),
             (L10n.text("镜头"), lens),
@@ -211,7 +211,7 @@ struct ImageParameterMetadata: Equatable, Sendable {
 
     private static func resolution(width: Double?, height: Double?) -> String? {
         guard let width, let height, width > 0, height > 0 else { return nil }
-        return "\(formatNumber(width))×\(formatNumber(height))"
+        return "\(formatNumber(width)) × \(formatNumber(height))"
     }
 
     private static func parseExifDate(_ value: Any) -> Date? {

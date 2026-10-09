@@ -341,8 +341,8 @@ final class ImageViewerViewModelTests: XCTestCase {
         let text = metadata.displayText
 
         XCTAssertTrue(text.contains(L10n.text("创建时间") + ": " + (L10n.languageCode == "en" ? "2016-07-25 15:27" : "2016年07月25日 15:27")))
-        XCTAssertTrue(text.contains(L10n.text("尺寸") + ": " + "2448 × 3264 px"))
-        XCTAssertTrue(text.contains(L10n.text("分辨率") + ": " + "72×72"))
+        XCTAssertTrue(text.contains(L10n.text("像素尺寸") + ": " + "2448 × 3264 px"))
+        XCTAssertTrue(text.contains(L10n.text("分辨率（DPI）") + ": " + "72 × 72"))
         XCTAssertTrue(text.contains(L10n.text("色彩空间") + ": " + "sRGB IEC61966-2.1"))
         XCTAssertTrue(text.contains(L10n.text("相机") + ": " + "Fujifilm X100V"))
         XCTAssertTrue(text.contains(L10n.text("镜头") + ": " + "23mm F2"))
@@ -356,6 +356,16 @@ final class ImageViewerViewModelTests: XCTestCase {
     @MainActor
     func testImageParameterMetadataReturnsNilWithoutAnyProperties() throws {
         XCTAssertNil(ImageParameterMetadata(properties: [:]))
+    }
+
+    func testImageParametersHideMissingDPIAndKeepPixelDimensions() throws {
+        let metadata = try XCTUnwrap(ImageParameterMetadata(properties: [
+            kCGImagePropertyPixelWidth: 5184,
+            kCGImagePropertyPixelHeight: 3888
+        ]))
+        XCTAssertEqual(metadata.size, "5184 × 3888 px")
+        XCTAssertNil(metadata.resolution)
+        XCTAssertFalse(metadata.displayRows.contains { $0.label == L10n.text("分辨率（DPI）") })
     }
 
     @MainActor

@@ -156,14 +156,26 @@ final class ImageCanvasOCRTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(adjustedFrame!.minY, 64 + 8)
     }
 
-    func testPhosphorToolbarIconsAreBundled() {
+    func testPhosphorMenuAndNoticeIconsAreBundled() {
         for iconName in [
-            "corners-out-bold",
-            "number-square-one-bold",
-            "magnifying-glass-plus-bold",
-            "magnifying-glass-minus-bold",
-            "arrow-counter-clockwise-bold",
-            "arrow-clockwise-bold"
+            "app-window",
+            "arrow-u-up-left",
+            "arrows-clockwise",
+            "check-bold",
+            "circle-half",
+            "copy",
+            "desktop",
+            "download-simple",
+            "export",
+            "gear",
+            "info",
+            "link",
+            "lock-simple",
+            "play-circle",
+            "push-pin",
+            "sliders-horizontal",
+            "stop",
+            "trash"
         ] {
             let url = PicSeeResourceBundle.url(
                 forResource: iconName,

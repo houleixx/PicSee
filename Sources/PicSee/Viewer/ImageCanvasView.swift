@@ -1715,8 +1715,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func contextMenuImage(_ symbolName: String) -> NSImage? {
-        NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 13, weight: .regular))
+        PhosphorImages.contextMenuImage(for: symbolName)
     }
 
     private func alignSystemContextMenuItems(in menu: NSMenu) {

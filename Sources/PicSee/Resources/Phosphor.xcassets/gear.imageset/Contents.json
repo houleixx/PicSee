@@ -1,0 +1,16 @@
+{
+  "images": [
+    {
+      "filename": "gear.svg",
+      "idiom": "universal"
+    }
+  ],
+  "properties": {
+    "template-rendering-intent": "template",
+    "preserves-vector-representation": true
+  },
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

@@ -12,8 +12,9 @@ struct ImageZoomAdjustment {
     let zoomScale: CGFloat
     let panOffset: CGSize
 
-    static func clampedZoom(currentZoom: CGFloat, multiplier: CGFloat) -> CGFloat {
-        min(maximumZoomScale, max(minimumZoomScale, currentZoom * max(0.01, multiplier)))
+    static func clampedZoom(currentZoom: CGFloat, multiplier: CGFloat, automaticPixelScale: CGFloat = 1) -> CGFloat {
+        let minimum = minimumZoomScale / max(1, automaticPixelScale)
+        return min(maximumZoomScale, max(minimum, currentZoom * max(CGFloat.leastNormalMagnitude, multiplier)))
     }
 
     static func adjustment(
@@ -21,13 +22,16 @@ struct ImageZoomAdjustment {
         multiplier: CGFloat,
         anchorPoint: CGPoint? = nil
     ) -> ImageZoomAdjustment {
-        let nextZoom = clampedZoom(currentZoom: geometry.zoomScale, multiplier: multiplier)
+        let nextZoom = clampedZoom(currentZoom: geometry.zoomScale, multiplier: multiplier,
+                                  automaticPixelScale: geometry.fitScale * geometry.backingScaleFactor)
         let nextGeometry = ImageDisplayGeometry(
             imageSize: geometry.imageSize,
             viewportSize: geometry.viewportSize,
             zoomScale: nextZoom,
             panOffset: geometry.panOffset,
-            rotationDegrees: geometry.rotationDegrees
+            rotationDegrees: geometry.rotationDegrees,
+            backingScaleFactor: geometry.backingScaleFactor,
+            maximumAutomaticPixelScale: geometry.maximumAutomaticPixelScale
         )
         let allowsPanAfterZoom = abs(nextGeometry.zoomScale - 1) > 0.001 || nextGeometry.canPan
 
@@ -52,19 +56,25 @@ struct ImageDisplayGeometry {
     let zoomScale: CGFloat
     let panOffset: CGSize
     let rotationDegrees: Int
+    let backingScaleFactor: CGFloat
+    let maximumAutomaticPixelScale: CGFloat
 
     init(
         imageSize: CGSize,
         viewportSize: CGSize,
         zoomScale: CGFloat,
         panOffset: CGSize,
-        rotationDegrees: Int = 0
+        rotationDegrees: Int = 0,
+        backingScaleFactor: CGFloat = 1,
+        maximumAutomaticPixelScale: CGFloat = 1
     ) {
         self.imageSize = imageSize
         self.viewportSize = viewportSize
         self.zoomScale = zoomScale
         self.panOffset = panOffset
         self.rotationDegrees = ((rotationDegrees % 360) + 360) % 360
+        self.backingScaleFactor = backingScaleFactor.isFinite && backingScaleFactor > 0 ? backingScaleFactor : 1
+        self.maximumAutomaticPixelScale = maximumAutomaticPixelScale.isNaN ? 1 : max(1, maximumAutomaticPixelScale)
     }
 
     var rotatedImageSize: CGSize {
@@ -77,15 +87,18 @@ struct ImageDisplayGeometry {
         guard rotatedImageSize.width > 0, rotatedImageSize.height > 0, viewportSize.width > 0, viewportSize.height > 0 else {
             return 1
         }
-        // 不对小图进行放大：当图像在两个维度上都小于视口时，基准缩放保持 1:1。
-        // 仅当任一维度超出视口时，才按较小比例缩小以完整显示。
+        // imageSize is source pixels; viewportSize is AppKit points. The automatic
+        // limit is measured in backing pixels and defaults to actual size (100%).
         let scaleToFit = min(viewportSize.width / rotatedImageSize.width, viewportSize.height / rotatedImageSize.height)
-        return min(1, scaleToFit)
+        return min(maximumAutomaticPixelScale / backingScaleFactor, scaleToFit)
     }
 
     var displayScale: CGFloat {
-        max(0.01, fitScale * max(0.1, zoomScale))
+        fitScale * max(CGFloat.leastNormalMagnitude, zoomScale)
     }
+
+    /// Screen backing pixels per source pixel; 1 means actual size (100%).
+    var pixelDisplayScale: CGFloat { displayScale * backingScaleFactor }
 
     var displaySize: CGSize {
         CGSize(width: rotatedImageSize.width * displayScale, height: rotatedImageSize.height * displayScale)
@@ -217,7 +230,9 @@ struct ImageDisplayGeometry {
             viewportSize: viewportSize,
             zoomScale: nextZoomScale,
             panOffset: panOffset,
-            rotationDegrees: rotationDegrees
+            rotationDegrees: rotationDegrees,
+            backingScaleFactor: backingScaleFactor,
+            maximumAutomaticPixelScale: maximumAutomaticPixelScale
         )
         let proposed = CGSize(
             width: anchor.x - viewportCenter.x + nextGeometry.displaySize.width / 2 - imagePoint.x * nextGeometry.displayScale,

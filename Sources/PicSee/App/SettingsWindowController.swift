@@ -198,6 +198,44 @@ private struct BrowsingSettingsView: View {
                 }
 
                 settingsCard(L10n.text("图片浏览")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(L10n.text("全屏时小图显示方式")).font(.system(size: 13, weight: .medium))
+                            Spacer()
+                            Picker(L10n.text("全屏时小图显示方式"), selection: Binding(
+                                get: { preferences.snapshot.fullScreenSmallImageMode },
+                                set: { preferences.setFullScreenSmallImageMode($0) }
+                            )) {
+                                ForEach(FullScreenSmallImageMode.allCases, id: \.rawValue) { mode in
+                                    Text(mode.displayName).tag(mode)
+                                }
+                            }
+                            .labelsHidden()
+                            .id(language.revision)
+                            .frame(width: 200)
+                        }
+                        if preferences.snapshot.fullScreenSmallImageMode == .smart {
+                            HStack {
+                                Text(L10n.text("最大放大倍数")).font(.system(size: 13))
+                                Spacer()
+                                Picker(L10n.text("最大放大倍数"), selection: Binding(
+                                    get: { preferences.snapshot.maximumSmallImageScale },
+                                    set: { preferences.setMaximumSmallImageScale($0) }
+                                )) {
+                                    ForEach(FullScreenSmallImagePreference.scaleOptions, id: \.self) { scale in
+                                        Text("\(scale.formatted(.number))×").tag(scale)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 200)
+                            }
+                        }
+                        Text(L10n.text("仅影响全屏下的小图，大图始终按比例缩小，完整显示"))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                    Divider()
                     preferenceRow(
                         L10n.text("图片切换动画"),
                         detail: L10n.text("切换图片时显示过渡效果，关闭后直接显示下一张"),

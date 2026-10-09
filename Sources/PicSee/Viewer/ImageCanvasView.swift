@@ -561,6 +561,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private var pendingNavigationAnimation = false
     private var lastNavigationTime: CFTimeInterval?
     private var navigationAnimationEnabled = true
+    private var smallImageMode: FullScreenSmallImageMode = .original
+    private var maximumSmallImageScale: Double = 2
     var navigationTime: () -> CFTimeInterval = { CACurrentMediaTime() }
     var navigationDirection: Int?
     var motionPreference: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
@@ -593,6 +595,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         didSet { updateSelectionOverlay() }
     }
 
+    private var imagePixelSize: CGSize = .zero
+
     var image: NSImage? {
         didSet {
             let imageChanged = oldValue !== image
@@ -600,6 +604,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 cancelImageDragCandidate()
                 cancelCloseGesture()
                 prepareImageTransition()
+                imagePixelSize = image.flatMap { ImageExporter.pixelSize(of: $0) } ?? image?.size ?? .zero
                 imageView.layer?.removeAnimation(forKey: Self.rotationAnimationKey)
                 transparencyBackground.imageMask.removeAnimation(forKey: Self.rotationAnimationKey)
                 pendingRotationAnimation = nil
@@ -785,6 +790,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func applyPreferences(_ snapshot: ViewerPreferencesSnapshot) {
+        if smallImageMode != snapshot.fullScreenSmallImageMode || maximumSmallImageScale != snapshot.maximumSmallImageScale {
+            interruptMotion()
+            smallImageMode = snapshot.fullScreenSmallImageMode
+            maximumSmallImageScale = snapshot.maximumSmallImageScale
+        }
         if navigationAnimationEnabled != snapshot.imageNavigationAnimationEnabled {
             navigationAnimationEnabled = snapshot.imageNavigationAnimationEnabled
             lastNavigationTime = nil
@@ -813,12 +823,21 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        needsLayout = true
         if let closeGestureMonitor { NSEvent.removeMonitor(closeGestureMonitor) }
         closeGestureMonitor = nil
         resetCloseGesture()
         window?.acceptsMouseMovedEvents = true
         slideshowWindowObservations.removeAll()
         guard let window else { return }
+        for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
+            NotificationCenter.default.publisher(for: name, object: window)
+                .sink { [weak self] _ in
+                    self?.interruptMotion()
+                    self?.needsLayout = true
+                }
+                .store(in: &slideshowWindowObservations)
+        }
         closeGestureEnabled = preferences.snapshot.rightMouseCloseGestureEnabled
         closeGestureMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .rightMouseDragged, .rightMouseUp, .keyDown]) { [weak self] event in
             guard let self else { return event }
@@ -844,6 +863,12 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 self?.cancelCloseGesture()
             }
             .store(in: &slideshowWindowObservations)
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        interruptMotion()
+        needsLayout = true
     }
 
     /// Intercept before Live Text or a child image view opens its context menu.
@@ -969,7 +994,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             updateSelectionOverlay()
         }
         updateMinimap(geometry: geometry)
-        reportDisplayScaleIfNeeded(geometry.displayScale)
+        reportDisplayScaleIfNeeded(geometry.pixelDisplayScale)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1805,12 +1830,19 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     private func currentGeometry() -> ImageDisplayGeometry {
         ImageDisplayGeometry(
-            imageSize: image?.size ?? .zero,
+            imageSize: imagePixelSize,
             viewportSize: bounds.size,
             zoomScale: zoomScale,
             panOffset: panOffset,
-            rotationDegrees: rotationDegrees
+            rotationDegrees: rotationDegrees,
+            backingScaleFactor: window?.backingScaleFactor ?? 1,
+            maximumAutomaticPixelScale: automaticPixelScaleLimit
         )
+    }
+
+    private var automaticPixelScaleLimit: CGFloat {
+        smallImageMode.maximumPixelScale(isFullScreen: window?.styleMask.contains(.fullScreen) == true,
+                                        smartLimit: maximumSmallImageScale)
     }
 
     private func panImageMode(_ geometry: ImageDisplayGeometry) -> Bool {
@@ -1876,11 +1908,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         }
         if let presentedContainer = layer.presentation(),
            let presentedImage = imageView.layer?.presentation(),
-           let image, image.size.width > 0 {
+           imagePixelSize.width > 0 {
             // Read geometry and transform from the same presented frame. The model's
             // zoom/pan may already describe a replacement not yet rendered by CA.
             let transform = presentedContainer.transform
-            let renderedScale = presentedImage.bounds.width / image.size.width
+            let renderedScale = presentedImage.bounds.width / imagePixelSize.width
             return ImageZoomAdjustment(
                 zoomScale: renderedScale * transform.m11 / currentGeometry().fitScale,
                 panOffset: CGSize(
@@ -1891,7 +1923,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         let transform = ((layer.animation(forKey: Self.transformAnimationKey) as? CABasicAnimation)?.fromValue as? CATransform3D)
             ?? CATransform3DIdentity
         return ImageZoomAdjustment(
-            zoomScale: max(0.1, zoomScale) * transform.m11,
+            zoomScale: max(CGFloat.leastNormalMagnitude, zoomScale) * transform.m11,
             panOffset: CGSize(width: panOffset.width * transform.m11 + transform.m41,
                               height: panOffset.height * transform.m11 + transform.m42))
     }
@@ -1941,7 +1973,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         layer.removeAnimation(forKey: Self.transformAnimationKey)
         transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
         guard !reduceMotion else { return }
-        let ratio = max(0.1, visual.zoomScale) / max(0.1, zoomScale)
+        let ratio = max(CGFloat.leastNormalMagnitude, visual.zoomScale) / max(CGFloat.leastNormalMagnitude, zoomScale)
         let transform = CGAffineTransform(a: ratio, b: 0, c: 0, d: ratio,
                                          tx: visual.panOffset.width - panOffset.width * ratio,
                                          ty: visual.panOffset.height - panOffset.height * ratio)
@@ -2020,9 +2052,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         // Keep the entire burst immediate, including reversals. Testing only whether
         // an animation exists would restart it on every other repeat after cancellation.
         guard !wasNavigating, !isRapidRepeat else { return }
-        let geometry = ImageDisplayGeometry(imageSize: imageView.image!.size, viewportSize: bounds.size,
+        let geometry = ImageDisplayGeometry(imageSize: imagePixelSize, viewportSize: bounds.size,
                                            zoomScale: visual.zoomScale, panOffset: visual.panOffset,
-                                           rotationDegrees: rotationDegrees)
+                                           rotationDegrees: rotationDegrees,
+                                           backingScaleFactor: window?.backingScaleFactor ?? 1,
+                                           maximumAutomaticPixelScale: automaticPixelScaleLimit)
         outgoingImageView.image = imageView.image
         outgoingImageView.frame = geometry.unrotatedImageRect
         outgoingImageView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
@@ -2446,6 +2480,7 @@ extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
 
 #if DEBUG
 extension CanvasNSView {
+    var debugGeometry: ImageDisplayGeometry { currentGeometry() }
     func debugHandleCloseGestureEvent(_ event: NSEvent) -> NSEvent? { handleCloseGestureEvent(event) }
     func debugReloadGesturePreferences() { preferences.reload(); applyPreferences(preferences.snapshot) }
     var debugBackend: TextRecognitionBackend { backend }

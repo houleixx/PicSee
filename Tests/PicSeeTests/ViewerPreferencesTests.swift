@@ -18,6 +18,23 @@ final class ViewerPreferencesTests: XCTestCase {
         defaults = nil
     }
 
+    func testFullScreenSmallImageDefaultsAndInvalidValues() {
+        XCTAssertEqual(FullScreenSmallImagePreference.mode(in: defaults), .original)
+        XCTAssertEqual(FullScreenSmallImagePreference.maximumScale(in: defaults), 2)
+        defaults.set("unsupported", forKey: FullScreenSmallImagePreference.modeKey)
+        defaults.set(99, forKey: FullScreenSmallImagePreference.maximumScaleKey)
+        let preferences = ViewerPreferences(defaults: defaults)
+        XCTAssertEqual(preferences.snapshot.fullScreenSmallImageMode, .original)
+        XCTAssertEqual(preferences.snapshot.maximumSmallImageScale, 2)
+        preferences.setMaximumSmallImageScale(1.5)
+        preferences.setMaximumSmallImageScale(-2)
+        preferences.setMaximumSmallImageScale(.nan)
+        XCTAssertEqual(preferences.snapshot.maximumSmallImageScale, 1.5)
+        for mode in FullScreenSmallImageMode.allCases {
+            XCTAssertEqual(mode.maximumPixelScale(isFullScreen: false, smartLimit: 4), 1)
+        }
+    }
+
     func testSettingsChangesReachExistingCanvasAndPersistForNextLaunch() async throws {
         let preferences = ViewerPreferences(defaults: defaults)
         let canvas = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)

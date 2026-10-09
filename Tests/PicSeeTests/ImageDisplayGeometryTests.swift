@@ -3,6 +3,43 @@ import XCTest
 @testable import PicSee
 
 final class ImageDisplayGeometryTests: XCTestCase {
+    func testAutomaticUpscalingStopsAtScreenOrSmartLimitAndNeverCropsLargeImages() {
+        for backing in [CGFloat(1), 2] {
+            for limit in [CGFloat(1), 1.5, 2, 3, 4, .infinity] {
+                for rotation in [0, 90] {
+                    let small = ImageDisplayGeometry(imageSize: CGSize(width: 400, height: 300),
+                        viewportSize: CGSize(width: 1200, height: 600), zoomScale: 1, panOffset: .zero,
+                        rotationDegrees: rotation, backingScaleFactor: backing, maximumAutomaticPixelScale: limit)
+                    XCTAssertLessThanOrEqual(small.displaySize.width, 1200)
+                    XCTAssertLessThanOrEqual(small.displaySize.height, 600)
+                    XCTAssertLessThanOrEqual(small.pixelDisplayScale, limit)
+                    let large = ImageDisplayGeometry(imageSize: CGSize(width: 6000, height: 4000),
+                        viewportSize: CGSize(width: 1200, height: 600), zoomScale: 1, panOffset: .zero,
+                        rotationDegrees: rotation, backingScaleFactor: backing, maximumAutomaticPixelScale: limit)
+                    XCTAssertLessThanOrEqual(large.pixelDisplayScale, 1)
+                    XCTAssertLessThanOrEqual(large.displaySize.width, 1200)
+                    XCTAssertLessThanOrEqual(large.displaySize.height, 600)
+                }
+            }
+        }
+    }
+
+    func testRetinaPixelScaleAndCursorAnchorSurviveZoomAdjustment() {
+        let before = ImageDisplayGeometry(imageSize: CGSize(width: 400, height: 300),
+            viewportSize: CGSize(width: 800, height: 600), zoomScale: 2, panOffset: .zero,
+            backingScaleFactor: 2)
+        XCTAssertEqual(before.pixelDisplayScale, 2)
+        let anchor = CGPoint(x: 500, y: 350)
+        let adjustment = ImageZoomAdjustment.adjustment(from: before, multiplier: 1.25, anchorPoint: anchor)
+        let after = ImageDisplayGeometry(imageSize: before.imageSize, viewportSize: before.viewportSize,
+            zoomScale: adjustment.zoomScale, panOffset: adjustment.panOffset, backingScaleFactor: 2)
+        XCTAssertEqual((anchor.x - before.imageRect.minX) / before.displayScale,
+                       (anchor.x - after.imageRect.minX) / after.displayScale, accuracy: 0.001)
+        XCTAssertEqual((anchor.y - before.imageRect.minY) / before.displayScale,
+                       (anchor.y - after.imageRect.minY) / after.displayScale, accuracy: 0.001)
+        XCTAssertEqual(after.pixelDisplayScale, 2.5)
+    }
+
     func testDoesNotUpscaleSmallImagesAtBaseZoom() {
         let geometry = ImageDisplayGeometry(
             imageSize: CGSize(width: 400, height: 300),

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ImageViewerView: View {
+    @Environment(\.displayScale) private var backingScaleFactor
     @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject private var preferences = ViewerPreferences.shared
     @ObservedObject var viewModel: ImageViewerViewModel
@@ -278,9 +279,12 @@ struct ImageViewerView: View {
                     ScreenshotEditorView(
                         document: screenshotDocument,
                         imageRect: ImageDisplayGeometry(
-                            imageSize: image.size, viewportSize: geometry.size,
+                            imageSize: viewModel.imagePixelSize ?? image.size, viewportSize: geometry.size,
                             zoomScale: viewModel.zoomScale, panOffset: viewModel.panOffset,
-                            rotationDegrees: viewModel.rotationDegrees
+                            rotationDegrees: viewModel.rotationDegrees,
+                            backingScaleFactor: backingScaleFactor,
+                            maximumAutomaticPixelScale: preferences.snapshot.fullScreenSmallImageMode.maximumPixelScale(
+                                isFullScreen: isFullScreen, smartLimit: preferences.snapshot.maximumSmallImageScale)
                         ).imageRect,
                         onClose: closeScreenshot,
                         onCopy: {

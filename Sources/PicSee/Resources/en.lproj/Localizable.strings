@@ -276,3 +276,15 @@
 "从不" = "Never";
 
 "关于…" = "About…";
+
+"全屏时小图显示方式" = "Small images in full screen";
+
+"原始尺寸（100%）" = "Original size (100%)";
+
+"始终适应屏幕" = "Always fit screen";
+
+"智能放大" = "Smart enlargement";
+
+"最大放大倍数" = "Maximum enlargement";
+
+"仅影响全屏下的小图，大图始终按比例缩小，完整显示" = "Applies only to small images in full screen; large images always fit proportionally and remain fully visible";

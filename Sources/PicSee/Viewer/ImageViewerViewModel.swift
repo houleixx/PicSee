@@ -18,6 +18,7 @@ final class ImageViewerViewModel: ObservableObject {
     private var loadedMetadata: ImageParameterMetadata?
     private var loadedByteCount: Int64?
     private var loadedPixelSize: CGSize?
+    var imagePixelSize: CGSize? { loadedPixelSize }
     private let loadingMode: ImageLoadingMode
     private let readImage: @Sendable (URL) async -> LoadedImage?
     private let prefetchCache: ImagePrefetchCache
@@ -399,7 +400,8 @@ final class ImageViewerViewModel: ObservableObject {
             resetViewTransform()
             return
         }
-        zoomScale = ImageZoomAdjustment.clampedZoom(currentZoom: zoomScale, multiplier: 1 / displayScale)
+        zoomScale = ImageZoomAdjustment.clampedZoom(currentZoom: zoomScale, multiplier: 1 / displayScale,
+            automaticPixelScale: displayScale / max(CGFloat.leastNormalMagnitude, zoomScale))
         panOffset = .zero
     }
 

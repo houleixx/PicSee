@@ -30,6 +30,8 @@ struct ViewerPreferencesSnapshot: Equatable {
     var fixedWindowEnabled: Bool
     var rightMouseCloseGestureEnabled: Bool
     var imageNavigationAnimationEnabled: Bool
+    var fullScreenSmallImageMode: FullScreenSmallImageMode
+    var maximumSmallImageScale: Double
 
     init(defaults: UserDefaults) {
         theme = ViewerTheme.current(in: defaults)
@@ -43,6 +45,8 @@ struct ViewerPreferencesSnapshot: Equatable {
         fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: defaults)
         rightMouseCloseGestureEnabled = ImageCloseGesturePreference.isEnabled(in: defaults)
         imageNavigationAnimationEnabled = ImageNavigationAnimationPreference.isEnabled(in: defaults)
+        fullScreenSmallImageMode = FullScreenSmallImagePreference.mode(in: defaults)
+        maximumSmallImageScale = FullScreenSmallImagePreference.maximumScale(in: defaults)
     }
 }
 
@@ -84,6 +88,16 @@ final class ViewerPreferences: ObservableObject {
 
     func setTheme(_ theme: ViewerTheme) {
         ViewerTheme.set(theme, in: defaults)
+        reload()
+    }
+
+    func setFullScreenSmallImageMode(_ mode: FullScreenSmallImageMode) {
+        FullScreenSmallImagePreference.setMode(mode, in: defaults)
+        reload()
+    }
+
+    func setMaximumSmallImageScale(_ scale: Double) {
+        FullScreenSmallImagePreference.setMaximumScale(scale, in: defaults)
         reload()
     }
 

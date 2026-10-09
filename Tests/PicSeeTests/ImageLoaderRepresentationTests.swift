@@ -42,12 +42,13 @@ struct ImageLoaderRepresentationTests {
         #expect(loaded.byteCount == Int64(try Data(contentsOf: url).count))
         #expect(loaded.metadata != nil)
         let sourceCG = try #require(original.cgImage(forProposedRect: nil, context: nil, hints: nil))
-        let displayCG = try #require(loaded.image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let displayCG = try #require(loaded.image.fullResolutionCGImage)
         #expect(displayCG.width == sourceCG.width)
         #expect(displayCG.height == sourceCG.height)
         #expect(displayCG.bitsPerComponent == sourceCG.bitsPerComponent)
         let sourcePixels = NSBitmapImageRep(cgImage: sourceCG)
         let displayPixels = NSBitmapImageRep(cgImage: displayCG)
+        let exportPixels = NSBitmapImageRep(cgImage: exported)
         for (x, y) in [(0, 0), (31, 1000), (63, 4095)] {
             let expected = try #require(sourcePixels.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
             let actual = try #require(displayPixels.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
@@ -55,11 +56,26 @@ struct ImageLoaderRepresentationTests {
             #expect(abs(expected.greenComponent - actual.greenComponent) < 0.001)
             #expect(abs(expected.blueComponent - actual.blueComponent) < 0.001)
             #expect(abs(expected.alphaComponent - actual.alphaComponent) < 0.001)
+            let saved = try #require(exportPixels.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+            #expect(abs(expected.redComponent - saved.redComponent) < 0.01)
+            #expect(abs(expected.greenComponent - saved.greenComponent) < 0.01)
+            #expect(abs(expected.blueComponent - saved.blueComponent) < 0.01)
+            #expect(abs(expected.alphaComponent - saved.alphaComponent) < 0.01)
         }
         // Enlarged viewing and exports must still select the full-resolution representation.
-        var enlarged = NSRect(origin: .zero, size: original.size)
-        let enlargedCG = try #require(loaded.image.cgImage(forProposedRect: &enlarged, context: nil, hints: nil))
+        let enlargedCG = try #require(loaded.image.fullResolutionCGImage)
         #expect(enlargedCG.height == 4096)
+        // Offscreen 1× context reproduces the non-Retina runner's representation choice.
+        let contextBitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil,
+            pixelsWide: 32, pixelsHigh: 2048, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: contextBitmap))
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = context
+        let contextCG = try #require(loaded.image.fullResolutionCGImage)
+        #expect(contextCG.width == 64)
+        #expect(contextCG.height == 4096)
     }
 
     @Test(arguments: [UTType.gif.identifier, UTType.png.identifier])
@@ -106,7 +122,7 @@ struct ImageLoaderRepresentationTests {
         try #require(bitmap.representation(using: .png, properties: [:])).write(to: url)
         let original = try #require(NSImage(contentsOf: url)?.cgImage(forProposedRect: nil, context: nil, hints: nil))
         let loaded = try #require(LoadedImage.read(url))
-        let result = try #require(loaded.image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let result = try #require(loaded.image.fullResolutionCGImage)
         #expect(original.bitsPerComponent == 16)
         #expect(result.bitsPerComponent == 16)
         #expect(result.width == original.width)

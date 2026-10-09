@@ -24,7 +24,7 @@ enum TransparencyBackground {
     nonisolated static func containsTransparency(_ image: NSImage) -> Bool {
         // If AppKit cannot supply a bitmap, preserve the background for content
         // whose opacity is unknown rather than lose transparent details.
-        guard let bitmap = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return true }
+        guard let bitmap = image.fullResolutionCGImage else { return true }
         if !bitmap.isMask {
             switch bitmap.alphaInfo {
             case .none, .noneSkipFirst, .noneSkipLast: return false

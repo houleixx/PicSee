@@ -101,7 +101,7 @@ final class ScreenshotDocument: ObservableObject {
     @Published private(set) var redoStates: [ScreenshotState] = []
 
     init(image: NSImage, rotationDegrees: Int) throws {
-        guard let source = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        guard let source = image.fullResolutionCGImage else {
             throw ImageExporterError.missingCGImage
         }
         let rotation = ((rotationDegrees % 360) + 360) % 360
@@ -342,7 +342,7 @@ final class ScreenshotDocument: ObservableObject {
         defer { NSGraphicsContext.restoreGraphicsState() }
         NSGraphicsContext.current?.imageInterpolation = .high
         if screenSampling {
-            guard let source = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            guard let source = image.fullResolutionCGImage else {
                 throw ImageExporterError.missingCGImage
             }
             let transform = CGAffineTransform(a: size.width / crop.width, b: 0, c: 0,

@@ -42,7 +42,7 @@ struct DesktopWallpaperSetter {
     }
 
     func set(_ image: NSImage, apply: (URL) throws -> Void) async throws {
-        guard let pixels = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        guard let pixels = image.fullResolutionCGImage else {
             throw ImageExporterError.missingCGImage
         }
         let url = try await store.save(pixels)

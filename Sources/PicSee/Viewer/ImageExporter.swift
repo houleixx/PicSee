@@ -2,6 +2,18 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
+extension NSImage {
+    /// Display previews are selected by screen scale. Pixel consumers need the
+    /// largest bitmap so OCR, crop, wallpaper and export retain original detail.
+    var fullResolutionCGImage: CGImage? {
+        if let bitmap = representations.compactMap({ $0 as? NSBitmapImageRep })
+            .max(by: { $0.pixelsWide * $0.pixelsHigh < $1.pixelsWide * $1.pixelsHigh }) {
+            return bitmap.cgImage
+        }
+        return cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
+}
+
 enum ImageExportFormat: Equatable {
     case jpeg(quality: CGFloat)
     case png
@@ -59,7 +71,7 @@ enum ImageExporterError: LocalizedError {
 
 enum ImageExporter {
     static func export(_ image: NSImage, to url: URL, options: ImageExportOptions) throws {
-        guard let source = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        guard let source = image.fullResolutionCGImage else {
             throw ImageExporterError.missingCGImage
         }
 
@@ -99,7 +111,7 @@ enum ImageExporter {
             return largest
         }
 
-        if let source = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+        if let source = image.fullResolutionCGImage {
             return CGSize(width: source.width, height: source.height)
         }
         guard image.size.width > 0, image.size.height > 0 else { return nil }

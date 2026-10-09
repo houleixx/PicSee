@@ -49,7 +49,7 @@ final class ImageTextRecognizer {
         task = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
             guard !Task.isCancelled, self?.revision == revision,
-                  let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+                  let cgImage = image.fullResolutionCGImage else { return }
             self?.startedCount += 1
             switch backend {
             case .liveText:

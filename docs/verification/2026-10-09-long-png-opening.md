@@ -20,6 +20,7 @@ PICSEE_OPEN_BENCHMARK_FILE="$HOME/Desktop/picsee.png" swift test -c release -Xsw
 
 - 静态 RGB、8位、长边超过2048像素的 PNG：读取源像素到独立 CGImage，在后台附加长边最多2048像素的预览 NSBitmapImageRep。
 - 原始色彩空间、逻辑尺寸和全分辨率表示保留。原图与预览均采用 NSBitmapImageRep，确保导出默认尺寸取原图像素；AppKit 可为适合窗口的显示选择预览，放大和导出仍有原像素可用。
+- 导出、OCR、裁剪与壁纸统一通过 fullResolutionCGImage 获取最大位图表示，避免普通屏幕环境将预览误作原始像素。云端测试发现此屏幕差异后补充原图导出颜色与普通屏幕上下文回归。
 - 透明度检测基于原图完整像素，避免缩略预览漏检小透明区域。
 - 多帧 GIF/APNG、高位深、灰度和其他格式保持原生路径。超过现有全分辨率位图预算的图片也保留原生路径。
 - 所有实验分支已从测试代码删除；保留原图的可选性能回归测试和原样本测量记录。

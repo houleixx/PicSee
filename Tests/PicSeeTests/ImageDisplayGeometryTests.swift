@@ -40,6 +40,13 @@ final class ImageDisplayGeometryTests: XCTestCase {
         XCTAssertEqual(after.pixelDisplayScale, 2.5)
     }
 
+    func testGigapixelZoomCanReachOneSourcePixelPerBackingPixel() {
+        let scale: CGFloat = 0.03
+        let zoom = ImageZoomAdjustment.clampedZoom(currentZoom: 1, multiplier: 1 / scale,
+                                                   automaticPixelScale: scale)
+        XCTAssertEqual(zoom * scale, 1, accuracy: 0.0001)
+    }
+
     func testDoesNotUpscaleSmallImagesAtBaseZoom() {
         let geometry = ImageDisplayGeometry(
             imageSize: CGSize(width: 400, height: 300),

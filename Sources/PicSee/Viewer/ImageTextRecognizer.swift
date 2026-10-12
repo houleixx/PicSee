@@ -49,13 +49,13 @@ final class ImageTextRecognizer {
         task = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
             guard !Task.isCancelled, self?.revision == revision,
-                  let cgImage = image.fullResolutionCGImage else { return }
+                  let cgImage = image.largeImageSource?.preview ?? image.fullResolutionCGImage else { return }
             self?.startedCount += 1
             switch backend {
             case .liveText:
                 guard ImageAnalyzer.isSupported else { return }
                 do {
-                    let orientation = await VisionTextRecognitionWorker.shared.orientation(for: url)
+                    let orientation = await VisionTextRecognitionWorker.shared.orientation(for: image.largeImageSource == nil ? url : nil)
                     guard !Task.isCancelled else { return }
                     let result = try await analyzer.analyze(cgImage, orientation: orientation,
                         configuration: ImageAnalyzer.Configuration([.text, .machineReadableCode, .visualLookUp]))
@@ -66,7 +66,7 @@ final class ImageTextRecognizer {
                     liveText(nil)
                 }
             case .vision:
-                let lines = await VisionTextRecognitionWorker.shared.recognize(cgImage, url: url)
+                let lines = await VisionTextRecognitionWorker.shared.recognize(cgImage, url: image.largeImageSource == nil ? url : nil)
                 guard !Task.isCancelled, self?.revision == revision else { return }
                 vision(lines)
             }

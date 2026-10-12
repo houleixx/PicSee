@@ -16,7 +16,22 @@ struct LoadedImage: Sendable {
 
     static func read(_ url: URL) -> LoadedImage? {
         autoreleasepool {
-            guard let image = NSImage(contentsOf: url), image.isValid else { return nil }
+            // Read headers before asking AppKit for pixels. Oversized static JPEG,
+            // PNG, TIFF, HEIC, etc. must never decode in full just to fit a window.
+            if let source = CGImageSourceCreateWithURL(url as CFURL,
+                [kCGImageSourceShouldCache: false] as CFDictionary),
+               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+               LargeImageSource.needsPreview(source: source, properties: properties) {
+                // A failed preview must not fall back to the unsafe giant texture.
+                guard !Task.isCancelled,
+                      let large = LargeImageSource(url: url, source: source, properties: properties) else { return nil }
+                let bytes = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
+                return LoadedImage(image: NSImage.largeImage(source: large),
+                    metadata: ImageParameterMetadata(url: url, properties: properties),
+                    pixelSize: large.pixelSize, byteCount: bytes.map(Int64.init),
+                    containsTransparency: large.hasAlpha)
+            }
+            guard !Task.isCancelled, let image = NSImage(contentsOf: url), image.isValid else { return nil }
             // Warm the representation before presentation/OCR asks for pixels.
             let decoded = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
             let pixels = decoded.map { CGSize(width: $0.width, height: $0.height) } ?? ImageExporter.pixelSize(of: image)

@@ -1,4 +1,6 @@
 import AppKit
+import ImageIO
+import UniformTypeIdentifiers
 import XCTest
 @testable import PicSee
 
@@ -228,6 +230,41 @@ final class ImageCanvasPixelScaleTests: XCTestCase {
         view.layoutSubtreeIfNeeded()
         XCTAssertEqual(view.debugGeometry.imageRect.width, 450, accuracy: 0.001)
         XCTAssertEqual(view.debugGeometry.imageRect.height, 600, accuracy: 0.001)
+    }
+
+    func testSemitransparentLargeImageHasOnlyOneVisibleImageAtDetailZoom() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let context = try XCTUnwrap(CGContext(data: nil, width: 64, height: 9000, bitsPerComponent: 8,
+            bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 0.5))
+        context.fill(CGRect(x: 0, y: 0, width: 64, height: 9000))
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, try XCTUnwrap(context.makeImage()), nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        let loaded = try XCTUnwrap(LoadedImage.read(url))
+        XCTAssertTrue(try XCTUnwrap(loaded.image.largeImageSource).hasAlpha)
+        let (window, view) = canvas(scale: 2)
+        defer { window.close() }
+        view.image = loaded.image
+        view.debugCancelTextRecognition()
+        view.layoutSubtreeIfNeeded()
+        func imageView(in root: NSView) -> NSImageView? {
+            if let image = root as? NSImageView,
+               image.layer?.sublayers?.contains(where: { $0 is LargeImageTileLayer }) == true { return image }
+            return root.subviews.lazy.compactMap { imageView(in: $0) }.first
+        }
+        let previewView = try XCTUnwrap(imageView(in: view))
+        XCTAssertTrue(previewView.image === loaded.image)
+        view.applyToolbarZoom(request: ImageZoomRequest(id: 1, multiplier: 1 / view.debugGeometry.pixelDisplayScale))
+        view.layoutSubtreeIfNeeded()
+        let tiles = try XCTUnwrap(previewView.layer?.sublayers?.first { $0 is LargeImageTileLayer })
+        XCTAssertFalse(tiles.isHidden)
+        XCTAssertNil(previewView.image, "Only tiles may contribute source alpha at detail zoom")
+        view.zoomScale = 1
+        view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(tiles.isHidden)
+        XCTAssertTrue(previewView.image === loaded.image)
     }
 
     private func canvas(scale: CGFloat) -> (PixelScaleWindow, CanvasNSView) {

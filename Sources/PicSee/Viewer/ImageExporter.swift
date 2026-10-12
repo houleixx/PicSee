@@ -6,6 +6,7 @@ extension NSImage {
     /// Display previews are selected by screen scale. Pixel consumers need the
     /// largest bitmap so OCR, crop, wallpaper and export retain original detail.
     var fullResolutionCGImage: CGImage? {
+        if let source = largeImageSource { return source.fullResolutionImage() }
         if let bitmap = representations.compactMap({ $0 as? NSBitmapImageRep })
             .max(by: { $0.pixelsWide * $0.pixelsHigh < $1.pixelsWide * $1.pixelsHigh }) {
             return bitmap.cgImage
@@ -71,8 +72,19 @@ enum ImageExporterError: LocalizedError {
 
 enum ImageExporter {
     static func export(_ image: NSImage, to url: URL, options: ImageExportOptions) throws {
-        guard let source = image.fullResolutionCGImage else {
-            throw ImageExporterError.missingCGImage
+        let source: CGImage
+        if let large = image.largeImageSource {
+            let size = options.pixelSize ?? large.pixelSize
+            _ = try ImageRenderBudget.dimensions(for: size)
+            let ratio = max(size.width / large.pixelSize.width, size.height / large.pixelSize.height)
+            let edge = Int(ceil(max(large.pixelSize.width, large.pixelSize.height) * min(1, ratio)))
+            guard let pixels = ratio < 1 ? large.thumbnail(edge: edge) : large.fullResolutionImage() else {
+                throw ImageExporterError.missingCGImage
+            }
+            source = pixels
+        } else {
+            guard let pixels = image.fullResolutionCGImage else { throw ImageExporterError.missingCGImage }
+            source = pixels
         }
 
         let outputImage = try renderedImage(from: source, format: options.format, pixelSize: options.pixelSize)
@@ -96,6 +108,7 @@ enum ImageExporter {
     }
 
     static func pixelSize(of image: NSImage) -> CGSize? {
+        if let large = image.largeImageSource { return large.pixelSize }
         // CG-backed snapshot representations can report screen-scaled dimensions
         // (for example 160×80 for an 80×40 CGImage on Retina). Only bitmap
         // representations carry authoritative stored-pixel dimensions.

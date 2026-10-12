@@ -101,6 +101,11 @@ final class ScreenshotDocument: ObservableObject {
     @Published private(set) var redoStates: [ScreenshotState] = []
 
     init(image: NSImage, rotationDegrees: Int) throws {
+        if let large = image.largeImageSource, rotationDegrees % 360 == 0 {
+            pixelSize = large.pixelSize
+            self.image = image
+            return
+        }
         guard let source = image.fullResolutionCGImage else {
             throw ImageExporterError.missingCGImage
         }
@@ -341,7 +346,7 @@ final class ScreenshotDocument: ObservableObject {
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
         defer { NSGraphicsContext.restoreGraphicsState() }
         NSGraphicsContext.current?.imageInterpolation = .high
-        if screenSampling {
+        if screenSampling && image.largeImageSource == nil {
             guard let source = image.fullResolutionCGImage else {
                 throw ImageExporterError.missingCGImage
             }
@@ -362,7 +367,13 @@ final class ScreenshotDocument: ObservableObject {
         NSGraphicsContext.current?.cgContext.setShouldAntialias(true)
         NSGraphicsContext.current?.cgContext.scaleBy(x: size.width / crop.width, y: size.height / crop.height)
         NSGraphicsContext.current?.cgContext.translateBy(x: -crop.minX, y: -crop.minY)
-        if !screenSampling { image.draw(in: bounds) }
+        if let large = image.largeImageSource {
+            // Keep source coordinates, but render only the selected region into
+            // the bounded export context instead of a giant Core Image texture.
+            guard let context = NSGraphicsContext.current?.cgContext, large.draw(in: context) else {
+                throw ImageExporterError.missingCGImage
+            }
+        } else if !screenSampling { image.draw(in: bounds) }
         drawAnnotations(state.annotations)
         let result = NSImage(size: size)
         result.addRepresentation(bitmap)

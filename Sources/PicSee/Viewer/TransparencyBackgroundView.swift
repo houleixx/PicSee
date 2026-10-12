@@ -22,6 +22,8 @@ enum TransparencyBackground {
     }
 
     nonisolated static func containsTransparency(_ image: NSImage) -> Bool {
+        // Conservatively preserve the checkerboard without scanning gigapixels.
+        if let large = image.largeImageSource { return large.hasAlpha }
         // If AppKit cannot supply a bitmap, preserve the background for content
         // whose opacity is unknown rather than lose transparent details.
         guard let bitmap = image.fullResolutionCGImage else { return true }

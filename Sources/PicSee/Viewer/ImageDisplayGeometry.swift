@@ -14,7 +14,9 @@ struct ImageZoomAdjustment {
 
     static func clampedZoom(currentZoom: CGFloat, multiplier: CGFloat, automaticPixelScale: CGFloat = 1) -> CGFloat {
         let minimum = minimumZoomScale / max(1, automaticPixelScale)
-        return min(maximumZoomScale, max(minimum, currentZoom * max(CGFloat.leastNormalMagnitude, multiplier)))
+        // Even gigapixel images must be able to reach the 1:1 command.
+        let maximum = max(maximumZoomScale, 1 / max(CGFloat.leastNormalMagnitude, automaticPixelScale))
+        return min(maximum, max(minimum, currentZoom * max(CGFloat.leastNormalMagnitude, multiplier)))
     }
 
     static func adjustment(

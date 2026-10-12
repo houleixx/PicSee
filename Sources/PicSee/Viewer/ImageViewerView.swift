@@ -465,9 +465,15 @@ struct ImageViewerView: View {
         latestVersionNoticeID = nil
         clipboardNoticeID = nil
         do {
-            let copiedImage = viewModel.rotationDegrees == 0
-                ? image
-                : try ScreenshotDocument(image: image, rotationDegrees: viewModel.rotationDegrees).image
+            let copiedImage: NSImage
+            if viewModel.rotationDegrees != 0 {
+                copiedImage = try ScreenshotDocument(image: image, rotationDegrees: viewModel.rotationDegrees).image
+            } else if let source = image.largeImageSource {
+                guard let pixels = source.fullResolutionImage() else { throw ImageExporterError.missingCGImage }
+                copiedImage = NSImage(cgImage: pixels, size: source.pixelSize)
+            } else {
+                copiedImage = image
+            }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             guard pasteboard.writeObjects([copiedImage]) else {

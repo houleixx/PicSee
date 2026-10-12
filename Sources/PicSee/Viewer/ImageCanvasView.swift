@@ -547,6 +547,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private static let themeMenuIdentifier = NSUserInterfaceItemIdentifier("PicSee.ThemeMenu")
 
     private let imageView = NSImageView(frame: .zero)
+    private var imageDetailLayer: LargeImageTileLayer?
     private var isSettingWallpaper = false
     private let transparencyBackground = TransparencyBackgroundView(frame: .zero)
     private let outgoingTransparencyBackground = TransparencyBackgroundView(frame: .zero)
@@ -616,6 +617,15 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             }
             imageView.image = image
             if imageChanged {
+                imageDetailLayer?.setActive(false)
+                imageDetailLayer?.removeFromSuperlayer()
+                imageDetailLayer?.source?.discardDetailCache()
+                imageDetailLayer = nil
+                if let large = image?.largeImageSource {
+                    let tiles = LargeImageTileLayer(source: large)
+                    imageView.layer?.addSublayer(tiles)
+                    imageDetailLayer = tiles
+                }
                 transparencyBackground.isHidden = image.map { !TransparencyBackground.needsCheckerboard(for: $0) } ?? true
                 if !isUpdatingImage { analyzeImageIfPossible() }
             }
@@ -976,6 +986,26 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         imageView.frame = geometry.unrotatedImageRect
         imageView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         imageView.layer?.position = CGPoint(x: geometry.imageRect.midX, y: geometry.imageRect.midY)
+        if let tiles = imageDetailLayer, let source = tiles.source {
+            tiles.bounds = CGRect(origin: .zero, size: source.pixelSize)
+            tiles.anchorPoint = .zero
+            tiles.position = .zero
+            tiles.setAffineTransform(CGAffineTransform(scaleX: imageView.bounds.width / source.pixelSize.width,
+                                                       y: imageView.bounds.height / source.pixelSize.height))
+            let scale = window?.backingScaleFactor ?? 1
+            let fitsPreview = imageView.bounds.width * scale <= CGFloat(source.preview.width)
+                && imageView.bounds.height * scale <= CGFloat(source.preview.height)
+            let hidden = geometry.zoomScale <= 1.001 || fitsPreview
+            if hidden && !tiles.isHidden { source.discardDetailCache() }
+            let becomingVisible = tiles.isHidden && !hidden
+            tiles.setActive(!hidden)
+            tiles.isHidden = hidden
+            // Semitransparent native tiles must not composite over the same
+            // semitransparent preview. Opaque photos keep the loading fallback.
+            let preview = source.hasAlpha && !hidden ? nil : image
+            if imageView.image !== preview { imageView.image = preview }
+            if becomingVisible { tiles.setNeedsDisplay() }
+        }
         applyImageRotation()
         if let imageLayer = imageView.layer {
             transparencyBackground.synchronize(imageLayer: imageLayer, motionLayer: imageMotionView.layer)
@@ -988,6 +1018,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         switch backend {
         case .liveText:
             liveTextOverlay.frame = imageView.bounds
+            liveTextOverlay.layer?.zPosition = 2
             repositionLiveTextControlsIfNeeded()
         case .vision:
             selectionOverlayView.frame = bounds

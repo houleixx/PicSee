@@ -100,7 +100,7 @@ final class LanguageSettings: ObservableObject {
             NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification).eraseToAnyPublisher(),
             NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification).eraseToAnyPublisher()
         ] {
-            publisher.sink { [weak self] _ in
+            publisher.sink { @Sendable [weak self] _ in
                 Task { @MainActor [weak self] in self?.reload() }
             }.store(in: &observations)
         }

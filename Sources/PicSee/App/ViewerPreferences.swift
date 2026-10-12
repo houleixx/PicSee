@@ -62,12 +62,12 @@ final class ViewerPreferences: ObservableObject {
         self.defaults = defaults
         snapshot = ViewerPreferencesSnapshot(defaults: defaults)
         NotificationCenter.default.publisher(for: ViewerPreferenceChange.notification, object: defaults)
-            .sink { [weak self] _ in
+            .sink { @Sendable [weak self] _ in
                 Task { @MainActor [weak self] in self?.reload() }
             }
             .store(in: &observations)
         DistributedNotificationCenter.default().publisher(for: ViewerPreferenceChange.distributedNotification)
-            .sink { [weak self] _ in
+            .sink { @Sendable [weak self] _ in
                 Task { @MainActor [weak self] in
                     self?.defaults.synchronize()
                     self?.reload()
@@ -75,7 +75,7 @@ final class ViewerPreferences: ObservableObject {
             }
             .store(in: &observations)
         NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-            .sink { [weak self] _ in
+            .sink { @Sendable [weak self] _ in
                 Task { @MainActor [weak self] in self?.reload() }
             }
             .store(in: &observations)

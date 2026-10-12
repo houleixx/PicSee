@@ -54,6 +54,21 @@ struct LocalizationTests {
         #expect(AppLanguage.current(in: defaults) == .system)
     }
 
+    @Test @MainActor func backgroundPreferenceNotificationReloadsOnMainActor() async throws {
+        let name = "PicSee.LocalizationBackground.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = LanguageSettings(defaults: defaults)
+        defaults.set(AppLanguage.english.rawValue, forKey: AppLanguage.defaultsKey)
+        await Task.detached {
+            NotificationCenter.default.post(name: ViewerPreferenceChange.notification, object: nil)
+        }.value
+        for _ in 0..<100 where settings.selection != .english {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(settings.selection == .english)
+    }
+
     @Test func catalogsHaveIdenticalKeysAndCompleteEnglishTranslations() throws {
         func catalog(_ language: String) throws -> [String: String] {
             let url = try #require(L10n.localizedBundle(language).url(forResource: "Localizable", withExtension: "strings"))

@@ -140,7 +140,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.75 PICSEE_BUILD_NUMBER=75 Scripts/build-app.sh
+PICSEE_VERSION=0.2.76 PICSEE_BUILD_NUMBER=76 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -157,15 +157,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.75.dmg`
+- DMG: `build/dmg/PicSee-0.2.76.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.75 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.76 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.75.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.76.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -295,14 +295,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.75
-git push origin v0.2.75
+git tag v0.2.76
+git push origin v0.2.76
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.75`
-- Asset: `PicSee-0.2.75.dmg`
+- Release: `v0.2.76`
+- Asset: `PicSee-0.2.76.dmg`
 
 ## Release 说明
 
@@ -334,7 +334,11 @@ Tests/PicSeeTests/          单元测试与 OCR 回归测试
 
 ## 性能与回归检查
 
-较大的静态 8 位 RGB PNG 会在后台准备窗口预览表示，减少长图首次显示时的主线程绘制开销；全分辨率像素仍保留给放大查看和导出。高位深 PNG、动画 PNG 和其他格式沿用原生表示。
+最长边超过 8192 像素或总像素超过 6400 万的单帧静态图片（包括 JPG、PNG 等）先在后台解码最长边 2048 像素的预览，适合窗口时不创建原图大小的显示位图。放大后按可见区域分块绘制原图细节，避免单个超大 GPU 纹理造成白屏或显示异常；恢复适合窗口及切图时异步释放细节缓存。原始像素尺寸和 EXIF 方向仍用于缩放、裁剪和导出，100% 可到达原始像素比例。首次放大仍可能产生较高的源图解码内存，具体开销取决于系统解码器和图片格式。
+
+超大图片 OCR 使用已校正方向的预览，极小文字的识别精度可能降低；裁剪使用源图像素，缩小导出按目标尺寸解码，整图输出仍受下述内存预算限制。没有达到超大图阈值的较大静态 8 位 RGB PNG 沿用窗口预览优化；其余普通图片以及动画保持原有加载路径。
+
+超大图的复现方法、性能数据与验证范围见[验证记录](docs/verification/2026-10-12-large-image-display.md)。
 
 正式应用在后台串行加载和验证图片，目录扫描与 Finder 排序不会阻塞看图主线程。快速连续翻页以最新请求为准，迟到的加载结果不会覆盖当前图片；外部打开失败保留原图、缩放、旋转和编辑状态。幻灯片在新图片加载完成后才开始下一个完整间隔。
 

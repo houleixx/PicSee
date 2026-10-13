@@ -3,6 +3,25 @@ import XCTest
 @testable import PicSee
 
 final class WindowPlacementTests: XCTestCase {
+    func testAutomaticWindowUsesImageSizeWithUsableMinimum() throws {
+        let screen = NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let small = try XCTUnwrap(WindowPlacement.automaticFrame(
+            for: NSSize(width: 400, height: 240), in: screen, backingScale: 2))
+        XCTAssertEqual(small.size, NSSize(width: 480, height: 320))
+        let medium = try XCTUnwrap(WindowPlacement.automaticFrame(
+            for: NSSize(width: 1400, height: 1000), in: screen, backingScale: 2))
+        XCTAssertEqual(medium.size, NSSize(width: 700, height: 500))
+    }
+
+    func testAutomaticWindowFitsLargeImagesToVisibleScreen() throws {
+        let screen = NSRect(x: 40, y: 50, width: 1000, height: 800)
+        let frame = try XCTUnwrap(WindowPlacement.automaticFrame(
+            for: NSSize(width: 4000, height: 2000), in: screen))
+        XCTAssertEqual(frame.width, 900, accuracy: 0.001)
+        XCTAssertEqual(frame.height, 450, accuracy: 0.001)
+        XCTAssertTrue(screen.contains(frame))
+    }
+
     func testLargeImageFitsAvailableAreaAndCentersWindow() {
         let screen = NSRect(x: 0, y: 0, width: 1440, height: 900)
         let imageSize = NSSize(width: 1200, height: 800)

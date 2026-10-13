@@ -150,9 +150,16 @@ struct ImageViewerView: View {
                 }
                 .overlay(alignment: .bottomLeading) {
                     if let updateChecker, !viewModel.slideshow.isActive {
-                        UpdatePromptView(updateChecker: updateChecker)
+                        GeometryReader { geometry in
+                            VStack {
+                                Spacer()
+                                UpdatePromptView(updateChecker: updateChecker,
+                                                 compact: geometry.size.width < 950)
+                                    .padding(.bottom, geometry.size.width < 950 ? 62 : hudPadding)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, hudPadding)
-                            .padding(.bottom, hudPadding)
+                        }
                     }
                 }
                 .overlay(alignment: .bottom) {
@@ -704,49 +711,73 @@ enum PicSeeResourceBundle {
 private struct UpdatePromptView: View {
     @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var updateChecker: UpdateChecker
+    let compact: Bool
+    @State private var detailsVisible = false
 
+    @ViewBuilder
     var body: some View {
         if let update = updateChecker.availableUpdate, updateChecker.status != .downloaded {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Text(message(for: update))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white)
-
-                    Button(action: {
-                        Task { await updateChecker.downloadAvailableUpdate() }
-                    }) {
-                        Text(updateButtonTitle)
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
-                    .disabled(updateChecker.status == .downloading)
-
-                    Button(action: updateChecker.ignoreAvailableUpdate) {
-                        Text(L10n.text("忽略"))
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white.opacity(0.78))
-                    .disabled(updateChecker.status == .downloading)
+            if compact {
+                Button(updateChecker.status == .downloading ? L10n.text("下载中...") : L10n.text("发现更新")) {
+                    detailsVisible = true
                 }
-
-                if updateChecker.status == .downloading {
-                    ProgressView(value: updateChecker.downloadProgress ?? 0)
-                        .progressViewStyle(.linear)
-                        .controlSize(.mini)
-                        .tint(Color(red: 0.18, green: 0.48, blue: 0.95))
-                        .frame(width: 180)
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.black.opacity(0.6), in: Capsule())
+                .popover(isPresented: $detailsVisible, arrowEdge: .bottom) {
+                    prompt(for: update)
+                        .padding(8)
                 }
+            } else {
+                prompt(for: update)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 8))
         }
+    }
+
+    private func prompt(for update: GitHubRelease) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(message(for: update))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+
+                Button(action: {
+                    Task { await updateChecker.downloadAvailableUpdate() }
+                }) {
+                    Text(updateButtonTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
+                .disabled(updateChecker.status == .downloading)
+
+                Button(action: updateChecker.ignoreAvailableUpdate) {
+                    Text(L10n.text("忽略"))
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.78))
+                .disabled(updateChecker.status == .downloading)
+            }
+
+            if updateChecker.status == .downloading {
+                ProgressView(value: updateChecker.downloadProgress ?? 0)
+                    .progressViewStyle(.linear)
+                    .controlSize(.mini)
+                    .tint(Color(red: 0.18, green: 0.48, blue: 0.95))
+                    .frame(width: 180)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: 260, alignment: .leading)
+        .background(.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var updateButtonTitle: String {

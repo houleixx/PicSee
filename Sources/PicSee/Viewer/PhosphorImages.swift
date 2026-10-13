@@ -36,8 +36,27 @@ enum PhosphorImages {
             return (name, image)
         })
 
+    private static let settingsImages: [String: NSImage] =
+        Dictionary(uniqueKeysWithValues: ["images-bold", "monitor-bold", "sun-fill", "info-fill"].map { name in
+            guard let url = PicSeeResourceBundle.url(
+                forResource: name, withExtension: "svg",
+                subdirectory: "Phosphor.xcassets/\(name).imageset"
+            ), let image = NSImage(contentsOf: url) else {
+                preconditionFailure("Missing Phosphor settings icon: \(name)")
+            }
+            image.isTemplate = true
+            return (name, image)
+        })
+
     static func contextMenuImage(for systemSymbol: String) -> NSImage? {
         contextMenuNames[systemSymbol].flatMap { contextMenuImages[$0] }
+    }
+
+    static func image(named name: String) -> NSImage {
+        guard let image = settingsImages[name] else {
+            preconditionFailure("Missing Phosphor icon: \(name)")
+        }
+        return image
     }
 
     static let trash: NSImage = {

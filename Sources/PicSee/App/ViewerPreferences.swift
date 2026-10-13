@@ -28,6 +28,8 @@ struct ViewerPreferencesSnapshot: Equatable {
     var alwaysOnTopEnabled: Bool
     var singleWindowEnabled: Bool
     var fixedWindowEnabled: Bool
+    var automaticWindowSizeEnabled: Bool
+    var automaticWindowResizeAnimationEnabled: Bool
     var rightMouseCloseGestureEnabled: Bool
     var imageNavigationAnimationEnabled: Bool
     var fullScreenSmallImageMode: FullScreenSmallImageMode
@@ -43,6 +45,8 @@ struct ViewerPreferencesSnapshot: Equatable {
         alwaysOnTopEnabled = WindowPinningPreference.isEnabled(in: defaults)
         singleWindowEnabled = SingleWindowPreference.isEnabled(in: defaults)
         fixedWindowEnabled = WindowFramePreference.isFixedEnabled(in: defaults)
+        automaticWindowSizeEnabled = AutomaticWindowSizePreference.isEnabled(in: defaults)
+        automaticWindowResizeAnimationEnabled = AutomaticWindowResizeAnimationPreference.isEnabled(in: defaults)
         rightMouseCloseGestureEnabled = ImageCloseGesturePreference.isEnabled(in: defaults)
         imageNavigationAnimationEnabled = ImageNavigationAnimationPreference.isEnabled(in: defaults)
         fullScreenSmallImageMode = FullScreenSmallImagePreference.mode(in: defaults)
@@ -111,6 +115,8 @@ final class ViewerPreferences: ObservableObject {
         case \.alwaysOnTopEnabled: WindowPinningPreference.setEnabled(value, in: defaults)
         case \.singleWindowEnabled: SingleWindowPreference.setEnabled(value, in: defaults)
         case \.fixedWindowEnabled: WindowFramePreference.setFixedEnabled(value, in: defaults)
+        case \.automaticWindowSizeEnabled: AutomaticWindowSizePreference.setEnabled(value, in: defaults)
+        case \.automaticWindowResizeAnimationEnabled: AutomaticWindowResizeAnimationPreference.setEnabled(value, in: defaults)
         case \.rightMouseCloseGestureEnabled: ImageCloseGesturePreference.setEnabled(value, in: defaults)
         case \.imageNavigationAnimationEnabled: ImageNavigationAnimationPreference.setEnabled(value, in: defaults)
         default: preconditionFailure("Unknown viewer preference")

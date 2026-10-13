@@ -145,6 +145,59 @@ struct SingleWindowTests {
         #expect(model.nextURL == fixture.c)
     }
 
+    @Test func automaticWindowResizesWhenNavigatingToDifferentImageSize() async throws {
+        _ = NSApplication.shared
+        let defaults = UserDefaults.standard
+        let originalAutomatic = defaults.object(forKey: AutomaticWindowSizePreference.defaultsKey)
+        let originalFixed = defaults.object(forKey: "PicSee.FixedWindowFrameEnabled")
+        defer {
+            if let originalAutomatic { defaults.set(originalAutomatic, forKey: AutomaticWindowSizePreference.defaultsKey) }
+            else { defaults.removeObject(forKey: AutomaticWindowSizePreference.defaultsKey) }
+            if let originalFixed { defaults.set(originalFixed, forKey: "PicSee.FixedWindowFrameEnabled") }
+            else { defaults.removeObject(forKey: "PicSee.FixedWindowFrameEnabled") }
+            ViewerPreferences.shared.reload()
+        }
+        defaults.set(true, forKey: AutomaticWindowSizePreference.defaultsKey)
+        defaults.set(false, forKey: "PicSee.FixedWindowFrameEnabled")
+        ViewerPreferences.shared.reload()
+
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("PicSeeAutoSize-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func writePNG(_ size: CGSize, name: String) throws -> URL {
+            let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil,
+                pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+            let url = folder.appendingPathComponent(name)
+            try #require(bitmap.representation(using: .png, properties: [:])).write(to: url)
+            return url
+        }
+        let first = try writePNG(CGSize(width: 80, height: 80), name: "01.png")
+        _ = try writePNG(CGSize(width: 1600, height: 1000), name: "02.png")
+        let manager = WindowManager(finderOrderProvider: FilenameFolderOrderProvider(), loadingMode: .background,
+                                    screenGeometryOverride: (NSRect(x: 0, y: 0, width: 1440, height: 900), 2))
+        manager.openViewer(for: first)
+        let window = try #require(manager.currentWindow)
+        defer { window.close() }
+        let model = try #require(manager.currentViewModel)
+        try await ready(model)
+        for _ in 0..<100 where model.image == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        _ = try #require(model.image)
+        window.delegate?.windowDidEndLiveResize?(Notification(name: NSWindow.didEndLiveResizeNotification,
+                                                               object: window))
+        try await Task.sleep(for: .seconds(1))
+        let firstWidth = window.frame.width
+        model.navigateToNext()
+        for _ in 0..<100 where model.currentURL == first || model.image == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(window.frame.width > firstWidth + 100)
+    }
+
     private func ready(_ model: ImageViewerViewModel) async throws {
         for _ in 0..<100 {
             if model.isNavigationOrderReady { return }

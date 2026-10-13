@@ -177,10 +177,10 @@ final class SettingsWindowTests: XCTestCase {
         if let output = ProcessInfo.processInfo.environment["PICSEE_SETTINGS_SNAPSHOTS"] {
             try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
             func snapshot(_ name: String) throws {
-                let content = try XCTUnwrap(window.contentView)
-                content.layoutSubtreeIfNeeded()
-                let bitmap = try XCTUnwrap(content.bitmapImageRepForCachingDisplay(in: content.bounds))
-                content.cacheDisplay(in: content.bounds, to: bitmap)
+                let frameView = try XCTUnwrap(window.contentView?.superview)
+                frameView.layoutSubtreeIfNeeded()
+                let bitmap = try XCTUnwrap(frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds))
+                frameView.cacheDisplay(in: frameView.bounds, to: bitmap)
                 let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
                 try data.write(to: URL(fileURLWithPath: output).appendingPathComponent("\(name).png"))
             }

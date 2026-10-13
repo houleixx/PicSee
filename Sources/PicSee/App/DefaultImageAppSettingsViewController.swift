@@ -390,7 +390,7 @@ final class DefaultImageAppSettingsViewController: NSViewController {
         view.appearance = theme.appearance
         let appearance = view.effectiveAppearance
 
-        contentBackgroundLayer?.backgroundColor = cgColor(for: .windowBackgroundColor, appearance: appearance)
+        contentBackgroundLayer?.backgroundColor = cgColor(for: SettingsWindowSurface.color(for: appearance), appearance: appearance)
         let cardBackground = cgColor(for: cardBackgroundColor(for: appearance), appearance: appearance)
         let cardBorder = cgColor(for: .labelColor, appearance: appearance, alpha: 0.10)
         for layer in cardLayers {

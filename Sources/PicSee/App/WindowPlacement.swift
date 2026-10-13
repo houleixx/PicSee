@@ -1,6 +1,27 @@
 import AppKit
 
 enum WindowPlacement {
+    static let minimumAutomaticContentSize = NSSize(width: 480, height: 320)
+
+    static func automaticFrame(
+        for imageSize: NSSize,
+        in screenFrame: NSRect,
+        backingScale: CGFloat = 1
+    ) -> NSRect? {
+        guard imageSize.width.isFinite, imageSize.height.isFinite,
+              imageSize.width > 0, imageSize.height > 0,
+              screenFrame.width > 0, screenFrame.height > 0 else { return nil }
+
+        let screenScale = backingScale.isFinite && backingScale > 0 ? backingScale : 1
+        let nativeSize = NSSize(width: imageSize.width / screenScale, height: imageSize.height / screenScale)
+        let maximumSize = NSSize(width: screenFrame.width * 0.9, height: screenFrame.height * 0.9)
+        let fit = min(1, maximumSize.width / nativeSize.width, maximumSize.height / nativeSize.height)
+        let width = min(screenFrame.width, max(minimumAutomaticContentSize.width, nativeSize.width * fit))
+        let height = min(screenFrame.height, max(minimumAutomaticContentSize.height, nativeSize.height * fit))
+        return NSRect(x: screenFrame.midX - width / 2, y: screenFrame.midY - height / 2,
+                      width: width, height: height)
+    }
+
     /// Image dimensions are physical pixels; window dimensions are screen points.
     static func frame(for imageSize: NSSize?, in screenFrame: NSRect, backingScale: CGFloat = 1) -> NSRect {
         let maximumWidth = min(screenFrame.width, max(800, screenFrame.width * 0.8))

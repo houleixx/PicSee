@@ -5,12 +5,14 @@ import SwiftUI
 
 final class ViewerWindow: NSWindow {
     var pinningController: WindowPinningController?
+    var automaticImageResizeTarget: NSRect?
     private struct NativeFullScreenSnapshot {
         let styleMask: NSWindow.StyleMask
         let frame: NSRect
     }
 
     private var restoreFrameAfterTemporaryDesktopFullScreen: NSRect?
+    var isTemporaryDesktopFullScreenActive: Bool { restoreFrameAfterTemporaryDesktopFullScreen != nil }
     var fallbackFrameForTemporaryDesktopFullScreen: NSRect?
     var onWillEnterTemporaryDesktopFullScreen: ((NSRect) -> Void)?
     private var nativeFullScreenSnapshot: NativeFullScreenSnapshot?
@@ -36,6 +38,14 @@ final class ViewerWindow: NSWindow {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func animationResizeTime(_ newFrame: NSRect) -> TimeInterval {
+        if let automaticImageResizeTarget,
+           newFrame.isApproximatelyEqual(to: automaticImageResizeTarget) {
+            return 0.24
+        }
+        return super.animationResizeTime(newFrame)
+    }
 
     override func mouseDown(with event: NSEvent) {
         if event.clickCount == 2, isTitleBarEvent(event) {
@@ -141,6 +151,7 @@ final class ViewerWindow: NSWindow {
 @MainActor
 final class WindowManager {
     typealias AuthorizationRestorationScheduler = @MainActor (@escaping @MainActor @Sendable () -> Void) -> Void
+    typealias ScreenGeometry = (visibleFrame: NSRect, backingScale: CGFloat)
 
     let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
     private(set) var currentWindow: NSWindow?
@@ -149,15 +160,23 @@ final class WindowManager {
     private var isConfirmingReplacement = false
     private var sheetObserver: AnyCancellable?
     private var initialImageObserver: AnyCancellable?
+    private var initialImageFailureObserver: AnyCancellable?
+    private var automaticImageObserver: AnyCancellable?
+    private var automaticSizePreferenceObserver: AnyCancellable?
     private var fileAccessObserver: AnyCancellable?
     private var applicationActivationObserver: AnyCancellable?
     private let loadingMode: ImageLoadingMode
+    private let screenGeometryOverride: ScreenGeometry?
     private var titleObserver: AnyCancellable?
     private var appearanceObserver: AnyCancellable?
     private var keyEventMonitor: Any?
     private let finderOrderProvider: (any FinderFolderOrderProviding)?
     private let deletionConfirmation = ImageDeletionConfirmation()
     private let minimumWindowSize = NSSize(width: 320, height: 220)
+    private var automaticSizingPausedByUser = false
+    private var hasPresentedInitialImage = false
+    private var automaticResizeRevision = 0
+    private var isApplyingAutomaticFrame = false
     private var authorizationRestoreRevision = 0
     private let authorizationRestorationScheduler: AuthorizationRestorationScheduler
     private lazy var authorizationFocusRecovery = ViewerAuthorizationFocusRecovery { [weak self] window in
@@ -175,11 +194,13 @@ final class WindowManager {
     init(
         finderOrderProvider: (any FinderFolderOrderProviding)? = nil,
         loadingMode: ImageLoadingMode = .background,
+        screenGeometryOverride: ScreenGeometry? = nil,
         authorizationRestorationScheduler: @escaping AuthorizationRestorationScheduler = { restore in
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(250)) { restore() }
         }
     ) {
         self.loadingMode = loadingMode
+        self.screenGeometryOverride = screenGeometryOverride
         self.finderOrderProvider = finderOrderProvider
         self.authorizationRestorationScheduler = authorizationRestorationScheduler
         applicationActivationObserver = NSWorkspace.shared.notificationCenter
@@ -259,6 +280,8 @@ final class WindowManager {
                 }
             )
         )
+        let deferInitialPresentation = viewModel.image == nil &&
+            AutomaticWindowSizePreference.isEnabled() && !WindowFramePreference.isFixedEnabled()
         let titleBarVisible = ViewerTitleBarPreference.isVisible()
         let styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: titleBarVisible)
         let initialContentFrame = initialWindowContentFrame(for: viewModel.image, styleMask: styleMask)
@@ -288,6 +311,10 @@ final class WindowManager {
             onFixedWindowChanged: { [weak self, weak window] fixed in
                 guard let self, let window else { return }
                 self.applyFixedWindowState(fixed, to: window)
+                if !fixed, let image = self.currentViewModel?.image {
+                    self.automaticSizingPausedByUser = false
+                    self.resizeWindowToImage(image, in: window)
+                }
             },
             onRequestDeletion: { [weak self, weak window, weak viewModel] in
                 guard let self, let window, let viewModel else { return }
@@ -305,6 +332,8 @@ final class WindowManager {
         window.pinningController = WindowPinningController(window: window)
         currentWindow = window
         currentViewModel = viewModel
+        automaticSizingPausedByUser = false
+        hasPresentedInitialImage = false
         sheetObserver = NotificationCenter.default.publisher(for: NSWindow.didEndSheetNotification, object: window)
             .sink { [weak self] _ in self?.resumePendingOpen() }
         appearanceObserver = ViewerPreferences.shared.$snapshot.map(\.theme).removeDuplicates()
@@ -343,7 +372,41 @@ final class WindowManager {
         window.contentViewController = hostingController
         window.setFrame(initialWindowFrame, display: false)
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
-        bringViewerToFront(window)
+        automaticSizePreferenceObserver = ViewerPreferences.shared.$snapshot
+            .map(\.automaticWindowSizeEnabled).removeDuplicates().dropFirst()
+            .sink { [weak self, weak window, weak viewModel] enabled in
+                guard let self, let window, let viewModel else { return }
+                self.applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
+                if enabled, let image = viewModel.image {
+                    self.automaticSizingPausedByUser = false
+                    self.resizeWindowToImage(image, in: window)
+                }
+            }
+        automaticImageObserver = viewModel.$image.compactMap { $0 }
+            .sink { [weak self, weak window] image in
+                let shouldAnimate = self?.hasPresentedInitialImage == true
+                self?.hasPresentedInitialImage = true
+                DispatchQueue.main.async { [weak self, weak window] in
+                    guard let self, let window, self.currentWindow === window else { return }
+                    self.resizeWindowToImage(image, in: window, animate: shouldAnimate)
+                    if deferInitialPresentation && !window.isVisible {
+                        self.bringViewerToFront(window)
+                    }
+                }
+            }
+        if deferInitialPresentation {
+            initialImageFailureObserver = viewModel.$image.dropFirst()
+                .filter { $0 == nil }.first()
+                .sink { [weak self, weak window] _ in
+                    DispatchQueue.main.async { [weak self, weak window] in
+                        guard let self, let window, self.currentWindow === window,
+                              !window.isVisible else { return }
+                        self.bringViewerToFront(window)
+                    }
+                }
+        } else {
+            bringViewerToFront(window)
+        }
         fileAccessObserver = viewModel.$isImageLoading.combineLatest(viewModel.$isNavigationOrderReady)
             .map { loading, ready in loading || !ready }
             .removeDuplicates()
@@ -359,6 +422,7 @@ final class WindowManager {
                     DispatchQueue.main.async { [weak self, weak window] in
                         guard let self, let window, self.currentWindow === window,
                               window.frame == initialWindowFrame,
+                              !AutomaticWindowSizePreference.isEnabled(),
                               !WindowFramePreference.isFixedEnabled(),
                               !window.styleMask.contains(.fullScreen) else { return }
                         let frame = self.initialWindowContentFrame(for: image, styleMask: window.styleMask)
@@ -374,12 +438,37 @@ final class WindowManager {
                 guard let self, let window else { return }
                 self.saveWindowFrame(window)
             },
+            onUserFrameChanged: { [weak self, weak window] in
+                guard let self, let window, !self.isApplyingAutomaticFrame,
+                      !window.styleMask.contains(.fullScreen),
+                      !WindowFramePreference.isFixedEnabled(),
+                      AutomaticWindowSizePreference.isEnabled() else { return }
+                self.automaticSizingPausedByUser = true
+            },
+            onWindowResized: { [weak self, weak window] in
+                guard let self, let window, !self.isApplyingAutomaticFrame,
+                      NSApp.currentEvent?.type == .leftMouseDragged,
+                      !window.styleMask.contains(.fullScreen),
+                      !WindowFramePreference.isFixedEnabled(),
+                      AutomaticWindowSizePreference.isEnabled() else { return }
+                self.automaticSizingPausedByUser = true
+            },
+            onWindowMoved: { [weak self, weak window] in
+                guard let self, let window, !self.isApplyingAutomaticFrame,
+                      !window.styleMask.contains(.fullScreen),
+                      !WindowFramePreference.isFixedEnabled(),
+                      AutomaticWindowSizePreference.isEnabled() else { return }
+                self.automaticSizingPausedByUser = true
+            },
             onClose: { [weak self, weak window, weak viewModel] in
                 viewModel?.slideshow.stop()
                 if let self, let window {
                     self.saveWindowFrame(window)
                 }
                 self?.initialImageObserver = nil
+                self?.initialImageFailureObserver = nil
+                self?.automaticImageObserver = nil
+                self?.automaticSizePreferenceObserver = nil
                 self?.fileAccessObserver = nil
                 self?.authorizationFocusRecovery.setFileAccessPending(false, for: nil)
                 self?.titleObserver = nil
@@ -393,6 +482,10 @@ final class WindowManager {
                 self?.sheetObserver = nil
                 self?.pendingOpenURL = nil
                 self?.isConfirmingReplacement = false
+                self?.automaticSizingPausedByUser = false
+                self?.hasPresentedInitialImage = false
+                self?.automaticResizeRevision += 1
+                self?.isApplyingAutomaticFrame = false
             },
             onExitFullScreen: { [weak self, weak window] in
                 guard let window else { return }
@@ -408,13 +501,65 @@ final class WindowManager {
     }
 
     private func initialWindowContentFrame(for image: NSImage?, styleMask: NSWindow.StyleMask) -> NSRect {
-        guard let screen = NSScreen.main else {
+        guard let screen = screenGeometry(for: nil) else {
             return NSRect(x: 0, y: 0, width: 1000, height: 760)
         }
 
         let availableContentFrame = NSWindow.contentRect(forFrameRect: screen.visibleFrame, styleMask: styleMask)
+        if AutomaticWindowSizePreference.isEnabled(), !WindowFramePreference.isFixedEnabled(),
+           let image, let imageSize = ImageExporter.pixelSize(of: image),
+           let frame = WindowPlacement.automaticFrame(for: imageSize, in: availableContentFrame,
+                                                     backingScale: screen.backingScale) {
+            return frame
+        }
         return WindowPlacement.frame(for: image.flatMap { ImageExporter.pixelSize(of: $0) },
-                                     in: availableContentFrame, backingScale: screen.backingScaleFactor)
+                                     in: availableContentFrame, backingScale: screen.backingScale)
+    }
+
+    private func screenGeometry(for window: NSWindow?) -> ScreenGeometry? {
+        if let screenGeometryOverride { return screenGeometryOverride }
+        guard let screen = window?.screen ?? NSScreen.main else { return nil }
+        return (screen.visibleFrame, screen.backingScaleFactor)
+    }
+
+    private func resizeWindowToImage(_ image: NSImage, in window: NSWindow, animate: Bool = true) {
+        guard AutomaticWindowSizePreference.isEnabled(),
+              !WindowFramePreference.isFixedEnabled(), !automaticSizingPausedByUser,
+              !window.styleMask.contains(.fullScreen), window.attachedSheet == nil,
+              (window as? ViewerWindow)?.isTemporaryDesktopFullScreenActive != true,
+              currentViewModel?.isScreenshotEditing != true,
+              currentViewModel?.slideshow.isActive != true,
+              let screen = screenGeometry(for: window),
+              let imageSize = currentViewModel?.imagePixelSize ?? ImageExporter.pixelSize(of: image) else { return }
+        let availableContentFrame = NSWindow.contentRect(forFrameRect: screen.visibleFrame, styleMask: window.styleMask)
+        guard let contentFrame = WindowPlacement.automaticFrame(for: imageSize, in: availableContentFrame,
+                                                               backingScale: screen.backingScale) else { return }
+        let targetSize = NSWindow.frameRect(forContentRect: contentFrame, styleMask: window.styleMask).size
+        let centered = NSRect(x: window.frame.midX - targetSize.width / 2,
+                              y: window.frame.midY - targetSize.height / 2,
+                              width: targetSize.width, height: targetSize.height)
+        let target = WindowResizeGeometry.clamped(centered, to: screen.visibleFrame,
+                                                  minimumSize: automaticMinimumWindowSize(for: window.styleMask))
+        guard !window.frame.isApproximatelyEqual(to: target) else { return }
+        automaticResizeRevision += 1
+        let revision = automaticResizeRevision
+        isApplyingAutomaticFrame = true
+        let shouldAnimate = animate && AutomaticWindowResizeAnimationPreference.isEnabled() &&
+            window.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let viewerWindow = window as? ViewerWindow
+        viewerWindow?.automaticImageResizeTarget = shouldAnimate ? target : nil
+        window.setFrame(target, display: true, animate: shouldAnimate)
+        viewerWindow?.fallbackFrameForTemporaryDesktopFullScreen = target
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(400)) { [weak self, weak viewerWindow] in
+            guard let self, self.automaticResizeRevision == revision else { return }
+            self.isApplyingAutomaticFrame = false
+            viewerWindow?.automaticImageResizeTarget = nil
+        }
+    }
+
+    private func automaticMinimumWindowSize(for styleMask: NSWindow.StyleMask) -> NSSize {
+        NSWindow.frameRect(forContentRect: NSRect(origin: .zero,
+            size: WindowPlacement.minimumAutomaticContentSize), styleMask: styleMask).size
     }
 
     func captureFixedWindowFrame() {
@@ -508,7 +653,8 @@ final class WindowManager {
             window.minSize = window.frame.size
             window.maxSize = window.frame.size
         } else {
-            window.minSize = minimumWindowSize
+            window.minSize = AutomaticWindowSizePreference.isEnabled()
+                ? automaticMinimumWindowSize(for: window.styleMask) : minimumWindowSize
             window.maxSize = NSSize(
                 width: CGFloat.greatestFiniteMagnitude,
                 height: CGFloat.greatestFiniteMagnitude
@@ -613,6 +759,9 @@ final class WindowManager {
 
 private final class WindowDelegate: NSObject, NSWindowDelegate {
     private let onFrameChanged: () -> Void
+    private let onUserFrameChanged: () -> Void
+    private let onWindowResized: () -> Void
+    private let onWindowMoved: () -> Void
     private let onClose: () -> Void
     private let onExitFullScreen: () -> Void
     private let onFailToEnterFullScreen: () -> Void
@@ -620,12 +769,18 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
 
     init(
         onFrameChanged: @escaping () -> Void,
+        onUserFrameChanged: @escaping () -> Void,
+        onWindowResized: @escaping () -> Void,
+        onWindowMoved: @escaping () -> Void,
         onClose: @escaping () -> Void,
         onExitFullScreen: @escaping () -> Void,
         onFailToEnterFullScreen: @escaping () -> Void,
         slideshow: SlideshowController
     ) {
         self.onFrameChanged = onFrameChanged
+        self.onUserFrameChanged = onUserFrameChanged
+        self.onWindowResized = onWindowResized
+        self.onWindowMoved = onWindowMoved
         self.onClose = onClose
         self.onExitFullScreen = onExitFullScreen
         self.onFailToEnterFullScreen = onFailToEnterFullScreen
@@ -636,12 +791,18 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
         onFrameChanged()
     }
 
+    func windowWillMove(_ notification: Notification) {
+        onWindowMoved()
+    }
+
     func windowDidEndLiveResize(_ notification: Notification) {
         onFrameChanged()
+        onUserFrameChanged()
     }
 
     func windowDidResize(_ notification: Notification) {
         onFrameChanged()
+        onWindowResized()
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {

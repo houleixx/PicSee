@@ -2,6 +2,14 @@ import AppKit
 import Combine
 import SwiftUI
 
+enum SettingsWindowSurface {
+    static let darkColor = NSColor(srgbRed: 39 / 255, green: 42 / 255, blue: 45 / 255, alpha: 1)
+
+    static func color(for appearance: NSAppearance) -> NSColor {
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? darkColor : .windowBackgroundColor
+    }
+}
+
 enum SettingsPage: String, CaseIterable, Identifiable {
     case defaultApps
     case browsing
@@ -14,6 +22,14 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .about: L10n.text("关于")
         }
     }
+
+    var iconName: String {
+        switch self {
+        case .defaultApps: "images-bold"
+        case .browsing: "monitor-bold"
+        case .about: "info-fill"
+        }
+    }
 }
 
 @MainActor
@@ -23,7 +39,7 @@ final class SettingsNavigation: ObservableObject {
 
 @MainActor
 final class SettingsWindowController: NSWindowController {
-    static let contentSize = NSSize(width: 724, height: 548)
+    static let contentSize = NSSize(width: 724, height: 580)
     let navigation = SettingsNavigation()
     private let preferences: ViewerPreferences
     private var pinningController: WindowPinningController?
@@ -39,19 +55,26 @@ final class SettingsWindowController: NSWindowController {
         self.preferences = preferences
         let window = SettingsWindow(
             contentRect: NSRect(origin: .zero, size: Self.contentSize),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered, defer: false
         )
         window.title = L10n.text("PicSee 设置")
         window.isReleasedWhenClosed = false
         super.init(window: window)
-        window.contentViewController = NSHostingController(rootView: SettingsView(
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        window.isMovableByWindowBackground = true
+        let hostingController = NSHostingController(rootView: SettingsView(
             navigation: navigation,
             preferences: preferences,
             updateChecker: updateChecker,
             defaultAppHandler: defaultAppHandler,
             captureFixedWindowFrame: captureFixedWindowFrame
         ))
+        // The window owns its size; SwiftUI must not resize the titlebar or content.
+        hostingController.sizingOptions = []
+        window.contentViewController = hostingController
         // Attaching a hosting controller can reset the content size to zero
         // before its first layout pass. Restore the intended size before showing.
         window.setContentSize(Self.contentSize)
@@ -91,7 +114,7 @@ private final class SettingsWindow: NSWindow {
 }
 
 private struct SettingsView: View {
-    @ObservedObject private var language = LanguageSettings.shared
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var navigation: SettingsNavigation
     @ObservedObject var preferences: ViewerPreferences
     let updateChecker: UpdateChecker?
@@ -100,18 +123,7 @@ private struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker(L10n.text("设置页面"), selection: $navigation.page) {
-                ForEach(SettingsPage.allCases) { page in
-                    Text(page.title).tag(page)
-                }
-            }
-            .id(language.revision)
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: L10n.languageCode == "zh-Hans" ? 300 : 360)
-            .padding(.vertical, 12)
-
-            Divider()
+            SettingsHeader(navigation: navigation)
 
             // Keep each page's transient state when switching tabs.
             ZStack {
@@ -135,9 +147,89 @@ private struct SettingsView: View {
                     .accessibilityHidden(navigation.page != .about)
             }
         }
-        .frame(width: SettingsWindowController.contentSize.width, height: SettingsWindowController.contentSize.height)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: colorScheme == .dark ? SettingsWindowSurface.darkColor : .windowBackgroundColor))
+        .ignoresSafeArea()
         .environment(\.locale, L10n.locale)
+    }
+}
+
+/// A single header surface keeps the native window controls, title and tabs aligned.
+private struct SettingsHeader: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var language = LanguageSettings.shared
+    @ObservedObject var navigation: SettingsNavigation
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(L10n.text("PicSee 设置"))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(height: 28)
+                .accessibilityHidden(true)
+
+            HStack(spacing: 7) {
+                ForEach(SettingsPage.allCases) { page in
+                    Button {
+                        navigation.page = page
+                    } label: {
+                        VStack(spacing: 3) {
+                            SettingsTabIcon(page: page)
+                            Text(page.title)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(navigation.page == page
+                            ? Color(red: 10 / 255, green: 135 / 255, blue: 1)
+                            : Color.secondary)
+                        .frame(width: L10n.languageCode == "zh-Hans" ? 55 : 94, height: 45)
+                        .background {
+                            if navigation.page == page {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(colorScheme == .dark
+                                        ? Color(red: 50 / 255, green: 53 / 255, blue: 57 / 255)
+                                        : Color.primary.opacity(0.07))
+                            }
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(page.title)
+                    .accessibilityIdentifier("settings-tab-\(page.rawValue)")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAddTraits(navigation.page == page ? .isSelected : [])
+                }
+            }
+            .id(language.revision)
+            .padding(.top, 1)
+            .padding(.bottom, 14)
+        }
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct SettingsTabIcon: View {
+    let page: SettingsPage
+
+    var body: some View {
+        ZStack {
+            Image(nsImage: PhosphorImages.image(named: page.iconName))
+                .resizable()
+                .renderingMode(.template)
+                .frame(width: 24, height: 24)
+
+            if page == .browsing {
+                Image(nsImage: PhosphorImages.image(named: "sun-fill"))
+                    .resizable()
+                    .renderingMode(.template)
+                    .frame(width: 12, height: 12)
+                    .offset(y: -2)
+            }
+        }
+        .frame(width: 24, height: 24)
+        .accessibilityHidden(true)
     }
 }
 
@@ -261,6 +353,20 @@ private struct BrowsingSettingsView: View {
                         detail: L10n.text("开启时记住当前图片窗口，之后打开图片时沿用"),
                         keyPath: \.fixedWindowEnabled
                     )
+                    Divider()
+                    preferenceRow(
+                        L10n.text("根据图片自动调整窗口大小"),
+                        detail: L10n.text("打开或切换图片时调整窗口，固定窗口时不可用"),
+                        keyPath: \.automaticWindowSizeEnabled
+                    )
+                    .disabled(preferences.snapshot.fixedWindowEnabled)
+                    Divider()
+                    preferenceRow(
+                        L10n.text("窗口缩放动画"),
+                        detail: L10n.text("切换图片时以动画调整窗口大小；首次打开不播放动画"),
+                        keyPath: \.automaticWindowResizeAnimationEnabled
+                    )
+                    .disabled(preferences.snapshot.fixedWindowEnabled || !preferences.snapshot.automaticWindowSizeEnabled)
                     Divider()
                     preferenceRow(
                         L10n.text("右键手势关闭图片"),

@@ -35,6 +35,17 @@ final class ViewerPreferencesTests: XCTestCase {
         }
     }
 
+    func testAutomaticWindowSizePersistsIndependentlyOfFixedWindow() {
+        defaults.set(false, forKey: AutomaticWindowSizePreference.defaultsKey)
+        let preferences = ViewerPreferences(defaults: defaults)
+        XCTAssertFalse(preferences.snapshot.automaticWindowSizeEnabled)
+        preferences.set(\.automaticWindowSizeEnabled, to: true)
+        preferences.set(\.fixedWindowEnabled, to: true)
+        XCTAssertTrue(preferences.snapshot.automaticWindowSizeEnabled)
+        XCTAssertTrue(preferences.snapshot.fixedWindowEnabled)
+        XCTAssertTrue(ViewerPreferences(defaults: defaults).snapshot.automaticWindowSizeEnabled)
+    }
+
     func testSettingsChangesReachExistingCanvasAndPersistForNextLaunch() async throws {
         let preferences = ViewerPreferences(defaults: defaults)
         let canvas = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)

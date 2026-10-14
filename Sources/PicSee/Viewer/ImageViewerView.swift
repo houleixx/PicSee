@@ -329,7 +329,11 @@ struct ImageViewerView: View {
         .animation(.easeInOut(duration: 0.18), value: clipboardNoticeID != nil || latestVersionNoticeID != nil)
         .overlay(alignment: .top) {
             if deletionNoticeVisible && !viewModel.isFolderEmpty && screenshotDocument == nil {
-                DeletionNoticeView(canUndo: viewModel.canUndoDeletion, onUndo: viewModel.undoDeletion)
+                DeletionNoticeView(
+                    canUndo: viewModel.canUndoDeletion,
+                    onUndo: viewModel.undoDeletion,
+                    onClose: { deletionNoticeVisible = false }
+                )
                 .padding(.top, 56)
             }
         }

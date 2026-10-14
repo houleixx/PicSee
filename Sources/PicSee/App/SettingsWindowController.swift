@@ -363,7 +363,7 @@ private struct BrowsingSettingsView: View {
                     Divider()
                     preferenceRow(
                         L10n.text("窗口缩放动画"),
-                        detail: L10n.text("切换图片时以动画调整窗口大小；首次打开不播放动画"),
+                        detail: L10n.text("切换图片时，平滑调整窗口大小"),
                         keyPath: \.automaticWindowResizeAnimationEnabled
                     )
                     .disabled(preferences.snapshot.fixedWindowEnabled || !preferences.snapshot.automaticWindowSizeEnabled)

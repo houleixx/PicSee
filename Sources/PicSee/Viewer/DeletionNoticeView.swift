@@ -5,6 +5,7 @@ struct DeletionNoticeView: View {
     @Environment(\.colorScheme) private var colorScheme
     let canUndo: Bool
     let onUndo: () -> Void
+    let onClose: () -> Void
 
     private var isDark: Bool { colorScheme == .dark }
 
@@ -28,7 +29,8 @@ struct DeletionNoticeView: View {
                     .help(L10n.text("撤销移到废纸篓（⌘Z）"))
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.leading, 12)
+        .padding(.trailing, 36)
         .padding(.vertical, 8)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -37,6 +39,19 @@ struct DeletionNoticeView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(isDark ? Color.white.opacity(0.20) : Color.black.opacity(0.12), lineWidth: 1)
                 }
+        }
+        .overlay(alignment: .trailing) {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(L10n.text("关闭提示"))
+            .accessibilityLabel(L10n.text("关闭提示"))
+            .padding(2)
         }
         .shadow(color: .black.opacity(isDark ? 0.30 : 0.16), radius: 8, y: 3)
     }

@@ -30,7 +30,7 @@
 "根据图片自动调整窗口大小" = "Resize Window to Fit Image";
 "打开或切换图片时调整窗口，固定窗口时不可用" = "Resize when opening or browsing images. Unavailable while the window is fixed";
 "窗口缩放动画" = "Window Resize Animation";
-"切换图片时以动画调整窗口大小；首次打开不播放动画" = "Animate window resizing when browsing images; no animation on first open";
+"切换图片时，平滑调整窗口大小" = "Smoothly resize the window when switching images";
 "发现更新" = "Update Available";
 "开启时记住当前图片窗口，之后打开图片时沿用" = "Save the current image window’s size and position for future images";
 "下载地址：" = "Download:";
@@ -146,6 +146,7 @@
 "每张图片的展示时间" = "Time to display each image";
 "已移到废纸篓" = "Moved to Trash";
 "撤销移到废纸篓（⌘Z）" = "Undo Move to Trash (⌘Z)";
+"关闭提示" = "Dismiss Notice";
 "撤销" = "Undo";
 "固定尺寸" = "Exact Size";
 "按宽等比" = "Fit Width";

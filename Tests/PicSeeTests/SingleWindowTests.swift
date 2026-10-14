@@ -145,7 +145,8 @@ struct SingleWindowTests {
         #expect(model.nextURL == fixture.c)
     }
 
-    @Test func automaticWindowResizesWhenNavigatingToDifferentImageSize() async throws {
+    @Test(arguments: [false, true])
+    func automaticWindowResizesWhenNavigatingToDifferentImageSize(slideshowActive: Bool) async throws {
         _ = NSApplication.shared
         let defaults = UserDefaults.standard
         let originalAutomatic = defaults.object(forKey: AutomaticWindowSizePreference.defaultsKey)
@@ -190,7 +191,13 @@ struct SingleWindowTests {
                                                                object: window))
         try await Task.sleep(for: .seconds(1))
         let firstWidth = window.frame.width
-        model.navigateToNext()
+        if slideshowActive {
+            model.startSlideshow()
+            #expect(model.slideshow.isActive)
+            #expect(model.slideshow.onAdvance?() == true)
+        } else {
+            model.navigateToNext()
+        }
         for _ in 0..<100 where model.currentURL == first || model.image == nil {
             try await Task.sleep(for: .milliseconds(10))
         }

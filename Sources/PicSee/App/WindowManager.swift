@@ -528,7 +528,6 @@ final class WindowManager {
               !window.styleMask.contains(.fullScreen), window.attachedSheet == nil,
               (window as? ViewerWindow)?.isTemporaryDesktopFullScreenActive != true,
               currentViewModel?.isScreenshotEditing != true,
-              currentViewModel?.slideshow.isActive != true,
               let screen = screenGeometry(for: window),
               let imageSize = currentViewModel?.imagePixelSize ?? ImageExporter.pixelSize(of: image) else { return }
         let availableContentFrame = NSWindow.contentRect(forFrameRect: screen.visibleFrame, styleMask: window.styleMask)

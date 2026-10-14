@@ -562,7 +562,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private var pendingNavigationAnimation = false
     private var lastNavigationTime: CFTimeInterval?
     private var navigationAnimationEnabled = true
-    private var previousFitScale: CGFloat?
     private var smallImageMode: FullScreenSmallImageMode = .original
     private var maximumSmallImageScale: Double = 2
     var navigationTime: () -> CFTimeInterval = { CACurrentMediaTime() }
@@ -2008,14 +2007,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         layer.removeAnimation(forKey: Self.transformAnimationKey)
         transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
         guard !reduceMotion else { return }
-        // Calculate the correct animation ratio considering both old and new fitScale.
-        // visual.zoomScale is relative to the old fitScale, while zoomScale is relative to the new fitScale.
-        // We need to convert both to actual display scales before computing the ratio.
-        let oldFitScale = previousFitScale ?? currentGeometry().fitScale
-        let newFitScale = currentGeometry().fitScale
-        let oldDisplayScale = visual.zoomScale * oldFitScale
-        let newDisplayScale = zoomScale * newFitScale
-        let ratio = max(CGFloat.leastNormalMagnitude, oldDisplayScale) / max(CGFloat.leastNormalMagnitude, newDisplayScale)
+        let ratio = max(CGFloat.leastNormalMagnitude, visual.zoomScale) / max(CGFloat.leastNormalMagnitude, zoomScale)
         let transform = CGAffineTransform(a: ratio, b: 0, c: 0, d: ratio,
                                          tx: visual.panOffset.width - panOffset.width * ratio,
                                          ty: visual.panOffset.height - panOffset.height * ratio)
@@ -2039,8 +2031,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                                           duration: duration, timing: curve)
         layer.add(animation, forKey: Self.transformAnimationKey)
         transparencyBackground.motionMask.add(animation, forKey: Self.transformAnimationKey)
-        // Clear the captured fitScale after use
-        previousFitScale = nil
     }
 
     private func interruptMotion() {
@@ -2083,8 +2073,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         let wasNavigating = pendingNavigationAnimation
             || imageMotionView.layer?.animation(forKey: Self.navigationAnimationKey) != nil
         let visual = visualTransform()
-        // Capture the current fitScale before the image changes
-        previousFitScale = currentGeometry().fitScale
         cancelNavigationAnimation()
         imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
         transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)

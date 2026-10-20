@@ -705,7 +705,15 @@ final class WindowManager {
                 return event
             }
             if window.firstResponder is NSTextView { return event }
-            switch KeyboardNavigation.action(for: event.keyCode, modifiers: event.modifierFlags, isRepeat: event.isARepeat, slideshowActive: viewModel?.slideshow.isActive == true) {
+            if event.keyCode == 53, viewModel?.slideshow.isFullScreenTransitioning == true { return nil }
+            switch KeyboardNavigation.action(
+                for: event.keyCode,
+                modifiers: event.modifierFlags,
+                isRepeat: event.isARepeat,
+                slideshowActive: viewModel?.slideshow.isActive == true,
+                isFullScreen: window.styleMask.contains(.fullScreen)
+                    || (window as? ViewerWindow)?.isTemporaryDesktopFullScreenActive == true
+            ) {
             case .trash:
                 if let viewModel {
                     self.deletionConfirmation.requestDeletion(for: viewModel, in: window)
@@ -734,6 +742,15 @@ final class WindowManager {
                 return nil
             case .endSlideshow:
                 viewModel?.slideshow.stop()
+                return nil
+            case .exitFullScreen:
+                guard viewModel?.slideshow.isFullScreenTransitioning != true else { return nil }
+                if let viewerWindow = window as? ViewerWindow, viewerWindow.isTemporaryDesktopFullScreenActive {
+                    viewerWindow.toggleTemporaryDesktopFullScreen()
+                } else {
+                    viewModel?.slideshow.beginFullScreenTransition()
+                    window.toggleFullScreen(nil)
+                }
                 return nil
             case .quit:
                 NSApp.terminate(nil)

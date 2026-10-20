@@ -1298,7 +1298,15 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func keyDown(with event: NSEvent) {
-        switch KeyboardNavigation.action(for: event.keyCode, modifiers: event.modifierFlags, isRepeat: event.isARepeat, slideshowActive: slideshow?.isActive == true) {
+        if event.keyCode == 53, slideshow?.isFullScreenTransitioning == true { return }
+        switch KeyboardNavigation.action(
+            for: event.keyCode,
+            modifiers: event.modifierFlags,
+            isRepeat: event.isARepeat,
+            slideshowActive: slideshow?.isActive == true,
+            isFullScreen: window?.styleMask.contains(.fullScreen) == true
+                || (window as? ViewerWindow)?.isTemporaryDesktopFullScreenActive == true
+        ) {
         case .trash:
             trashImageForMenu(nil)
         case .undoDeletion:
@@ -1315,6 +1323,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             slideshow?.togglePause()
         case .endSlideshow:
             slideshow?.stop()
+        case .exitFullScreen:
+            guard let window, slideshow?.isFullScreenTransitioning != true else { return }
+            if let viewerWindow = window as? ViewerWindow, viewerWindow.isTemporaryDesktopFullScreenActive {
+                viewerWindow.toggleTemporaryDesktopFullScreen()
+            } else {
+                slideshow?.beginFullScreenTransition()
+                window.toggleFullScreen(nil)
+            }
         case .quit:
             onClose?()
         case .toggleFullScreen:

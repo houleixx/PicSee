@@ -8,6 +8,7 @@ enum KeyboardNavigation {
         case rotateRight
         case toggleSlideshowPause
         case endSlideshow
+        case exitFullScreen
         case quit
         case toggleImageParameters
         case toggleFullScreen
@@ -17,7 +18,7 @@ enum KeyboardNavigation {
         case none
     }
 
-    static func action(for keyCode: UInt16, modifiers: NSEvent.ModifierFlags = [], isRepeat: Bool = false, slideshowActive: Bool = false) -> Action {
+    static func action(for keyCode: UInt16, modifiers: NSEvent.ModifierFlags = [], isRepeat: Bool = false, slideshowActive: Bool = false, isFullScreen: Bool = false) -> Action {
         let commandModifiers = modifiers.intersection([.command, .control, .option, .shift])
         if keyCode == 3, commandModifiers.isEmpty || commandModifiers == [.control, .command] {
             return isRepeat ? .none : .toggleFullScreen
@@ -42,7 +43,9 @@ enum KeyboardNavigation {
         case 49:
             return isRepeat ? .none : (slideshowActive ? .toggleSlideshowPause : .quit)
         case 53:
-            return isRepeat ? .none : (slideshowActive ? .endSlideshow : .quit)
+            if isRepeat { return .none }
+            if slideshowActive { return .endSlideshow }
+            return isFullScreen ? .exitFullScreen : .quit
         case 34:
             return .toggleImageParameters
         default:

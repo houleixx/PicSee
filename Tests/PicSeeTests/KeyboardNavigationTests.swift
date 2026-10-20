@@ -13,8 +13,12 @@ final class KeyboardNavigationTests: XCTestCase {
         XCTAssertEqual(KeyboardNavigation.action(for: 125), .next)
     }
 
-    func testEscapeMapsToQuit() {
+    func testEscapeExitsFullScreenBeforeQuitting() {
+        XCTAssertEqual(KeyboardNavigation.action(for: 53, isFullScreen: true), .exitFullScreen)
         XCTAssertEqual(KeyboardNavigation.action(for: 53), .quit)
+        XCTAssertEqual(KeyboardNavigation.action(for: 53, isRepeat: true, isFullScreen: true), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 53, modifiers: .command, isFullScreen: true), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 53, slideshowActive: true, isFullScreen: true), .endSlideshow)
     }
 
     func testSpaceMapsToQuit() {

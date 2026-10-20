@@ -254,6 +254,8 @@ struct SlideshowTests {
     @Test func playbackKeysAreScopedAndDoNotRepeatIntoQuit() {
         #expect(KeyboardNavigation.action(for: 49, slideshowActive: true) == .toggleSlideshowPause)
         #expect(KeyboardNavigation.action(for: 53, slideshowActive: true) == .endSlideshow)
+        #expect(KeyboardNavigation.action(for: 53, slideshowActive: true, isFullScreen: true) == .endSlideshow)
+        #expect(KeyboardNavigation.action(for: 53, isFullScreen: true) == .exitFullScreen)
         #expect(KeyboardNavigation.action(for: 49) == .quit)
         #expect(KeyboardNavigation.action(for: 53) == .quit)
         #expect(KeyboardNavigation.action(for: 53, isRepeat: true) == .none)

@@ -64,6 +64,19 @@ final class AppMenuTests: XCTestCase {
         XCTAssertTrue(view.validateMenuItem(wallpaper))
     }
 
+    func testPrintContextMenuRequiresImageAndUsesCommandP() throws {
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+        let menu = try XCTUnwrap(view.menu(for: rightClickEvent()))
+        let item = try XCTUnwrap(menu.items.first { $0.action == #selector(CanvasNSView.printImageForMenu(_:)) })
+        XCTAssertEqual(item.title, L10n.text("打印…"))
+        XCTAssertEqual(item.keyEquivalent, "p")
+        XCTAssertEqual(item.keyEquivalentModifierMask, .command)
+        XCTAssertTrue(item.target === view)
+        XCTAssertFalse(view.validateMenuItem(item))
+        view.image = NSImage(size: NSSize(width: 12, height: 8))
+        XCTAssertTrue(view.validateMenuItem(item))
+    }
+
     func testDisplayOptionsAreGroupedInAnIconFreeSubmenu() {
         let view = CanvasNSView(frame: .zero, backend: .vision)
         let menu = view.menu(for: rightClickEvent())!

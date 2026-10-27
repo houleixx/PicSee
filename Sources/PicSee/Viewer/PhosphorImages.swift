@@ -6,6 +6,7 @@ enum PhosphorImages {
         "link": "link",
         "square.and.arrow.down": "download-simple",
         "desktopcomputer": "desktop",
+        "printer": "printer",
         "play.circle": "play-circle",
         "stop": "stop",
         "slider.horizontal.3": "sliders-horizontal",

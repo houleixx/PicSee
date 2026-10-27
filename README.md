@@ -26,6 +26,10 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
   <img src="Images/preview.png" alt="PicSee 实际图片查看界面，底部工具栏包含旋转、复制图片和截图按钮" width="800">
 </p>
 
+### 打印图片
+
+按 `⌘P` 或右键选择“打印…”，打开 macOS 系统打印面板，可选择打印机、纸张、方向与份数，也可存储为 PDF。默认将整张图片等比缩小至一页并居中，保留当前旋转方向，使用原图像素，不包含工具栏、文字选框或屏幕缩放效果。动态图打印静态图像。截图编辑、文字输入及弹窗期间不触发打印快捷键；打印会暂停幻灯片。超过现有位图内存预算的图片会提示错误。
+
 ### 拖拽保存图片
 
 在图片上按住鼠标，拖出 PicSee 窗口后，放到桌面、Finder 文件夹或支持文件拖放的应用中，即可复制当前图片，无需按 Option。窗口内仍保持原来的平移行为；离开图片边缘或进入窗口留白不会导出。鼠标需距按下位置移动至少 12 点，并越过整个窗口外边界至少 12 点，才开始系统文件拖拽。
@@ -142,7 +146,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.77 PICSEE_BUILD_NUMBER=77 Scripts/build-app.sh
+PICSEE_VERSION=0.2.78 PICSEE_BUILD_NUMBER=78 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -159,15 +163,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.77.dmg`
+- DMG: `build/dmg/PicSee-0.2.78.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.77 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.78 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.77.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.78.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -297,14 +301,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.77
-git push origin v0.2.77
+git tag v0.2.78
+git push origin v0.2.78
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.77`
-- Asset: `PicSee-0.2.77.dmg`
+- Release: `v0.2.78`
+- Asset: `PicSee-0.2.78.dmg`
 
 ## Release 说明
 

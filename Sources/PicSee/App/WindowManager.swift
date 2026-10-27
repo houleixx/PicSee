@@ -763,6 +763,12 @@ final class WindowManager {
             case .toggleImageParameters:
                 NotificationCenter.default.post(name: ViewerOverlayPreference.toggleImageParametersNotification, object: window)
                 return nil
+            case .printImage:
+                guard let viewModel, let image = viewModel.image else { return event }
+                viewModel.slideshow.pause()
+                ImagePrinter.present(image: image, rotationDegrees: viewModel.rotationDegrees,
+                                     title: viewModel.currentURL.lastPathComponent, in: window)
+                return nil
             case .screenshot:
                 NotificationCenter.default.post(name: ViewerOverlayPreference.beginScreenshotNotification, object: window)
                 return nil

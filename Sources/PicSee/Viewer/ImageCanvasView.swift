@@ -1339,6 +1339,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             window.toggleFullScreen(nil)
         case .toggleImageParameters:
             toggleImageParametersVisibility()
+        case .printImage:
+            printImageForMenu(nil)
         case .screenshot:
             NotificationCenter.default.post(name: ViewerOverlayPreference.beginScreenshotNotification, object: window)
         case .none:
@@ -1413,7 +1415,15 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         if menuItem.action == #selector(undoDeletionForMenu(_:)) { return canUndoDeletion }
         if menuItem.action == #selector(checkForUpdatesForMenu(_:)) { return onCheckForUpdates != nil }
         if menuItem.action == #selector(setDesktopWallpaperForMenu(_:)) { return image != nil && !isSettingWallpaper }
+        if menuItem.action == #selector(printImageForMenu(_:)) { return image != nil && window?.attachedSheet == nil }
         return true
+    }
+
+    @objc func printImageForMenu(_ sender: Any?) {
+        guard let image, let window, window.attachedSheet == nil else { return }
+        slideshow?.pause()
+        ImagePrinter.present(image: image, rotationDegrees: rotationDegrees,
+                             title: imageURL?.lastPathComponent, in: window)
     }
 
     @objc func setDesktopWallpaperForMenu(_ sender: Any?) {
@@ -1594,6 +1604,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         wallpaperItem.target = self
         wallpaperItem.isEnabled = image != nil && !isSettingWallpaper
         menu.addItem(wallpaperItem)
+
+        let printItem = NSMenuItem(title: L10n.text("打印…"), action: #selector(printImageForMenu(_:)), keyEquivalent: "p")
+        printItem.keyEquivalentModifierMask = .command
+        printItem.image = contextMenuImage("printer")
+        LanguageSettings.bind(printItem) { $0.title = L10n.text("打印…") }
+        printItem.target = self
+        printItem.isEnabled = image != nil
+        menu.addItem(printItem)
 
         if onStartSlideshow != nil,
            !menu.items.contains(where: { $0.action == #selector(toggleSlideshowForMenu(_:)) }) {

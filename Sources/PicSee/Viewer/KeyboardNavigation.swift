@@ -12,6 +12,7 @@ enum KeyboardNavigation {
         case quit
         case toggleImageParameters
         case toggleFullScreen
+        case printImage
         case screenshot
         case trash
         case undoDeletion
@@ -27,6 +28,7 @@ enum KeyboardNavigation {
             return isRepeat ? .none : .screenshot
         }
         if commandModifiers == .command {
+            if keyCode == 35 { return isRepeat ? .none : .printImage }
             if keyCode == 123 { return isRepeat ? .none : .rotateLeft }
             if keyCode == 124 { return isRepeat ? .none : .rotateRight }
             if keyCode == 51 { return isRepeat ? .none : .trash }

@@ -186,6 +186,10 @@ final class UpdateChecker: ObservableObject {
         status = .downloading
         downloadProgress = 0
         downloadFailure = nil
+        let activity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep, reason: "Installing PicSee update"
+        )
+        defer { ProcessInfo.processInfo.endActivity(activity) }
 
         do {
             try await downloadAndOpen(availableUpdate.dmgURL) { [weak self] progress in
@@ -262,7 +266,7 @@ final class UpdateChecker: ObservableObject {
         let target = currentAppBundleURL()
         let staging = try await UpdateInstaller.prepare(dmg: destinationURL, target: target)
         do {
-            try startInstaller(staging: staging, targetAppURL: target)
+            try await startInstaller(staging: staging, targetAppURL: target)
         } catch {
             try? fileManager.removeItem(at: staging)
             throw error
@@ -291,7 +295,11 @@ final class UpdateChecker: ObservableObject {
 
     nonisolated static func installerScript() -> String { UpdateInstaller.script }
 
-    nonisolated private static func startInstaller(staging: URL, targetAppURL: URL) throws {
+    @MainActor private static func startInstaller(staging: URL, targetAppURL: URL) throws {
+        let session = (NSApp.delegate as? AppDelegate)?.captureUpdateSession() ?? UpdateSession()
+        let sessionURL = try session.write()
+        var handedOff = false
+        defer { if !handedOff { try? FileManager.default.removeItem(at: sessionURL) } }
         let scriptURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("picsee-install-\(UUID().uuidString).zsh")
         try installerScript().write(to: scriptURL, atomically: true, encoding: .utf8)
@@ -309,12 +317,13 @@ final class UpdateChecker: ObservableObject {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = [scriptURL.path, staging.path, targetAppURL.path, statusURL.path,
-                             String(ProcessInfo.processInfo.processIdentifier)]
+                             String(ProcessInfo.processInfo.processIdentifier), sessionURL.path]
         process.standardOutput = log
         process.standardError = log
         do {
             try process.run()
             started = true
+            handedOff = true
         } catch {
             try? FileManager.default.removeItem(at: scriptURL)
             throw error

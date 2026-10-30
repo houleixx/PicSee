@@ -113,6 +113,7 @@ enum UpdateInstaller {
     TARGET_APP="$2"
     STATUS_FILE="$3"
     VIEWER_PID="$4"
+    SESSION_FILE="${5:-}"
     BACKUP_APP="${TARGET_APP}.previous.$$"
     installed=false
     cleanup() {
@@ -124,7 +125,11 @@ enum UpdateInstaller {
           mv "$BACKUP_APP" "$TARGET_APP" || true
         fi
         printf 'failed\\n' > "$STATUS_FILE"
-        open "$TARGET_APP" || true
+        if [ -n "$SESSION_FILE" ]; then
+          open -n "$TARGET_APP" --args --picsee-update-session "$SESSION_FILE" || true
+        else
+          open "$TARGET_APP" || true
+        fi
       else
         printf 'success\\n' > "$STATUS_FILE"
         rm -rf "$BACKUP_APP"
@@ -145,7 +150,11 @@ enum UpdateInstaller {
     spctl --assess --type execute "$STAGED_APP"
     mv "$TARGET_APP" "$BACKUP_APP"
     mv "$STAGED_APP" "$TARGET_APP"
-    open "$TARGET_APP"
+    if [ -n "$SESSION_FILE" ]; then
+      open -n "$TARGET_APP" --args --picsee-update-session "$SESSION_FILE" --picsee-update-success
+    else
+      open "$TARGET_APP"
+    fi
     installed=true
     """
 }

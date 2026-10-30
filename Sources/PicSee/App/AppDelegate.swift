@@ -3,14 +3,24 @@ import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let windowManager = WindowManager()
+    private let windowManager: WindowManager
+    private let successTip = SuccessTipPresenter()
+    private var updateObservation: AnyCancellable?
     private var languageObservation: AnyCancellable?
     private var didReceiveOpenRequest = false
     private var settingsWindowController: SettingsWindowController?
 
-    init(settingsWindowController: SettingsWindowController? = nil) {
+    init(settingsWindowController: SettingsWindowController? = nil, windowManager: WindowManager = WindowManager()) {
+        self.windowManager = windowManager
         self.settingsWindowController = settingsWindowController
         super.init()
+        updateObservation = windowManager.updateChecker?.$status.sink { [weak self] status in
+            guard status == .failed else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.hasOpenWindows else { return }
+                self.showSettings(page: .about)
+            }
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -37,7 +47,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         DispatchQueue.main.async { [weak self] in
-            self?.showSettingsWindowAfterDirectLaunchIfNeeded()
+            guard let self else { return }
+            if let session = UpdateSession.consume(arguments: ProcessInfo.processInfo.arguments) {
+                self.restoreUpdateSession(session) { [weak self] in
+                    guard let self else { return }
+                    guard ProcessInfo.processInfo.arguments.contains("--picsee-update-success") else {
+                        if !self.hasOpenWindows { NSApp.terminate(nil) }
+                        return
+                    }
+                    let preferredWindow = session.settingsInFront ? self.settingsWindowController?.window
+                        : self.windowManager.currentWindow ?? self.settingsWindowController?.window
+                    guard let anchor = preferredWindow,
+                          SuccessTipPresenter.canPresent(in: anchor) else {
+                        if !self.hasOpenWindows { NSApp.terminate(nil) }
+                        return
+                    }
+                    self.successTip.show(message: L10n.text("更新安装成功"), in: anchor) { [weak self] in
+                        guard let self else { return }
+                        if !self.hasOpenWindows { NSApp.terminate(nil) }
+                    }
+                }
+            } else {
+                self.showSettingsWindowAfterDirectLaunchIfNeeded()
+            }
         }
     }
 
@@ -67,7 +99,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        windowManager.updateChecker?.status != .downloading
+    }
+
+    private var hasOpenWindows: Bool {
+        windowManager.hasOpenViewer || settingsWindowController?.window.map { $0.isVisible || $0.isMiniaturized } == true
+    }
+
+    func captureUpdateSession() -> UpdateSession {
+        let settings = settingsWindowController?.window
+        let settingsOpen = settings.map { $0.isVisible || $0.isMiniaturized } == true
+        return UpdateSession(
+            viewer: windowManager.captureUpdateViewer(),
+            settingsPage: settingsOpen ? settingsWindowController?.navigation.page.rawValue : nil,
+            settingsFrame: settingsOpen ? settings?.frame : nil,
+            settingsMinimized: settingsOpen && settings?.isMiniaturized == true,
+            settingsInFront: settingsOpen && settings?.isKeyWindow == true
+        )
+    }
+
+    func restoreUpdateSession(_ session: UpdateSession, completion: @escaping @MainActor () -> Void = {}) {
+        var waitsForViewer = false
+        if !didReceiveOpenRequest, let viewer = session.viewer,
+           FileManager.default.isReadableFile(atPath: viewer.url.path) {
+            waitsForViewer = true
+            windowManager.restoreUpdateViewer(viewer) { [weak self] in
+                self?.focusRestoredWindows(session)
+                // Let SwiftUI lay out the loaded image before showing the nonmodal tip.
+                DispatchQueue.main.async(execute: completion)
+            }
+        }
+        if let rawPage = session.settingsPage, let page = SettingsPage(rawValue: rawPage) {
+            showSettings(page: page)
+            if let frame = session.settingsFrame { settingsWindowController?.window?.setFrame(frame, display: true) }
+            if session.settingsMinimized { settingsWindowController?.window?.miniaturize(nil) }
+        }
+        focusRestoredWindows(session)
+        // A removed image falls back to settings; an intentionally empty session stays empty.
+        if session.viewer != nil, !hasOpenWindows { showSettings(page: .about) }
+        if !waitsForViewer { DispatchQueue.main.async(execute: completion) }
+    }
+
+    private func focusRestoredWindows(_ session: UpdateSession) {
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
+        if session.settingsInFront, !session.settingsMinimized {
+            if let window = settingsWindowController?.window {
+                window.orderFrontRegardless()
+                window.makeKey()
+            }
+        } else if session.viewer?.minimized == false {
+            if let window = windowManager.currentWindow {
+                window.orderFrontRegardless()
+                window.makeKey()
+            }
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            NSRunningApplication.current.activate(options: [.activateAllWindows])
+            if session.settingsInFront, !session.settingsMinimized {
+                self.settingsWindowController?.window?.makeKey()
+            } else if session.viewer?.minimized == false {
+                self.windowManager.currentWindow?.makeKey()
+            }
+        }
     }
 
     private func open(urls: [URL]) {

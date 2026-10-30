@@ -11,6 +11,7 @@ struct ImageViewerView: View {
     let onFixedWindowChanged: (Bool) -> Void
     let onRequestDeletion: () -> Void
     var onToggleFullScreen: () -> Void = {}
+    var onCloseViewer: () -> Void = {}
     @State private var titleBarVisible = ViewerTitleBarPreference.isVisible()
     @State private var fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible()
     @State private var toolbarVisible = ViewerOverlayPreference.isToolbarVisible()
@@ -75,7 +76,7 @@ struct ImageViewerView: View {
                     onRotateLeft: viewModel.rotateLeft,
                     onRotateRight: viewModel.rotateRight,
                     onReset: viewModel.resetViewTransform,
-                    onClose: { NSApp.terminate(nil) },
+                    onClose: onCloseViewer,
                     onZoomRequestHandled: viewModel.clearZoomRequest,
                     onDisplayScaleChanged: {
                         if abs(viewModel.displayScale - $0) > 0.0001 {
@@ -267,7 +268,7 @@ struct ImageViewerView: View {
         }
         .overlay(alignment: .topTrailing) {
             if !titleBarVisible && screenshotDocument == nil && slideshowChromeVisible {
-                Button(action: { NSApp.terminate(nil) }) {
+                Button(action: onCloseViewer) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.white)
@@ -306,21 +307,7 @@ struct ImageViewerView: View {
         .animation(.easeOut(duration: 0.15), value: screenshotDocument != nil)
         .overlay(alignment: .center) {
             if clipboardNoticeID != nil || latestVersionNoticeID != nil {
-                VStack(spacing: 16) {
-                    Image(nsImage: PhosphorImages.check)
-                        .resizable()
-                        .renderingMode(.template)
-                        .scaledToFit()
-                        .frame(width: 40, height: 40)
-                        .foregroundStyle(Color.green)
-                        .accessibilityHidden(true)
-                    Text(latestVersionNoticeID != nil ? L10n.text("已经是最新版本了") : L10n.text("已复制到剪贴板"))
-                        .font(.system(size: 14, weight: .medium))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 26)
-                .padding(.vertical, 28)
-                .background(.black.opacity(0.76), in: RoundedRectangle(cornerRadius: 12))
+                SuccessTip(message: latestVersionNoticeID != nil ? L10n.text("已经是最新版本了") : L10n.text("已复制到剪贴板"))
                 .shadow(color: .black.opacity(titleBarVisible ? 0.12 : 0), radius: 12, y: 4)
                 .allowsHitTesting(false)
                 .transition(.opacity)

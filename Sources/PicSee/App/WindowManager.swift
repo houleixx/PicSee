@@ -153,7 +153,8 @@ final class WindowManager {
     typealias AuthorizationRestorationScheduler = @MainActor (@escaping @MainActor @Sendable () -> Void) -> Void
     typealias ScreenGeometry = (visibleFrame: NSRect, backingScale: CGFloat)
 
-    let updateChecker = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:])
+    let updateChecker: UpdateChecker?
+    private var updateRestoreObserver: AnyCancellable?
     private(set) var currentWindow: NSWindow?
     private(set) var currentViewModel: ImageViewerViewModel?
     private var pendingOpenURL: URL?
@@ -192,6 +193,7 @@ final class WindowManager {
     #endif
 
     init(
+        updateChecker: UpdateChecker? = UpdateChecker(bundleInfo: Bundle.main.infoDictionary ?? [:]),
         finderOrderProvider: (any FinderFolderOrderProviding)? = nil,
         loadingMode: ImageLoadingMode = .background,
         screenGeometryOverride: ScreenGeometry? = nil,
@@ -199,6 +201,7 @@ final class WindowManager {
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(250)) { restore() }
         }
     ) {
+        self.updateChecker = updateChecker
         self.loadingMode = loadingMode
         self.screenGeometryOverride = screenGeometryOverride
         self.finderOrderProvider = finderOrderProvider
@@ -214,6 +217,44 @@ final class WindowManager {
 
     var hasOpenViewer: Bool {
         currentWindow != nil
+    }
+
+    func captureUpdateViewer() -> UpdateSession.Viewer? {
+        guard let window = currentWindow, let model = currentViewModel else { return nil }
+        return UpdateSession.Viewer(url: model.currentURL, frame: window.frame,
+            zoom: model.zoomScale, pan: model.panOffset, rotation: model.rotationDegrees,
+            fullScreen: window.styleMask.contains(.fullScreen),
+            desktopFullScreen: (window as? ViewerWindow)?.isTemporaryDesktopFullScreenActive == true,
+            minimized: window.isMiniaturized)
+    }
+
+    func restoreUpdateViewer(_ state: UpdateSession.Viewer, completion: @escaping @MainActor () -> Void = {}) {
+        openViewer(for: state.url, presentsWindow: false)
+        guard let window = currentWindow, let model = currentViewModel else { return }
+        automaticSizingPausedByUser = true
+        initialImageObserver = nil
+        window.setFrame(state.frame, display: true)
+        let restore: @MainActor @Sendable () -> Void = { [weak self, weak window, weak model] in
+            guard let self, let window, let model, self.currentWindow === window,
+                  model.currentURL == state.url else { return }
+            window.setFrame(state.frame, display: true)
+            model.zoomScale = state.zoom
+            model.panOffset = state.pan
+            model.rotationDegrees = state.rotation
+            if state.fullScreen { window.toggleFullScreen(nil) }
+            else if state.desktopFullScreen { (window as? ViewerWindow)?.toggleTemporaryDesktopFullScreen() }
+            window.makeKeyAndOrderFront(nil)
+            if state.minimized { window.miniaturize(nil) }
+            self.updateRestoreObserver = nil
+            completion()
+        }
+        if model.image != nil {
+            DispatchQueue.main.async(execute: restore)
+        } else {
+            updateRestoreObserver = model.$isImageLoading.filter { !$0 }.first().sink { _ in
+                DispatchQueue.main.async(execute: restore)
+            }
+        }
     }
 
     func openInExistingViewer(for url: URL) {
@@ -264,7 +305,7 @@ final class WindowManager {
         }
     }
 
-    func openViewer(for url: URL) {
+    func openViewer(for url: URL, presentsWindow: Bool = true) {
         guard currentWindow == nil else { return }
 
         let viewModel = ImageViewerViewModel(
@@ -325,7 +366,8 @@ final class WindowManager {
                       !viewModel.slideshow.isFullScreenTransitioning else { return }
                 viewModel.slideshow.beginFullScreenTransition()
                 window.toggleFullScreen(nil)
-            }
+            },
+            onCloseViewer: { [weak window] in window?.close() }
         )
         let hostingController = NSHostingController(rootView: rootView)
 
@@ -390,7 +432,7 @@ final class WindowManager {
                     guard let self, let window, self.currentWindow === window else { return }
                     self.resizeWindowToImage(image, in: window, animate: shouldAnimate)
                     if deferInitialPresentation && !window.isVisible {
-                        self.bringViewerToFront(window)
+                        if presentsWindow { self.bringViewerToFront(window) }
                     }
                 }
             }
@@ -401,11 +443,11 @@ final class WindowManager {
                     DispatchQueue.main.async { [weak self, weak window] in
                         guard let self, let window, self.currentWindow === window,
                               !window.isVisible else { return }
-                        self.bringViewerToFront(window)
+                        if presentsWindow { self.bringViewerToFront(window) }
                     }
                 }
         } else {
-            bringViewerToFront(window)
+            if presentsWindow { bringViewerToFront(window) }
         }
         fileAccessObserver = viewModel.$isImageLoading.combineLatest(viewModel.$isNavigationOrderReady)
             .map { loading, ready in loading || !ready }
@@ -465,6 +507,7 @@ final class WindowManager {
                 if let self, let window {
                     self.saveWindowFrame(window)
                 }
+                self?.updateRestoreObserver = nil
                 self?.initialImageObserver = nil
                 self?.initialImageFailureObserver = nil
                 self?.automaticImageObserver = nil
@@ -753,7 +796,7 @@ final class WindowManager {
                 }
                 return nil
             case .quit:
-                NSApp.terminate(nil)
+                window.close()
                 return nil
             case .toggleFullScreen:
                 guard let viewModel, !viewModel.slideshow.isFullScreenTransitioning else { return nil }

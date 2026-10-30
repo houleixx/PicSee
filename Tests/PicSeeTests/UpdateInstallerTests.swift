@@ -71,7 +71,23 @@ final class UpdateInstallerTests: XCTestCase {
         XCTAssertFalse(result.hasBackup)
     }
 
-    private func runTransaction(failure: String) throws -> (exit: Int32, contents: String, status: String, hasBackup: Bool) {
+    func testSessionIsPassedToNewProcessWithSuccessOnlyAfterReplacement() throws {
+        let result = try runTransaction(failure: "", session: true)
+        XCTAssertEqual(result.exit, 0)
+        XCTAssertTrue(result.launches.contains("-n\n"))
+        XCTAssertTrue(result.launches.contains("--picsee-update-session\n"))
+        XCTAssertTrue(result.launches.contains("session with spaces.json\n"))
+        XCTAssertTrue(result.launches.contains("--picsee-update-success\n"))
+    }
+
+    func testRollbackRestoresSessionWithoutSuccessMessage() throws {
+        let result = try runTransaction(failure: "validation", session: true)
+        XCTAssertNotEqual(result.exit, 0)
+        XCTAssertTrue(result.launches.contains("--picsee-update-session\n"))
+        XCTAssertFalse(result.launches.contains("--picsee-update-success"))
+    }
+
+    private func runTransaction(failure: String, session: Bool = false) throws -> (exit: Int32, contents: String, status: String, hasBackup: Bool, launches: String) {
         let files = FileManager.default
         let directory = files.temporaryDirectory.appendingPathComponent("PicSee-InstallerTests-\(UUID().uuidString)")
         try files.createDirectory(at: directory, withIntermediateDirectories: false)
@@ -85,7 +101,7 @@ final class UpdateInstallerTests: XCTestCase {
         let commands = [
             "codesign": "if [ \"$PICSEE_TEST_FAILURE\" = validation ]; then exit 1; fi",
             "spctl": "exit 0",
-            "open": "if [ \"$PICSEE_TEST_FAILURE\" = launch ] && [ \"$(cat \"$1/marker\")\" = new ]; then exit 1; fi",
+            "open": "printf '%s\\n' \"$@\" >> \"$PICSEE_TEST_LAUNCH_LOG\"\nif [ \"$1\" = -n ]; then shift; fi\nif [ \"$PICSEE_TEST_FAILURE\" = launch ] && [ \"$(cat \"$1/marker\")\" = new ]; then exit 1; fi",
             "mv": "if [ \"$PICSEE_TEST_FAILURE\" = rename ] && [ \"$1\" = \"$PICSEE_TEST_STAGING\" ]; then exit 1; fi\n/bin/mv \"$@\""
         ]
         for (name, body) in commands {
@@ -102,7 +118,10 @@ final class UpdateInstallerTests: XCTestCase {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = [script.path, staged.path, target.path, status.path, "99999999"]
+        if session { process.arguments?.append(directory.appendingPathComponent("session with spaces.json").path) }
+        let launches = directory.appendingPathComponent("launches")
         var environment = ProcessInfo.processInfo.environment
+        environment["PICSEE_TEST_LAUNCH_LOG"] = launches.path
         environment["PICSEE_TEST_FAILURE"] = failure
         environment["PICSEE_TEST_STAGING"] = staged.path
         process.environment = environment
@@ -112,6 +131,6 @@ final class UpdateInstallerTests: XCTestCase {
         process.waitUntilExit()
         let contents = try String(contentsOf: target.appendingPathComponent("marker"), encoding: .utf8)
         let hasBackup = try files.contentsOfDirectory(atPath: directory.path).contains { $0.contains(".previous.") }
-        return (process.terminationStatus, contents, try String(contentsOf: status, encoding: .utf8), hasBackup)
+        return (process.terminationStatus, contents, try String(contentsOf: status, encoding: .utf8), hasBackup, (try? String(contentsOf: launches, encoding: .utf8)) ?? "")
     }
 }

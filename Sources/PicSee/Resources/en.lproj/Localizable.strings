@@ -297,3 +297,6 @@
 
 "打印…" = "Print…";
 "无法打印图片" = "Unable to Print Image";
+
+"更新安装成功" = "Update installed successfully";
+"已更新至 PicSee %1$@。" = "Updated to PicSee %1$@.";

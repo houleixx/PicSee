@@ -58,7 +58,7 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 右键选择“设置…”或按 `⌘,` 会打开统一设置窗口的“显示设置”页，可在窗口顶部切换到“打开方式”和“关于”；应用菜单仍保留“默认打开方式…”和“关于 PicSee”快捷入口，复用同一设置窗口。直接启动 PicSee 时进入“打开方式”页。显示设置页可调整主题、标题栏、缩略图、文件信息、工具栏、图片参数、单窗口看图、窗口置顶以及固定窗口；修改立即生效，与保留的右键菜单双向同步，并沿用已有偏好记忆。多个 PicSee 进程之间也会同步这些浏览偏好。
 
-“显示设置 → 窗口 → 根据图片自动调整窗口大小”默认关闭。开启后，打开图片、手动切图或幻灯片自动切图时窗口会按图片像素尺寸和当前屏幕倍率调整，并限制在可用屏幕内；手动调整窗口后，本张图片不会立即重新覆盖手动尺寸。固定窗口、全屏和截图编辑时不会自动调整。可单独关闭“窗口缩放动画”，首次打开图片始终不播放动画。
+“显示设置 → 窗口 → 根据图片自动调整窗口大小”默认关闭。开启后，打开图片、手动切图或幻灯片自动切图时窗口会按图片像素尺寸和当前屏幕倍率调整，并限制在可用屏幕内；手动调整窗口后，本张图片不会立即重新覆盖手动尺寸。固定窗口、全屏和截图编辑时不会自动调整；全屏中切图后，退出全屏会按当前图片调整窗口。可单独关闭“窗口缩放动画”，首次打开图片始终不播放动画。
 
 图片参数将“像素尺寸”（例如 3000 × 2000 px）与“像素密度”（例如 300 PPI）分开显示。横纵密度不同时显示两个数值，缺少有效密度元数据时隐藏该项；密度用于换算打印尺寸，不影响屏幕显示大小。
 
@@ -146,7 +146,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.80 PICSEE_BUILD_NUMBER=80 Scripts/build-app.sh
+PICSEE_VERSION=0.2.81 PICSEE_BUILD_NUMBER=81 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -163,15 +163,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.80.dmg`
+- DMG: `build/dmg/PicSee-0.2.81.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.80 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.81 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.80.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.81.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -301,14 +301,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.80
-git push origin v0.2.80
+git tag v0.2.81
+git push origin v0.2.81
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.80`
-- Asset: `PicSee-0.2.80.dmg`
+- Release: `v0.2.81`
+- Asset: `PicSee-0.2.81.dmg`
 
 ## Release 说明
 

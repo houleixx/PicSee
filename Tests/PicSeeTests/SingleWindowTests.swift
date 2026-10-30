@@ -145,8 +145,18 @@ struct SingleWindowTests {
         #expect(model.nextURL == fixture.c)
     }
 
-    @Test(arguments: [false, true])
-    func automaticWindowResizesWhenNavigatingToDifferentImageSize(slideshowActive: Bool) async throws {
+    @Test(arguments: [false, true], [
+        (fullScreen: false, automatic: true, fixed: false, navigateBeforeExit: false),
+        (fullScreen: true, automatic: true, fixed: false, navigateBeforeExit: false),
+        (fullScreen: true, automatic: false, fixed: false, navigateBeforeExit: false),
+        (fullScreen: true, automatic: true, fixed: true, navigateBeforeExit: false),
+        (fullScreen: true, automatic: true, fixed: false, navigateBeforeExit: true),
+        (fullScreen: true, automatic: false, fixed: false, navigateBeforeExit: true),
+        (fullScreen: true, automatic: true, fixed: true, navigateBeforeExit: true)
+    ])
+    func automaticWindowResizesWhenNavigatingToDifferentImageSize(
+        slideshowActive: Bool, configuration: (fullScreen: Bool, automatic: Bool, fixed: Bool, navigateBeforeExit: Bool)
+    ) async throws {
         _ = NSApplication.shared
         let defaults = UserDefaults.standard
         let originalAutomatic = defaults.object(forKey: AutomaticWindowSizePreference.defaultsKey)
@@ -158,8 +168,8 @@ struct SingleWindowTests {
             else { defaults.removeObject(forKey: "PicSee.FixedWindowFrameEnabled") }
             ViewerPreferences.shared.reload()
         }
-        defaults.set(true, forKey: AutomaticWindowSizePreference.defaultsKey)
-        defaults.set(false, forKey: "PicSee.FixedWindowFrameEnabled")
+        defaults.set(configuration.automatic, forKey: AutomaticWindowSizePreference.defaultsKey)
+        defaults.set(configuration.fixed, forKey: "PicSee.FixedWindowFrameEnabled")
         ViewerPreferences.shared.reload()
 
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("PicSeeAutoSize-\(UUID())")
@@ -191,6 +201,21 @@ struct SingleWindowTests {
                                                                object: window))
         try await Task.sleep(for: .seconds(1))
         let firstWidth = window.frame.width
+        if configuration.fullScreen {
+            let viewer = try #require(window as? ViewerWindow)
+            viewer.prepareStyleMaskForNativeFullScreen()
+            let notification = Notification(name: NSWindow.willEnterFullScreenNotification, object: window)
+            window.delegate?.windowWillEnterFullScreen?(notification)
+            window.delegate?.windowWillMove?(notification)
+            window.delegate?.windowDidEndLiveResize?(notification)
+            window.delegate?.windowDidEnterFullScreen?(notification)
+            if !configuration.navigateBeforeExit {
+                window.delegate?.windowWillExitFullScreen?(notification)
+                window.delegate?.windowWillMove?(notification)
+                window.delegate?.windowDidEndLiveResize?(notification)
+                window.delegate?.windowDidExitFullScreen?(notification)
+            }
+        }
         if slideshowActive {
             model.startSlideshow()
             #expect(model.slideshow.isActive)
@@ -202,7 +227,16 @@ struct SingleWindowTests {
             try await Task.sleep(for: .milliseconds(10))
         }
         try await Task.sleep(for: .milliseconds(250))
-        #expect(window.frame.width > firstWidth + 100)
+        if configuration.navigateBeforeExit {
+            let notification = Notification(name: NSWindow.didExitFullScreenNotification, object: window)
+            window.delegate?.windowWillExitFullScreen?(notification)
+            window.delegate?.windowDidExitFullScreen?(notification)
+        }
+        if configuration.automatic && !configuration.fixed {
+            #expect(window.frame.width > firstWidth + 100)
+        } else {
+            #expect(window.frame.width == firstWidth)
+        }
     }
 
     private func ready(_ model: ImageViewerViewModel) async throws {

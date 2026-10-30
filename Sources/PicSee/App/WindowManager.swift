@@ -16,6 +16,7 @@ final class ViewerWindow: NSWindow {
     var fallbackFrameForTemporaryDesktopFullScreen: NSRect?
     var onWillEnterTemporaryDesktopFullScreen: ((NSRect) -> Void)?
     private var nativeFullScreenSnapshot: NativeFullScreenSnapshot?
+    var isNativeFullScreenTransitionActive: Bool { nativeFullScreenSnapshot != nil }
 
     var persistableFrame: NSRect? {
         Self.persistableFrame(
@@ -482,6 +483,8 @@ final class WindowManager {
             },
             onUserFrameChanged: { [weak self, weak window] in
                 guard let self, let window, !self.isApplyingAutomaticFrame,
+                      !window.isNativeFullScreenTransitionActive,
+                      self.currentViewModel?.slideshow.isFullScreenTransitioning != true,
                       !window.styleMask.contains(.fullScreen),
                       !WindowFramePreference.isFixedEnabled(),
                       AutomaticWindowSizePreference.isEnabled() else { return }
@@ -489,6 +492,8 @@ final class WindowManager {
             },
             onWindowResized: { [weak self, weak window] in
                 guard let self, let window, !self.isApplyingAutomaticFrame,
+                      !window.isNativeFullScreenTransitionActive,
+                      self.currentViewModel?.slideshow.isFullScreenTransitioning != true,
                       NSApp.currentEvent?.type == .leftMouseDragged,
                       !window.styleMask.contains(.fullScreen),
                       !WindowFramePreference.isFixedEnabled(),
@@ -497,6 +502,8 @@ final class WindowManager {
             },
             onWindowMoved: { [weak self, weak window] in
                 guard let self, let window, !self.isApplyingAutomaticFrame,
+                      !window.isNativeFullScreenTransitionActive,
+                      self.currentViewModel?.slideshow.isFullScreenTransitioning != true,
                       !window.styleMask.contains(.fullScreen),
                       !WindowFramePreference.isFixedEnabled(),
                       AutomaticWindowSizePreference.isEnabled() else { return }
@@ -531,8 +538,12 @@ final class WindowManager {
                 self?.isApplyingAutomaticFrame = false
             },
             onExitFullScreen: { [weak self, weak window] in
-                guard let window else { return }
-                self?.restoreStyleMaskAfterFullScreen(to: window)
+                guard let self, let window else { return }
+                self.restoreStyleMaskAfterFullScreen(to: window)
+                // Navigation in full screen defers sizing until the normal frame is restored.
+                if let image = self.currentViewModel?.image {
+                    self.resizeWindowToImage(image, in: window)
+                }
             },
             onFailToEnterFullScreen: { [weak window] in
                 window?.restoreStyleMaskAfterFailedFullScreenEntry()
@@ -568,6 +579,7 @@ final class WindowManager {
     private func resizeWindowToImage(_ image: NSImage, in window: NSWindow, animate: Bool = true) {
         guard AutomaticWindowSizePreference.isEnabled(),
               !WindowFramePreference.isFixedEnabled(), !automaticSizingPausedByUser,
+              (window as? ViewerWindow)?.isNativeFullScreenTransitionActive != true,
               !window.styleMask.contains(.fullScreen), window.attachedSheet == nil,
               (window as? ViewerWindow)?.isTemporaryDesktopFullScreenActive != true,
               currentViewModel?.isScreenshotEditing != true,

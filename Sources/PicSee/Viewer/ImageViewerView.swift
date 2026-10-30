@@ -768,6 +768,7 @@ private struct UpdatePromptView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .frame(maxWidth: 260, alignment: .leading)
+        .fixedSize(horizontal: true, vertical: true)
         .background(.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 8))
     }
 

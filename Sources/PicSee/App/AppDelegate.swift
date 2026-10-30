@@ -10,11 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var didReceiveOpenRequest = false
     private var settingsWindowController: SettingsWindowController?
 
-    init(settingsWindowController: SettingsWindowController? = nil, windowManager: WindowManager = WindowManager()) {
-        self.windowManager = windowManager
+    init(settingsWindowController: SettingsWindowController? = nil, windowManager: WindowManager? = nil) {
+        self.windowManager = windowManager ?? WindowManager()
         self.settingsWindowController = settingsWindowController
         super.init()
-        updateObservation = windowManager.updateChecker?.$status.sink { [weak self] status in
+        updateObservation = self.windowManager.updateChecker?.$status.sink { [weak self] status in
             guard status == .failed else { return }
             DispatchQueue.main.async { [weak self] in
                 guard let self, !self.hasOpenWindows else { return }

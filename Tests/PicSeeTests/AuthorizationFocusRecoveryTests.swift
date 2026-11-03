@@ -48,6 +48,17 @@ struct AuthorizationFocusRecoveryTests {
         #expect(window.frontOrderCount == 0)
     }
 
+    @Test func switchingApplicationsBeforeDeferredRecoveryCancelsFrontOrdering() {
+        _ = NSApplication.shared
+        let scheduler = PendingAuthorizationRestoration()
+        let manager = WindowManager(authorizationRestorationScheduler: scheduler.schedule)
+        let window = AuthorizationTestWindow()
+        manager.debugRestoreViewerAfterFolderConsent(window)
+        manager.debugAuthorizationApplicationActivated("com.apple.Safari")
+        scheduler.finishSettling()
+        #expect(window.frontOrderCount == 0)
+    }
+
     @Test func folderConsentOrdersViewerFrontOnlyOnce() async {
         _ = NSApplication.shared
         let scheduler = PendingAuthorizationRestoration()
@@ -75,6 +86,73 @@ struct AuthorizationFocusRecoveryTests {
         #expect(restored.first === window)
         recovery.setFileAccessPending(false, for: window)
         #expect(restored.count == 1)
+    }
+
+    @Test func finderActivationAfterConsentCompletionRestoresViewerAgain() {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var restores = 0
+        let recovery = ViewerAuthorizationFocusRecovery { _ in restores += 1 }
+        recovery.begin(for: window)
+        recovery.finish()
+        #expect(restores == 1)
+        // The authorization API can return before the system finishes handing
+        // activation back to Finder, putting Finder above the restored viewer.
+        recovery.applicationActivated(bundleIdentifier: "com.apple.finder")
+        #expect(restores == 2, "A late system handoff to Finder must restore the requesting viewer")
+    }
+
+    @Test func folderConsentAlsoHandlesLateFinderActivationOnlyOnce() {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var restores = 0
+        let recovery = ViewerAuthorizationFocusRecovery { _ in restores += 1 }
+        recovery.setFileAccessPending(true, for: window)
+        recovery.applicationActivated(bundleIdentifier: "com.apple.UserNotificationCenter")
+        recovery.setFileAccessPending(false, for: window)
+        recovery.applicationActivated(bundleIdentifier: "com.apple.finder")
+        recovery.applicationActivated(bundleIdentifier: "com.apple.finder")
+        #expect(restores == 2)
+    }
+
+    @Test func lateFinderHandoffExpiresAndManualApplicationSwitchCancelsIt() {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var now: TimeInterval = 100
+        var restores = 0
+        let recovery = ViewerAuthorizationFocusRecovery(uptime: { now }) { _ in restores += 1 }
+        recovery.begin(for: window)
+        recovery.finish()
+        now += 2
+        recovery.applicationActivated(bundleIdentifier: "com.apple.finder")
+        #expect(restores == 1)
+        recovery.begin(for: window)
+        recovery.finish()
+        recovery.applicationActivated(bundleIdentifier: "com.apple.Safari")
+        recovery.applicationActivated(bundleIdentifier: "com.apple.finder")
+        #expect(restores == 2)
+        recovery.begin(for: window)
+        recovery.applicationActivated(bundleIdentifier: "com.apple.Safari")
+        recovery.finish()
+        #expect(restores == 2)
+    }
+
+    @Test func lateFinderHandoffDoesNotRestoreClosedOrMinimizedWindows() {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var restores = 0
+        let recovery = ViewerAuthorizationFocusRecovery { _ in restores += 1 }
+        recovery.begin(for: window)
+        recovery.finish()
+        window.simulatedVisible = false
+        recovery.applicationActivated(bundleIdentifier: "com.apple.finder")
+        #expect(restores == 1)
+        window.simulatedVisible = true
+        recovery.begin(for: window)
+        recovery.finish()
+        window.simulatedMinimized = true
+        recovery.applicationActivated(bundleIdentifier: "com.apple.finder")
+        #expect(restores == 2)
     }
 
     @Test func ordinaryFileLoadingAndManualApplicationSwitchDoNotReclaimFocus() {

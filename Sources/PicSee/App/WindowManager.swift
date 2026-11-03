@@ -186,6 +186,10 @@ final class WindowManager {
     }
 
     #if DEBUG
+    func debugAuthorizationApplicationActivated(_ bundleIdentifier: String) {
+        authorizationFocusRecovery.applicationActivated(bundleIdentifier: bundleIdentifier)
+    }
+
     func debugRestoreViewerAfterFolderConsent(_ window: NSWindow) {
         authorizationFocusRecovery.setFileAccessPending(true, for: window)
         authorizationFocusRecovery.applicationActivated(bundleIdentifier: "com.apple.UserNotificationCenter")
@@ -655,11 +659,13 @@ final class WindowManager {
     private func restoreViewerAfterAuthorization(_ window: NSWindow) {
         authorizationRestoreRevision += 1
         let revision = authorizationRestoreRevision
+        let focusRevision = authorizationFocusRecovery.restorationRevision
         // A file read resumes before the permission dismissal animation and
         // initial image/window sizing finish. Give both time to settle, then
         // restore only if the system has not already returned focus itself.
         authorizationRestorationScheduler { [weak self, weak window] in
             guard let self, self.authorizationRestoreRevision == revision,
+                  self.authorizationFocusRecovery.restorationRevision == focusRevision,
                   let window, ViewerAuthorizationFocusRecovery.canRestore(window) else { return }
             guard !NSApp.isActive || !window.isKeyWindow else { return }
             if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }

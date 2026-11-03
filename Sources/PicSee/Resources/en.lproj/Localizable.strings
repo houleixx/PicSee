@@ -300,3 +300,23 @@
 
 "更新安装成功" = "Update installed successfully";
 "已更新至 PicSee %1$@。" = "Updated to PicSee %1$@.";
+
+"预览" = "Preview";
+
+"自动旋转" = "Auto Rotate";
+
+"缩放：" = "Scale:";
+
+"缩放以适合：" = "Scale to Fit:";
+
+"打印整个图像" = "Print Entire Image";
+
+"填满纸张" = "Fill Entire Paper";
+
+"每页份数：" = "Copies per page:";
+
+"缩放百分比" = "Scale percentage";
+
+"开" = "On";
+
+"关" = "Off";

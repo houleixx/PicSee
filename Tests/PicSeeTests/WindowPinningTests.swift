@@ -69,12 +69,12 @@ struct WindowPinningTests {
         #expect(first.level == .normal)
         preferences.set(\.alwaysOnTopEnabled, to: true)
         try await settle()
-        #expect(first.level == .floating)
-        #expect(second.level == .floating)
+        #expect(first.level.rawValue == 50)
+        #expect(second.level.rawValue == 50)
         let third = window()
         let thirdController = WindowPinningController(window: third, preferences: mirror)
         defer { withExtendedLifetime(thirdController) {} }
-        #expect(third.level == .floating)
+        #expect(third.level.rawValue == 50)
         #expect(first.frame == frame)
         #expect(first.collectionBehavior == behavior)
         #expect(NSApp.keyWindow === keyWindow)
@@ -91,7 +91,7 @@ struct WindowPinningTests {
         preferences.set(\.alwaysOnTopEnabled, to: true)
         let viewer = window()
         viewer.pinningController = WindowPinningController(window: viewer, preferences: preferences)
-        #expect(viewer.level == .floating)
+        #expect(viewer.level.rawValue == 50)
         let frame = viewer.frame
         let mask = viewer.styleMask
         viewer.prepareStyleMaskForNativeFullScreen()
@@ -100,7 +100,7 @@ struct WindowPinningTests {
         preferences.set(\.alwaysOnTopEnabled, to: true)
         #expect(viewer.level == .normal)
         #expect(viewer.completeNativeFullScreenExit(restoring: mask))
-        #expect(viewer.level == .floating)
+        #expect(viewer.level.rawValue == 50)
         #expect(viewer.frame == frame)
         viewer.prepareStyleMaskForNativeFullScreen()
         preferences.set(\.alwaysOnTopEnabled, to: false)
@@ -118,7 +118,7 @@ struct WindowPinningTests {
         viewer.prepareStyleMaskForNativeFullScreen()
         #expect(viewer.level == .normal)
         viewer.restoreStyleMaskAfterFailedFullScreenEntry()
-        #expect(viewer.level == .floating)
+        #expect(viewer.level.rawValue == 50)
         #expect(viewer.styleMask == mask)
     }
 
@@ -131,7 +131,8 @@ struct WindowPinningTests {
             defaultAppHandler: ReadOnlyDefaultAppHandler(), captureFixedWindowFrame: {})
         let settingsWindow = try #require(settings.window)
         viewer.pinningController = WindowPinningController(window: viewer, preferences: preferences)
-        #expect(settingsWindow.level.rawValue > viewer.level.rawValue)
+        #expect(viewer.level.rawValue == 50)
+        #expect(settingsWindow.level.rawValue == 51)
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 150),
             styleMask: [.titled], backing: .buffered, defer: false)
         sheet.isReleasedWhenClosed = false
@@ -139,13 +140,68 @@ struct WindowPinningTests {
         defer { viewer.orderOut(nil) }
         viewer.beginSheet(sheet, completionHandler: nil)
         try await settle()
-        #expect(sheet.level.rawValue > settingsWindow.level.rawValue)
+        #expect(sheet.level.rawValue == 52)
         viewer.endSheet(sheet)
         sheet.orderOut(nil)
         try await settle()
         preferences.set(\.alwaysOnTopEnabled, to: false)
         #expect(settingsWindow.level == .normal)
         #expect(viewer.level == .normal)
+    }
+
+    @Test func standaloneAlertsStayAbovePinnedWindowsWithoutLoweringHigherLevels() {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = ViewerPreferences(defaults: defaults)
+        let alert = NSAlert()
+        let originalLevel = alert.window.level
+        WindowPinningController.prepareModalWindow(alert.window, preferences: preferences)
+        #expect(alert.window.level == originalLevel)
+        preferences.set(\.alwaysOnTopEnabled, to: true)
+        WindowPinningController.prepareModalWindow(alert.window, preferences: preferences)
+        #expect(alert.window.level.rawValue == 52)
+        alert.window.level = NSWindow.Level(rawValue: 60)
+        WindowPinningController.prepareModalWindow(alert.window, preferences: preferences)
+        #expect(alert.window.level.rawValue == 60)
+    }
+
+    @Test(arguments: [0, 60])
+    func standaloneAlertRemainsAbovePinnedViewerDuringModalSessionAndRestoresLevel(initialLevel: Int) {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = ViewerPreferences(defaults: defaults)
+        preferences.set(\.alwaysOnTopEnabled, to: true)
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.accessory)
+        let viewer = window()
+        viewer.pinningController = WindowPinningController(window: viewer, preferences: preferences)
+        viewer.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+        let viewerLevel = viewer.level.rawValue
+        let alert = NSAlert()
+        alert.messageText = "PicSee modal level regression test"
+        let modalWindow = alert.window
+        modalWindow.level = NSWindow.Level(rawValue: initialLevel)
+        let originalLevel = modalWindow.level
+        let inspection = Timer(timeInterval: 0.2, repeats: false) { _ in
+            MainActor.assumeIsolated {
+                #expect(modalWindow.isVisible)
+                #expect(modalWindow.level.rawValue == max(52, initialLevel))
+                #expect(modalWindow.level.rawValue > viewerLevel)
+                NSApp.stopModal()
+            }
+        }
+        RunLoop.main.add(inspection, forMode: .modalPanel)
+        let timeout = DispatchWorkItem { NSApp.abortModal() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: timeout)
+        defer {
+            inspection.invalidate()
+            timeout.cancel()
+            modalWindow.orderOut(nil)
+            viewer.orderOut(nil)
+            NSApp.setActivationPolicy(previousPolicy)
+        }
+        alert.runPicSeeModal(preferences: preferences)
+        #expect(!inspection.isValid)
+        #expect(modalWindow.level == originalLevel)
     }
 
     private func window() -> ViewerWindow {

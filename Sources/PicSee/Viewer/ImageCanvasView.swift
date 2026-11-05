@@ -1464,7 +1464,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 }
                 alert.addButton(withTitle: L10n.text("好"))
                 if let window = self.window { await alert.beginSheetModal(for: window) }
-                else { alert.runModal() }
+                else { alert.runPicSeeModal() }
             }
         }
     }
@@ -1849,7 +1849,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             $0.informativeText = L10n.errorDescription(error)
             $0.buttons.first?.title = L10n.text("好")
         }
-        alert.runModal()
+        alert.runPicSeeModal()
     }
 
     private func configureSubviews() {

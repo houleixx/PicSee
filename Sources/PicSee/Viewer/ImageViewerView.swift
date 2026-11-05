@@ -630,12 +630,7 @@ struct ImageToolBar: View {
             }
             .frame(height: ViewerToolbarMetrics.viewerButtonHeight)
             Button(action: onToggleAlwaysOnTop) {
-                Image(nsImage: PhosphorImages.image(named: "push-pin"))
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: ViewerToolbarMetrics.iconSize, height: ViewerToolbarMetrics.iconSize)
-                    .accessibilityHidden(true)
+                ViewerToolbarIcon(symbol: .pin)
                     .frame(width: ViewerToolbarMetrics.buttonSize, height: ViewerToolbarMetrics.viewerButtonHeight)
                     .contentShape(Rectangle())
             }

@@ -21,6 +21,14 @@ enum WindowPinningPreference {
 final class WindowPinningController {
     enum Role { case viewer, settings }
 
+    // Stay above common floating panels, with room for our settings and sheets.
+    private static let pinnedLevel = NSWindow.Level(rawValue: 50)
+
+    static func prepareModalWindow(_ window: NSWindow, preferences: ViewerPreferences = .shared) {
+        guard preferences.snapshot.alwaysOnTopEnabled else { return }
+        window.level = NSWindow.Level(rawValue: max(window.level.rawValue, pinnedLevel.rawValue + 2))
+    }
+
     private weak var window: NSWindow?
     private let role: Role
     private var enabled: Bool
@@ -58,7 +66,7 @@ final class WindowPinningController {
         guard let window else { return }
         let pinned = enabled && !isFullScreenActive && !window.styleMask.contains(.fullScreen)
         let level: NSWindow.Level = pinned
-            ? (role == .viewer ? .floating : NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1))
+            ? (role == .viewer ? Self.pinnedLevel : NSWindow.Level(rawValue: Self.pinnedLevel.rawValue + 1))
             : .normal
         if window.level != level { window.level = level }
 
@@ -70,8 +78,33 @@ final class WindowPinningController {
         }
         if let sheet, let originalSheetLevel {
             sheet.level = pinned
-                ? NSWindow.Level(rawValue: max(originalSheetLevel.rawValue, NSWindow.Level.floating.rawValue + 2))
+                ? NSWindow.Level(rawValue: max(originalSheetLevel.rawValue, Self.pinnedLevel.rawValue + 2))
                 : originalSheetLevel
         }
+    }
+}
+
+extension NSAlert {
+    @MainActor
+    @discardableResult
+    func runPicSeeModal(preferences: ViewerPreferences = .shared) -> NSApplication.ModalResponse {
+        let modalWindow = window
+        let originalLevel = modalWindow.level
+        WindowPinningController.prepareModalWindow(modalWindow, preferences: preferences)
+        // AppKit resets the level when entering its modal session. Apply it again
+        // once the alert becomes key, after that reset has happened.
+        let observation = NotificationCenter.default.publisher(
+            for: NSWindow.didBecomeKeyNotification, object: modalWindow
+        ).sink { _ in
+            if modalWindow.level.rawValue < originalLevel.rawValue {
+                modalWindow.level = originalLevel
+            }
+            WindowPinningController.prepareModalWindow(modalWindow, preferences: preferences)
+        }
+        defer {
+            observation.cancel()
+            modalWindow.level = originalLevel
+        }
+        return runModal()
     }
 }

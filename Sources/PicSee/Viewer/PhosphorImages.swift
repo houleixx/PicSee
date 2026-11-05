@@ -54,7 +54,7 @@ enum PhosphorImages {
     }
 
     static func image(named name: String) -> NSImage {
-        guard let image = settingsImages[name] else {
+        guard let image = settingsImages[name] ?? contextMenuImages[name] else {
             preconditionFailure("Missing Phosphor icon: \(name)")
         }
         return image

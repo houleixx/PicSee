@@ -770,6 +770,7 @@ final class WindowManager {
             switch KeyboardNavigation.action(
                 for: event.keyCode,
                 modifiers: event.modifierFlags,
+                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
                 isRepeat: event.isARepeat,
                 slideshowActive: viewModel?.slideshow.isActive == true,
                 isFullScreen: window.styleMask.contains(.fullScreen)
@@ -784,6 +785,9 @@ final class WindowManager {
                 guard viewModel?.canUndoDeletion == true else { return event }
                 viewModel?.undoDeletion()
                 return nil
+            case .toggleAlwaysOnTop:
+                WindowPinningPreference.setEnabled(!WindowPinningPreference.isEnabled())
+                return nil
             case .previous:
                 viewModel?.navigateToPrevious()
                 return nil
@@ -797,6 +801,14 @@ final class WindowManager {
             case .rotateRight:
                 guard viewModel?.image != nil else { return event }
                 viewModel?.rotateRight()
+                return nil
+            case .zoomIn:
+                guard viewModel?.image != nil else { return event }
+                viewModel?.zoomIn()
+                return nil
+            case .zoomOut:
+                guard viewModel?.image != nil else { return event }
+                viewModel?.zoomOut()
                 return nil
             case .toggleSlideshowPause:
                 viewModel?.slideshow.togglePause()

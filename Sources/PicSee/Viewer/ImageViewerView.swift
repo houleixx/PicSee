@@ -76,6 +76,8 @@ struct ImageViewerView: View {
                     onNext: viewModel.navigateToNext,
                     onRotateLeft: viewModel.rotateLeft,
                     onRotateRight: viewModel.rotateRight,
+                    onZoomIn: viewModel.zoomIn,
+                    onZoomOut: viewModel.zoomOut,
                     onReset: viewModel.resetViewTransform,
                     onClose: onCloseViewer,
                     onZoomRequestHandled: viewModel.clearZoomRequest,
@@ -455,7 +457,11 @@ struct ImageViewerView: View {
                 onRotateRight: viewModel.rotateRight,
                 onCopy: copyCurrentImage,
                 onScreenshot: beginScreenshot,
-                onSlideshow: viewModel.startSlideshow
+                onSlideshow: viewModel.startSlideshow,
+                isAlwaysOnTop: preferences.snapshot.alwaysOnTopEnabled,
+                onToggleAlwaysOnTop: {
+                    preferences.set(\.alwaysOnTopEnabled, to: !preferences.snapshot.alwaysOnTopEnabled)
+                }
             )
         }
     }
@@ -516,7 +522,7 @@ struct ImageViewerView: View {
                 imageNavigationButton(
                     systemName: "chevron.left",
                     accessibilityLabel: L10n.text("上一张图片"),
-                    help: L10n.text("上一张图片"),
+                    help: L10n.text("上一张图片（← / ↑）"),
                     action: viewModel.navigateToPrevious
                 )
                 .transition(.opacity)
@@ -528,7 +534,7 @@ struct ImageViewerView: View {
                 imageNavigationButton(
                     systemName: "chevron.right",
                     accessibilityLabel: L10n.text("下一张图片"),
-                    help: L10n.text("下一张图片"),
+                    help: L10n.text("下一张图片（→ / ↓）"),
                     action: viewModel.navigateToNext
                 )
                 .transition(.opacity)
@@ -598,6 +604,8 @@ struct ImageToolBar: View {
     let onCopy: () -> Void
     let onScreenshot: () -> Void
     let onSlideshow: () -> Void
+    let isAlwaysOnTop: Bool
+    let onToggleAlwaysOnTop: () -> Void
 
     var body: some View {
         HStack(spacing: ViewerToolbarMetrics.spacing) {
@@ -609,9 +617,9 @@ struct ImageToolBar: View {
                     toolbarButton(.actualSize, label: L10n.text("100% 显示图片"), action: onShowHundredPercent)
                         .help(L10n.text("100% 显示图片（1:1）"))
                     toolbarButton(.zoomOut, label: L10n.text("缩小图片"), action: onZoomOut)
-                        .help(L10n.text("缩小图片"))
+                        .help(L10n.text("缩小图片（⌘− / ⌘↓）"))
                     toolbarButton(.zoomIn, label: L10n.text("放大图片"), action: onZoomIn)
-                        .help(L10n.text("放大图片"))
+                        .help(L10n.text("放大图片（⌘+ / ⌘= / ⌘↑）"))
                     toolbarButton(.rotateLeft, label: L10n.text("向左旋转 90 度"), action: onRotateLeft)
                         .help(L10n.text("向左旋转 90 度（⌘←）"))
                     toolbarButton(.rotateRight, label: L10n.text("向右旋转 90 度"), action: onRotateRight)
@@ -621,6 +629,20 @@ struct ImageToolBar: View {
                 }
             }
             .frame(height: ViewerToolbarMetrics.viewerButtonHeight)
+            Button(action: onToggleAlwaysOnTop) {
+                Image(nsImage: PhosphorImages.image(named: "push-pin"))
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: ViewerToolbarMetrics.iconSize, height: ViewerToolbarMetrics.iconSize)
+                    .accessibilityHidden(true)
+                    .frame(width: ViewerToolbarMetrics.buttonSize, height: ViewerToolbarMetrics.viewerButtonHeight)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(ViewerToolbarButtonStyle(selected: isAlwaysOnTop, foreground: .white.opacity(0.95)))
+            .accessibilityLabel(L10n.text("窗口置顶"))
+            .accessibilityValue(isAlwaysOnTop ? L10n.text("已开启") : L10n.text("已关闭"))
+            .help(isAlwaysOnTop ? L10n.text("取消置顶（⌃⌘T）") : L10n.text("窗口置顶（⌃⌘T）"))
             toolbarButton(.play, label: L10n.text("播放幻灯片"), action: onSlideshow)
                 .help(L10n.text("播放当前文件夹中的图片"))
             ViewerToolbarDivider(color: .white)

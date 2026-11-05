@@ -14,7 +14,7 @@ enum ViewerToolbarMetrics {
     static let horizontalPadding: CGFloat = 8
     static let viewerHorizontalPadding: CGFloat = 7
     static let viewerDividerPadding: CGFloat = 3
-    static let viewerWidth = buttonSize * 9 + spacing * 9 + 1
+    static let viewerWidth = buttonSize * 10 + spacing * 10 + 1
         + viewerDividerPadding * 2 + viewerHorizontalPadding * 2
     static let editorWidth = buttonSize * 15 + editorSpacing * 12
         + editorGroupSpacing * 4 + 2 + horizontalPadding * 2

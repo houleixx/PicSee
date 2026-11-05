@@ -87,10 +87,24 @@ final class WindowPinningController {
 extension NSAlert {
     @MainActor
     @discardableResult
-    func runPicSeeModal() -> NSApplication.ModalResponse {
-        let originalLevel = window.level
-        WindowPinningController.prepareModalWindow(window)
-        defer { window.level = originalLevel }
+    func runPicSeeModal(preferences: ViewerPreferences = .shared) -> NSApplication.ModalResponse {
+        let modalWindow = window
+        let originalLevel = modalWindow.level
+        WindowPinningController.prepareModalWindow(modalWindow, preferences: preferences)
+        // AppKit resets the level when entering its modal session. Apply it again
+        // once the alert becomes key, after that reset has happened.
+        let observation = NotificationCenter.default.publisher(
+            for: NSWindow.didBecomeKeyNotification, object: modalWindow
+        ).sink { _ in
+            if modalWindow.level.rawValue < originalLevel.rawValue {
+                modalWindow.level = originalLevel
+            }
+            WindowPinningController.prepareModalWindow(modalWindow, preferences: preferences)
+        }
+        defer {
+            observation.cancel()
+            modalWindow.level = originalLevel
+        }
         return runModal()
     }
 }

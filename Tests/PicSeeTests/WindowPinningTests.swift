@@ -164,6 +164,46 @@ struct WindowPinningTests {
         #expect(alert.window.level.rawValue == 60)
     }
 
+    @Test(arguments: [0, 60])
+    func standaloneAlertRemainsAbovePinnedViewerDuringModalSessionAndRestoresLevel(initialLevel: Int) {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = ViewerPreferences(defaults: defaults)
+        preferences.set(\.alwaysOnTopEnabled, to: true)
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.accessory)
+        let viewer = window()
+        viewer.pinningController = WindowPinningController(window: viewer, preferences: preferences)
+        viewer.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+        let viewerLevel = viewer.level.rawValue
+        let alert = NSAlert()
+        alert.messageText = "PicSee modal level regression test"
+        let modalWindow = alert.window
+        modalWindow.level = NSWindow.Level(rawValue: initialLevel)
+        let originalLevel = modalWindow.level
+        let inspection = Timer(timeInterval: 0.2, repeats: false) { _ in
+            MainActor.assumeIsolated {
+                #expect(modalWindow.isVisible)
+                #expect(modalWindow.level.rawValue == max(52, initialLevel))
+                #expect(modalWindow.level.rawValue > viewerLevel)
+                NSApp.stopModal()
+            }
+        }
+        RunLoop.main.add(inspection, forMode: .modalPanel)
+        let timeout = DispatchWorkItem { NSApp.abortModal() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: timeout)
+        defer {
+            inspection.invalidate()
+            timeout.cancel()
+            modalWindow.orderOut(nil)
+            viewer.orderOut(nil)
+            NSApp.setActivationPolicy(previousPolicy)
+        }
+        alert.runPicSeeModal(preferences: preferences)
+        #expect(!inspection.isValid)
+        #expect(modalWindow.level == originalLevel)
+    }
+
     private func window() -> ViewerWindow {
         let window = ViewerWindow(contentRect: NSRect(x: 10, y: 20, width: 480, height: 320),
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)

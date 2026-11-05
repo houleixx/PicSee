@@ -21,6 +21,9 @@ enum WindowPinningPreference {
 final class WindowPinningController {
     enum Role { case viewer, settings }
 
+    // Stay above common floating panels, with room for our settings and sheets.
+    private static let pinnedLevel = NSWindow.Level(rawValue: 50)
+
     private weak var window: NSWindow?
     private let role: Role
     private var enabled: Bool
@@ -58,7 +61,7 @@ final class WindowPinningController {
         guard let window else { return }
         let pinned = enabled && !isFullScreenActive && !window.styleMask.contains(.fullScreen)
         let level: NSWindow.Level = pinned
-            ? (role == .viewer ? .floating : NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1))
+            ? (role == .viewer ? Self.pinnedLevel : NSWindow.Level(rawValue: Self.pinnedLevel.rawValue + 1))
             : .normal
         if window.level != level { window.level = level }
 
@@ -70,7 +73,7 @@ final class WindowPinningController {
         }
         if let sheet, let originalSheetLevel {
             sheet.level = pinned
-                ? NSWindow.Level(rawValue: max(originalSheetLevel.rawValue, NSWindow.Level.floating.rawValue + 2))
+                ? NSWindow.Level(rawValue: max(originalSheetLevel.rawValue, Self.pinnedLevel.rawValue + 2))
                 : originalSheetLevel
         }
     }

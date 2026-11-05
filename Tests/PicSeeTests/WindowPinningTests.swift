@@ -69,12 +69,12 @@ struct WindowPinningTests {
         #expect(first.level == .normal)
         preferences.set(\.alwaysOnTopEnabled, to: true)
         try await settle()
-        #expect(first.level == .floating)
-        #expect(second.level == .floating)
+        #expect(first.level.rawValue == 50)
+        #expect(second.level.rawValue == 50)
         let third = window()
         let thirdController = WindowPinningController(window: third, preferences: mirror)
         defer { withExtendedLifetime(thirdController) {} }
-        #expect(third.level == .floating)
+        #expect(third.level.rawValue == 50)
         #expect(first.frame == frame)
         #expect(first.collectionBehavior == behavior)
         #expect(NSApp.keyWindow === keyWindow)
@@ -91,7 +91,7 @@ struct WindowPinningTests {
         preferences.set(\.alwaysOnTopEnabled, to: true)
         let viewer = window()
         viewer.pinningController = WindowPinningController(window: viewer, preferences: preferences)
-        #expect(viewer.level == .floating)
+        #expect(viewer.level.rawValue == 50)
         let frame = viewer.frame
         let mask = viewer.styleMask
         viewer.prepareStyleMaskForNativeFullScreen()
@@ -100,7 +100,7 @@ struct WindowPinningTests {
         preferences.set(\.alwaysOnTopEnabled, to: true)
         #expect(viewer.level == .normal)
         #expect(viewer.completeNativeFullScreenExit(restoring: mask))
-        #expect(viewer.level == .floating)
+        #expect(viewer.level.rawValue == 50)
         #expect(viewer.frame == frame)
         viewer.prepareStyleMaskForNativeFullScreen()
         preferences.set(\.alwaysOnTopEnabled, to: false)
@@ -118,7 +118,7 @@ struct WindowPinningTests {
         viewer.prepareStyleMaskForNativeFullScreen()
         #expect(viewer.level == .normal)
         viewer.restoreStyleMaskAfterFailedFullScreenEntry()
-        #expect(viewer.level == .floating)
+        #expect(viewer.level.rawValue == 50)
         #expect(viewer.styleMask == mask)
     }
 
@@ -131,7 +131,8 @@ struct WindowPinningTests {
             defaultAppHandler: ReadOnlyDefaultAppHandler(), captureFixedWindowFrame: {})
         let settingsWindow = try #require(settings.window)
         viewer.pinningController = WindowPinningController(window: viewer, preferences: preferences)
-        #expect(settingsWindow.level.rawValue > viewer.level.rawValue)
+        #expect(viewer.level.rawValue == 50)
+        #expect(settingsWindow.level.rawValue == 51)
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 150),
             styleMask: [.titled], backing: .buffered, defer: false)
         sheet.isReleasedWhenClosed = false
@@ -139,7 +140,7 @@ struct WindowPinningTests {
         defer { viewer.orderOut(nil) }
         viewer.beginSheet(sheet, completionHandler: nil)
         try await settle()
-        #expect(sheet.level.rawValue > settingsWindow.level.rawValue)
+        #expect(sheet.level.rawValue == 52)
         viewer.endSheet(sheet)
         sheet.orderOut(nil)
         try await settle()

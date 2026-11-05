@@ -280,9 +280,12 @@ private struct BrowsingSettingsView: View {
                 settingsCard(L10n.text("界面元素")) {
                     preferenceRow(L10n.text("显示标题栏"), keyPath: \.titleBarVisible)
                     Divider()
+                    preferenceRow(L10n.text("关闭按钮显示在左上角"), detail: L10n.text("仅在隐藏标题栏时可用。开启后，缩放比例和文件信息显示在右上角。"), keyPath: \.closeButtonOnLeft)
+                        .disabled(preferences.snapshot.titleBarVisible)
+                    Divider()
                     preferenceRow(L10n.text("显示缩略图"), detail: L10n.text("图片放大超出窗口时，显示定位缩略图"), keyPath: \.minimapEnabled)
                     Divider()
-                    preferenceRow(L10n.text("显示文件信息"), detail: L10n.text("隐藏标题栏时，在左上角显示文件信息"), keyPath: \.fileInfoVisible)
+                    preferenceRow(L10n.text("显示文件信息"), detail: L10n.text("隐藏标题栏时，在关闭按钮另一侧显示文件信息"), keyPath: \.fileInfoVisible)
                     Divider()
                     preferenceRow(L10n.text("显示底部工具栏"), keyPath: \.toolbarVisible)
                     Divider()

@@ -21,6 +21,7 @@ enum ViewerPreferenceChange {
 struct ViewerPreferencesSnapshot: Equatable {
     var theme: ViewerTheme
     var titleBarVisible: Bool
+    var closeButtonOnLeft: Bool
     var minimapEnabled: Bool
     var fileInfoVisible: Bool
     var toolbarVisible: Bool
@@ -38,6 +39,7 @@ struct ViewerPreferencesSnapshot: Equatable {
     init(defaults: UserDefaults) {
         theme = ViewerTheme.current(in: defaults)
         titleBarVisible = ViewerTitleBarPreference.isVisible(in: defaults)
+        closeButtonOnLeft = ViewerCloseButtonPreference.isOnLeft(in: defaults)
         minimapEnabled = ViewerOverlayPreference.isMinimapEnabled(in: defaults)
         fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible(in: defaults)
         toolbarVisible = ViewerOverlayPreference.isToolbarVisible(in: defaults)
@@ -108,6 +110,7 @@ final class ViewerPreferences: ObservableObject {
     func set(_ keyPath: WritableKeyPath<ViewerPreferencesSnapshot, Bool>, to value: Bool) {
         switch keyPath {
         case \.titleBarVisible: ViewerTitleBarPreference.setVisible(value, in: defaults)
+        case \.closeButtonOnLeft: ViewerCloseButtonPreference.setOnLeft(value, in: defaults)
         case \.minimapEnabled: ViewerOverlayPreference.setMinimapEnabled(value, in: defaults)
         case \.fileInfoVisible: ViewerOverlayPreference.setFileInfoVisible(value, in: defaults)
         case \.toolbarVisible: ViewerOverlayPreference.setToolbarVisible(value, in: defaults)

@@ -32,6 +32,7 @@ struct ImageViewerView: View {
     }
     @State private var clipboardNoticeID: UUID?
     @State private var latestVersionNoticeID: UUID?
+    @State private var isCheckingForUpdatesFromMenu = false
     @State private var clipboardFailure: (() -> String)?
     private var clipboardError: String? {
         get { clipboardFailure?() }
@@ -109,9 +110,14 @@ struct ImageViewerView: View {
                         onFixedWindowChanged(fixed)
                     },
                     onCheckForUpdates: {
+                        guard let updateChecker,
+                              !isCheckingForUpdatesFromMenu,
+                              updateChecker.status != .downloading else { return }
+                        isCheckingForUpdatesFromMenu = true
                         Task {
+                            defer { isCheckingForUpdatesFromMenu = false }
                             latestVersionNoticeID = nil
-                            if await updateChecker?.checkForUpdatesManually() == true {
+                            if await updateChecker.checkForUpdatesManually() {
                                 clipboardNoticeID = nil
                                 latestVersionNoticeID = UUID()
                             }
@@ -159,7 +165,8 @@ struct ImageViewerView: View {
                             VStack {
                                 Spacer()
                                 UpdatePromptView(updateChecker: updateChecker,
-                                                 compact: geometry.size.width < 950)
+                                                 compact: geometry.size.width < 950,
+                                                 isCheckingFromMenu: isCheckingForUpdatesFromMenu)
                                     .padding(.bottom, geometry.size.width < 950 ? 62 : hudPadding)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -723,11 +730,29 @@ private struct UpdatePromptView: View {
     @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var updateChecker: UpdateChecker
     let compact: Bool
+    let isCheckingFromMenu: Bool
     @State private var detailsVisible = false
 
     @ViewBuilder
     var body: some View {
-        if let update = updateChecker.availableUpdate, updateChecker.status != .downloaded {
+        if isCheckingFromMenu {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                    .colorScheme(.dark)
+                if !compact {
+                    Text(L10n.text("正在检查更新…"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(.black.opacity(0.6), in: Capsule())
+            .help(L10n.text("正在检查更新…"))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L10n.text("正在检查更新…"))
+        } else if let update = updateChecker.availableUpdate, updateChecker.status != .downloaded {
             if compact {
                 Button(updateChecker.status == .downloading ? L10n.text("下载中...") : L10n.text("发现更新")) {
                     detailsVisible = true

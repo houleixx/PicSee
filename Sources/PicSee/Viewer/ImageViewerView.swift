@@ -13,6 +13,7 @@ struct ImageViewerView: View {
     var onToggleFullScreen: () -> Void = {}
     var onCloseViewer: () -> Void = {}
     @State private var titleBarVisible = ViewerTitleBarPreference.isVisible()
+    @State private var closeButtonOnLeft = ViewerCloseButtonPreference.isOnLeft()
     @State private var fileInfoVisible = ViewerOverlayPreference.isFileInfoVisible()
     @State private var toolbarVisible = ViewerOverlayPreference.isToolbarVisible()
     @State private var imageParametersVisible = ViewerOverlayPreference.isImageParametersVisible()
@@ -122,11 +123,12 @@ struct ImageViewerView: View {
                     onStartSlideshow: viewModel.startSlideshow
                 )
                 .id(viewModel.sessionID)
-                .overlay(alignment: .topLeading) {
+                .overlay(alignment: closeButtonOnLeft ? .topTrailing : .topLeading) {
                     if !titleBarVisible && screenshotDocument == nil && slideshowChromeVisible {
                         HStack(spacing: 8) {
                             Text(viewModel.zoomPercentageText)
                                 .font(.system(size: 13, weight: .semibold))
+                                .fixedSize()
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 11)
                                 .padding(.vertical, 7)
@@ -144,8 +146,8 @@ struct ImageViewerView: View {
                             }
                         }
                         .padding(.top, hudPadding)
-                        .padding(.leading, hudPadding)
-                        .padding(.trailing, 56)
+                        .padding(.leading, closeButtonOnLeft ? 56 : hudPadding)
+                        .padding(.trailing, closeButtonOnLeft ? hudPadding : 56)
                         .allowsHitTesting(false)
                     }
                 }
@@ -266,7 +268,7 @@ struct ImageViewerView: View {
                 .padding(32)
             }
         }
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: closeButtonOnLeft ? .topLeading : .topTrailing) {
             if !titleBarVisible && screenshotDocument == nil && slideshowChromeVisible {
                 Button(action: onCloseViewer) {
                     Image(systemName: "xmark")
@@ -278,7 +280,7 @@ struct ImageViewerView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(L10n.text("关闭图片"))
                 .padding(.top, hudPadding)
-                .padding(.trailing, hudPadding)
+                .padding(closeButtonOnLeft ? .leading : .trailing, hudPadding)
             }
         }
         .overlay {
@@ -405,6 +407,7 @@ struct ImageViewerView: View {
                 onFixedWindowChanged(snapshot.fixedWindowEnabled)
             }
             fileInfoVisible = snapshot.fileInfoVisible
+            closeButtonOnLeft = snapshot.closeButtonOnLeft
             toolbarVisible = snapshot.toolbarVisible
             imageParametersVisible = snapshot.imageParametersVisible
         }

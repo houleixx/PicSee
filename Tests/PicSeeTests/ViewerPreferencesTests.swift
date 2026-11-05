@@ -46,6 +46,27 @@ final class ViewerPreferencesTests: XCTestCase {
         XCTAssertTrue(ViewerPreferences(defaults: defaults).snapshot.automaticWindowSizeEnabled)
     }
 
+    func testCloseButtonPositionUpdatesExistingViewersAndPersistsAcrossTitleBarChanges() async throws {
+        let preferences = ViewerPreferences(defaults: defaults)
+        let mirror = ViewerPreferences(defaults: defaults)
+        XCTAssertFalse(preferences.snapshot.closeButtonOnLeft)
+        let received = expectation(description: "Existing viewer receives close button position")
+        let observation = mirror.$snapshot.dropFirst().filter(\.closeButtonOnLeft).first()
+            .sink { _ in received.fulfill() }
+        defer { observation.cancel() }
+
+        preferences.set(\.closeButtonOnLeft, to: true)
+        await fulfillment(of: [received], timeout: 2)
+        XCTAssertTrue(mirror.snapshot.closeButtonOnLeft)
+        preferences.set(\.titleBarVisible, to: true)
+        preferences.set(\.titleBarVisible, to: false)
+
+        let reopened = ViewerPreferences(defaults: try XCTUnwrap(UserDefaults(suiteName: suiteName)))
+        XCTAssertTrue(reopened.snapshot.closeButtonOnLeft)
+        reopened.set(\.closeButtonOnLeft, to: false)
+        XCTAssertFalse(ViewerPreferences(defaults: defaults).snapshot.closeButtonOnLeft)
+    }
+
     func testSettingsChangesReachExistingCanvasAndPersistForNextLaunch() async throws {
         let preferences = ViewerPreferences(defaults: defaults)
         let canvas = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)

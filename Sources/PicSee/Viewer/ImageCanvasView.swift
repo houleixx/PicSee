@@ -19,6 +19,8 @@ struct ImageCanvasView: NSViewRepresentable {
     let onNext: () -> Void
     let onRotateLeft: () -> Void
     let onRotateRight: () -> Void
+    let onZoomIn: () -> Void
+    let onZoomOut: () -> Void
     let onReset: () -> Void
     let onClose: () -> Void
     let onZoomRequestHandled: (Int) -> Void
@@ -54,6 +56,8 @@ struct ImageCanvasView: NSViewRepresentable {
         view.onNext = onNext
         view.onRotateLeft = onRotateLeft
         view.onRotateRight = onRotateRight
+        view.onZoomIn = onZoomIn
+        view.onZoomOut = onZoomOut
         view.onReset = onReset
         view.onClose = onClose
         view.onZoomRequestHandled = onZoomRequestHandled
@@ -85,6 +89,8 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onNext = onNext
         nsView.onRotateLeft = onRotateLeft
         nsView.onRotateRight = onRotateRight
+        nsView.onZoomIn = onZoomIn
+        nsView.onZoomOut = onZoomOut
         nsView.onReset = onReset
         nsView.onClose = onClose
         nsView.onZoomRequestHandled = onZoomRequestHandled
@@ -685,6 +691,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     var onNext: (() -> Void)?
     var onRotateLeft: (() -> Void)?
     var onRotateRight: (() -> Void)?
+    var onZoomIn: (() -> Void)?
+    var onZoomOut: (() -> Void)?
     var onReset: (() -> Void)?
     var onClose: (() -> Void)?
     var canTrashImage = false
@@ -1302,6 +1310,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         switch KeyboardNavigation.action(
             for: event.keyCode,
             modifiers: event.modifierFlags,
+            charactersIgnoringModifiers: event.charactersIgnoringModifiers,
             isRepeat: event.isARepeat,
             slideshowActive: slideshow?.isActive == true,
             isFullScreen: window?.styleMask.contains(.fullScreen) == true
@@ -1311,6 +1320,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             trashImageForMenu(nil)
         case .undoDeletion:
             undoDeletionForMenu(nil)
+        case .toggleAlwaysOnTop:
+            toggleAlwaysOnTopForMenu(nil)
         case .previous:
             onPrevious?()
         case .next:
@@ -1319,6 +1330,10 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             if image != nil { onRotateLeft?() }
         case .rotateRight:
             if image != nil { onRotateRight?() }
+        case .zoomIn:
+            if image != nil { onZoomIn?() }
+        case .zoomOut:
+            if image != nil { onZoomOut?() }
         case .toggleSlideshowPause:
             slideshow?.togglePause()
         case .endSlideshow:
@@ -1703,7 +1718,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         }
 
         if !menu.items.contains(where: { $0.action == #selector(toggleAlwaysOnTopForMenu(_:)) }) {
-            let item = NSMenuItem(title: L10n.text("窗口置顶"), action: #selector(toggleAlwaysOnTopForMenu(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: L10n.text("窗口置顶"), action: #selector(toggleAlwaysOnTopForMenu(_:)), keyEquivalent: "t")
+            item.keyEquivalentModifierMask = [.control, .command]
             item.image = contextMenuImage("pin")
             LanguageSettings.bind(item) { $0.title = L10n.text("窗口置顶") }
             item.target = self

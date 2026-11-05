@@ -28,6 +28,8 @@
 "单窗口看图" = "Use a Single Window";
 "再次打开图片时，在已有窗口中显示" = "Open subsequent images in the existing window";
 "窗口置顶" = "Always on Top";
+"窗口置顶（⌃⌘T）" = "Always on Top (⌃⌘T)";
+"取消置顶（⌃⌘T）" = "Turn Off Always on Top (⌃⌘T)";
 "所有看图窗口保持在普通窗口上方，切换应用时仍然显示" = "Keep all image windows above normal windows, even when switching apps";
 "固定窗口大小和位置" = "Remember Window Size and Position";
 "根据图片自动调整窗口大小" = "Resize Window to Fit Image";
@@ -105,11 +107,15 @@
 "无法准备要复制的图片。\n%1$@" = "Couldn’t prepare the image for copying.\n%1$@";
 "上一张图片" = "Previous Image";
 "下一张图片" = "Next Image";
+"上一张图片（← / ↑）" = "Previous Image (← / ↑)";
+"下一张图片（→ / ↓）" = "Next Image (→ / ↓)";
 "适合窗口显示图片" = "Fit Image to Window";
 "100% 显示图片" = "Show at 100%";
 "100% 显示图片（1:1）" = "Show at 100% (1:1)";
 "缩小图片" = "Zoom Out";
 "放大图片" = "Zoom In";
+"缩小图片（⌘− / ⌘↓）" = "Zoom Out (⌘− / ⌘↓)";
+"放大图片（⌘+ / ⌘= / ⌘↑）" = "Zoom In (⌘+ / ⌘= / ⌘↑)";
 "向左旋转 90 度" = "Rotate Left 90°";
 "向右旋转 90 度" = "Rotate Right 90°";
 "复制图片" = "Copy Image";
@@ -140,6 +146,8 @@
 "开启循环播放" = "Turn On Looping";
 "退出全屏" = "Exit Full Screen";
 "全屏播放" = "Play Full Screen";
+"退出全屏（F / ⌃⌘F）" = "Exit Full Screen (F / ⌃⌘F)";
+"全屏播放（F / ⌃⌘F）" = "Play Full Screen (F / ⌃⌘F)";
 "退出幻灯片（Esc）" = "Exit Slideshow (Esc)";
 "退出幻灯片，返回看图（Esc）" = "Exit slideshow and return to the image (Esc)";
 "播放间隔" = "Slide Interval";

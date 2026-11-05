@@ -30,6 +30,22 @@ struct WindowPinningTests {
         #expect(item.state == .on)
         let reopened = try #require(UserDefaults(suiteName: suite))
         #expect(ViewerPreferences(defaults: reopened).snapshot.alwaysOnTopEnabled)
+        #expect(item.keyEquivalent == "t")
+        #expect(item.keyEquivalentModifierMask == [.control, .command])
+        let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero,
+            modifierFlags: [.control, .command], timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: 0, context: nil, characters: "t", charactersIgnoringModifiers: "t",
+            isARepeat: false, keyCode: 17))
+        canvas.keyDown(with: event)
+        try await settle()
+        #expect(!preferences.snapshot.alwaysOnTopEnabled)
+        #expect(canvas.validateMenuItem(item))
+        #expect(item.state == .off)
+        canvas.keyDown(with: event)
+        try await settle()
+        #expect(preferences.snapshot.alwaysOnTopEnabled)
+        #expect(canvas.validateMenuItem(item))
+        #expect(item.state == .on)
         canvas.toggleAlwaysOnTopForMenu(nil)
         try await settle()
         #expect(!preferences.snapshot.alwaysOnTopEnabled)

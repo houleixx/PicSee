@@ -13,11 +13,13 @@ struct SlideshowControls: View {
         HStack(spacing: ViewerToolbarMetrics.spacing) {
             HStack(spacing: 0) {
                 icon(.previous, label: L10n.text("上一张"), action: onPrevious)
+                    .help(L10n.text("上一张图片（← / ↑）"))
                 icon(slideshow.state == .playing ? .pause : .play,
                      label: slideshow.state == .playing ? L10n.text("暂停幻灯片") : L10n.text("继续幻灯片"),
                      action: slideshow.togglePause)
                     .help(L10n.text("空格：暂停或继续幻灯片"))
                 icon(.next, label: L10n.text("下一张"), action: onNext)
+                    .help(L10n.text("下一张图片（→ / ↓）"))
             }
             ViewerToolbarDivider(color: .white)
                 .padding(.horizontal, ViewerToolbarMetrics.viewerDividerPadding)
@@ -32,6 +34,7 @@ struct SlideshowControls: View {
                      label: isFullScreen ? L10n.text("退出全屏") : L10n.text("全屏播放"),
                      action: onToggleFullScreen)
                     .disabled(slideshow.isFullScreenTransitioning)
+                    .help(isFullScreen ? L10n.text("退出全屏（F / ⌃⌘F）") : L10n.text("全屏播放（F / ⌃⌘F）"))
                 icon(.exitSlideshow, label: L10n.text("退出幻灯片（Esc）"), action: slideshow.stop)
                     .help(L10n.text("退出幻灯片，返回看图（Esc）"))
             }

@@ -3,9 +3,58 @@ import XCTest
 @testable import PicSee
 
 final class KeyboardNavigationTests: XCTestCase {
+    func testPrintableZoomShortcutsFollowKeyboardLayout() {
+        XCTAssertEqual(KeyboardNavigation.action(for: 30, modifiers: .command, charactersIgnoringModifiers: "+"), .zoomIn)
+        XCTAssertEqual(KeyboardNavigation.action(for: 30, modifiers: [.command, .shift], charactersIgnoringModifiers: "+"), .zoomIn)
+        XCTAssertEqual(KeyboardNavigation.action(for: 44, modifiers: .command, charactersIgnoringModifiers: "-"), .zoomOut)
+        XCTAssertEqual(KeyboardNavigation.action(for: 24, modifiers: .command, charactersIgnoringModifiers: "´"), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 27, modifiers: .command, charactersIgnoringModifiers: "ß"), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 24, modifiers: .command, charactersIgnoringModifiers: "="), .zoomIn)
+        XCTAssertEqual(KeyboardNavigation.action(for: 30, charactersIgnoringModifiers: "+"), .none)
+        XCTAssertEqual(KeyboardNavigation.action(for: 44, modifiers: [.command, .shift], charactersIgnoringModifiers: "-"), .none)
+    }
+
+    func testAlwaysOnTopRequiresControlCommandTAndDoesNotRepeat() {
+        XCTAssertEqual(KeyboardNavigation.action(for: 17, modifiers: [.control, .command]), .toggleAlwaysOnTop)
+        XCTAssertEqual(KeyboardNavigation.action(for: 17, modifiers: [.control, .command, .capsLock]), .toggleAlwaysOnTop)
+        XCTAssertEqual(KeyboardNavigation.action(for: 17, modifiers: [.control, .command], isRepeat: true), .none)
+        for modifiers: NSEvent.ModifierFlags in [[], .control, .command, [.control, .command, .shift], [.control, .command, .option]] {
+            XCTAssertEqual(KeyboardNavigation.action(for: 17, modifiers: modifiers), .none)
+        }
+    }
+
+    func testZoomShortcutsSupportMainAndNumericKeyboardsAndRepeating() {
+        for keyCode: UInt16 in [24, 69, 81, 27, 78] {
+            let expected: KeyboardNavigation.Action = [24, 69, 81].contains(keyCode) ? .zoomIn : .zoomOut
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: .command), expected)
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: [.command, .capsLock]), expected)
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: .command, isRepeat: true), expected)
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode), .none)
+            for extra: NSEvent.ModifierFlags in [.option, .control] {
+                XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: [.command, extra]), .none)
+            }
+        }
+        XCTAssertEqual(KeyboardNavigation.action(for: 24, modifiers: [.command, .shift]), .zoomIn)
+        XCTAssertEqual(KeyboardNavigation.action(for: 24, modifiers: [.command, .shift], isRepeat: true), .zoomIn)
+        XCTAssertEqual(KeyboardNavigation.action(for: 27, modifiers: [.command, .shift]), .none)
+    }
+
     func testLeftAndUpMapToPreviousImage() {
         XCTAssertEqual(KeyboardNavigation.action(for: 123), .previous)
         XCTAssertEqual(KeyboardNavigation.action(for: 126), .previous)
+    }
+
+    func testCommandUpAndDownZoomWithoutChangingPlainArrowNavigation() {
+        for keyCode: UInt16 in [126, 125] {
+            let expected: KeyboardNavigation.Action = keyCode == 126 ? .zoomIn : .zoomOut
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: .command), expected)
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: [.command, .capsLock]), expected)
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: .command, isRepeat: true), expected)
+            XCTAssertEqual(KeyboardNavigation.action(for: keyCode), keyCode == 126 ? .previous : .next)
+            for extra: NSEvent.ModifierFlags in [.shift, .option, .control] {
+                XCTAssertEqual(KeyboardNavigation.action(for: keyCode, modifiers: [.command, extra]), .none)
+            }
+        }
     }
 
     func testRightAndDownMapToNextImage() {

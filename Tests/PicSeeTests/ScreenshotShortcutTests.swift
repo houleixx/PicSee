@@ -5,6 +5,50 @@ import Testing
 
 @MainActor
 struct ScreenshotShortcutTests {
+    @Test func zoomShortcutsChangeDisplayedScaleWithToolbarHidden() async throws {
+        _ = NSApplication.shared
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/ocr-test.png")
+        let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url)
+        let host = NSHostingView(rootView: ImageViewerView(viewModel: model, updateChecker: nil,
+            onTitleBarVisibilityChanged: { _ in }, onFixedWindowChanged: { _ in }, onRequestDeletion: {}))
+        let window = ViewerWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentView = host
+        window.orderFront(nil)
+        host.layoutSubtreeIfNeeded()
+        func findCanvas(_ parent: NSView) -> CanvasNSView? {
+            if let canvas = parent as? CanvasNSView { return canvas }
+            return parent.subviews.lazy.compactMap { findCanvas($0) }.first
+        }
+        let canvas = try #require(findCanvas(host))
+        canvas.toolbarVisible = false
+        let originalZoom = model.zoomScale
+        func press(_ keyCode: UInt16, modifiers: NSEvent.ModifierFlags, expectedZoom: CGFloat) async throws {
+            let event = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero,
+                modifierFlags: modifiers, timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil, characters: "",
+                charactersIgnoringModifiers: "", isARepeat: false, keyCode: keyCode))
+            canvas.keyDown(with: event)
+            let deadline = Date().addingTimeInterval(1)
+            while abs(model.zoomScale - expectedZoom) > 0.0001 && Date() < deadline {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            #expect(abs(model.zoomScale - expectedZoom) < 0.0001)
+            #expect(abs(canvas.zoomScale - expectedZoom) < 0.0001)
+        }
+        try await press(24, modifiers: .command, expectedZoom: originalZoom * 1.25)
+        try await press(27, modifiers: .command, expectedZoom: originalZoom)
+        try await press(24, modifiers: [.command, .shift], expectedZoom: originalZoom * 1.25)
+        try await press(78, modifiers: .command, expectedZoom: originalZoom)
+        try await press(126, modifiers: .command, expectedZoom: originalZoom * 1.25)
+        try await press(125, modifiers: .command, expectedZoom: originalZoom)
+        #expect(model.currentURL == url)
+        #expect(model.rotationDegrees == 0)
+    }
+
     @Test func repeatedRotationShortcutsReachModelWithToolbarHidden() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Tests/Fixtures/ocr-test.png")

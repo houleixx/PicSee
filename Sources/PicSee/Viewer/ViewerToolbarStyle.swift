@@ -25,7 +25,7 @@ enum ViewerToolbarMetrics {
 struct ViewerToolbarIcon: View {
     enum Symbol {
         case fit, actualSize, zoomOut, zoomIn, rotateLeft, rotateRight
-        case copy, crop, undo, redo, cancel, confirm
+        case copy, pin, crop, undo, redo, cancel, confirm
         case play, pause, previous, next, repeatImages, exitSlideshow
         case enterFullScreen, exitFullScreen
     }
@@ -84,6 +84,10 @@ struct ViewerToolbarIcon: View {
                 path.addRoundedRect(in: CGRect(x: 3, y: 8, width: 13, height: 13),
                                     cornerSize: CGSize(width: 1, height: 1))
                 line([(8, 8), (8, 3), (21, 3), (21, 16), (16, 16)])
+            case .pin:
+                line([(15, 3), (21, 9), (16, 14), (16, 18), (14, 20),
+                      (4, 10), (6, 8), (10, 8), (15, 3)])
+                line([(9, 15), (3, 21)])
             case .crop:
                 line([(7.5, 3), (7.5, 16.5), (21, 16.5)])
                 line([(3, 7.5), (16.5, 7.5), (16.5, 21)])

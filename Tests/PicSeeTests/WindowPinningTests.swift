@@ -149,6 +149,21 @@ struct WindowPinningTests {
         #expect(viewer.level == .normal)
     }
 
+    @Test func standaloneAlertsStayAbovePinnedWindowsWithoutLoweringHigherLevels() {
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let preferences = ViewerPreferences(defaults: defaults)
+        let alert = NSAlert()
+        let originalLevel = alert.window.level
+        WindowPinningController.prepareModalWindow(alert.window, preferences: preferences)
+        #expect(alert.window.level == originalLevel)
+        preferences.set(\.alwaysOnTopEnabled, to: true)
+        WindowPinningController.prepareModalWindow(alert.window, preferences: preferences)
+        #expect(alert.window.level.rawValue == 52)
+        alert.window.level = NSWindow.Level(rawValue: 60)
+        WindowPinningController.prepareModalWindow(alert.window, preferences: preferences)
+        #expect(alert.window.level.rawValue == 60)
+    }
+
     private func window() -> ViewerWindow {
         let window = ViewerWindow(contentRect: NSRect(x: 10, y: 20, width: 480, height: 320),
             styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)

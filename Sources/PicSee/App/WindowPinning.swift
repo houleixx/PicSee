@@ -24,6 +24,11 @@ final class WindowPinningController {
     // Stay above common floating panels, with room for our settings and sheets.
     private static let pinnedLevel = NSWindow.Level(rawValue: 50)
 
+    static func prepareModalWindow(_ window: NSWindow, preferences: ViewerPreferences = .shared) {
+        guard preferences.snapshot.alwaysOnTopEnabled else { return }
+        window.level = NSWindow.Level(rawValue: max(window.level.rawValue, pinnedLevel.rawValue + 2))
+    }
+
     private weak var window: NSWindow?
     private let role: Role
     private var enabled: Bool
@@ -76,5 +81,16 @@ final class WindowPinningController {
                 ? NSWindow.Level(rawValue: max(originalSheetLevel.rawValue, Self.pinnedLevel.rawValue + 2))
                 : originalSheetLevel
         }
+    }
+}
+
+extension NSAlert {
+    @MainActor
+    @discardableResult
+    func runPicSeeModal() -> NSApplication.ModalResponse {
+        let originalLevel = window.level
+        WindowPinningController.prepareModalWindow(window)
+        defer { window.level = originalLevel }
+        return runModal()
     }
 }

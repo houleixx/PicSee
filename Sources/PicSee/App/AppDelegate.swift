@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     alert.messageText = L10n.text("更新安装失败，原版本已保留。")
                     alert.informativeText = L10n.text("可重试更新，或从发布页面手动安装。安装日志：%1$@", target.deletingLastPathComponent().appendingPathComponent(".PicSee-update.log").path)
                     alert.addButton(withTitle: L10n.text("好"))
-                    alert.runModal()
+                    alert.runPicSeeModal()
                 }
             }
         }
@@ -190,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             $0.informativeText = L10n.errorDescription(error)
                             $0.buttons.first?.title = L10n.text("好")
                         }
-                        alert.runModal()
+                        alert.runPicSeeModal()
                         return
                     }
                 }
@@ -253,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 $0.informativeText = L10n.errorDescription(error)
                 $0.buttons.first?.title = L10n.text("好")
             }
-            alert.runModal()
+            alert.runPicSeeModal()
         }
     }
 

@@ -463,7 +463,7 @@ final class DefaultImageAppSettingsViewController: NSViewController {
             checkbox.button.state = handler.isDefaultViewer(for: checkbox.format) ? .on : .off
         }
         if !result.failures.isEmpty {
-            Self.makeFailureAlert(for: result).runModal()
+            Self.makeFailureAlert(for: result).runPicSeeModal()
         }
     }
 

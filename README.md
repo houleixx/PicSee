@@ -90,7 +90,7 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 - Finder 双击图片直接打开
 - 可按图片格式将 PicSee 设置为默认图片查看器
-- 可在设置页或右键菜单切换“窗口置顶”，默认关闭并在本地记忆。所有已有及新开的看图窗口同步生效，切换应用后仍在普通窗口之上；多个置顶窗口按正常点击顺序前后排列，不抢焦点。换图、最小化后恢复均保留置顶，系统全屏期间暂时恢复普通层级，退出全屏后按当前设置恢复。设置窗口及操作弹窗显示在置顶图片上方，不自动跨桌面跟随。
+- 可在设置页或右键菜单切换“窗口置顶”，默认关闭并在本地记忆。所有已有及新开的看图窗口同步生效，切换应用后仍在普通窗口及常见浮窗之上（更高层级的窗口仍可能遮挡）；多个置顶窗口按正常点击顺序前后排列，不抢焦点。换图、最小化后恢复均保留置顶，系统全屏期间暂时恢复普通层级，退出全屏后按当前设置恢复。设置窗口及操作弹窗显示在置顶图片上方，不自动跨桌面跟随。
 - 默认多窗口独立查看，关闭一个窗口只退出当前进程
 - 可在“设置 → 显示设置 → 窗口”或右键菜单开启“单窗口看图”：后续打开的图片复用接收窗口，保留窗口位置、大小和全屏状态，重置缩放、平移、旋转、OCR 和截图状态，并按新图片所在文件夹重新建立左右翻图列表。重复打开当前图片仅激活窗口；加载失败保留原图；截图编辑中换图需先确认。批量打开只显示第一张，仍按所在文件夹浏览。开关默认关闭，切换时不关闭已有窗口。
 - 整图复制：点击旋转右侧的复制按钮，将当前图片按原始像素尺寸复制到剪贴板，保留旋转方向，成功后提示“已复制到剪贴板”
@@ -148,7 +148,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.86 PICSEE_BUILD_NUMBER=86 Scripts/build-app.sh
+PICSEE_VERSION=0.2.87 PICSEE_BUILD_NUMBER=87 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -165,15 +165,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.86.dmg`
+- DMG: `build/dmg/PicSee-0.2.87.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.86 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.87 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.86.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.87.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -306,14 +306,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.86
-git push origin v0.2.86
+git tag v0.2.87
+git push origin v0.2.87
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.86`
-- Asset: `PicSee-0.2.86.dmg`
+- Release: `v0.2.87`
+- Asset: `PicSee-0.2.87.dmg`
 
 ## Release 说明
 

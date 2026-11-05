@@ -148,7 +148,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.84 PICSEE_BUILD_NUMBER=84 Scripts/build-app.sh
+PICSEE_VERSION=0.2.85 PICSEE_BUILD_NUMBER=84 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -165,15 +165,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.84.dmg`
+- DMG: `build/dmg/PicSee-0.2.85.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.84 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.85 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.84.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.85.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -186,8 +186,11 @@ PICSEE_VERSION=0.2.84 Scripts/build-dmg.sh
 - 拖动顶部标题区域：移动窗口
 - 滚动鼠标滚轮或触控板捏合：围绕事件中的光标位置放大 / 缩小图片，边缘限制内尽量保持光标下的细节不动；触控板双指滚动仍用于平移已缩放的图片
 - 工具栏和键盘缩放：仍围绕视口中心
+- `⌘ + ＋`、`⌘ + =` 或 `⌘↑`：放大图片；`⌘ + －` 或 `⌘↓`：缩小图片，也支持数字小键盘。长按可连续缩放，隐藏工具栏时仍可使用；文字输入、截图编辑及弹窗期间不触发。工具栏缩放按钮的悬停提示中会显示快捷键。
 - 双击图片：在适合窗口状态下进入或退出原生全屏；已缩放或平移时恢复适合窗口
 - `F` 或 `Control + Command + F`：进入 / 退出原生全屏，幻灯片播放时也可使用
+- `Control + Command + T`：切换窗口置顶，右键菜单勾选状态及显示设置同步更新；长按不重复切换。文字输入、截图编辑及弹窗期间不触发。
+- 工具栏播放按钮左侧的图钉按钮：切换窗口置顶，开启时高亮；悬停提示显示当前操作和 `⌃⌘T`，状态与快捷键、右键菜单和显示设置同步。
 - 放大后拖动非文字区域：移动图片可视区域
 - 光标移到可识别文字上：显示 I 形光标，可拖选文字
 - `Cmd + C`：复制选中的文字
@@ -303,14 +306,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.84
-git push origin v0.2.84
+git tag v0.2.85
+git push origin v0.2.85
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.84`
-- Asset: `PicSee-0.2.84.dmg`
+- Release: `v0.2.85`
+- Asset: `PicSee-0.2.85.dmg`
 
 ## Release 说明
 

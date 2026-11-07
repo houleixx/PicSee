@@ -280,6 +280,10 @@
 "设为桌面壁纸" = "Set as Desktop Wallpaper";
 "设置桌面壁纸失败" = "Couldn’t Set Desktop Wallpaper";
 "鼠标滚轮" = "Mouse Wheel";
+"图片默认显示方式" = "Default Image View";
+"适合窗口" = "Fit to Window";
+"适合宽度" = "Fit to Width";
+"打开或切换图片时使用所选方式。适合宽度便于阅读长图，固定窗口时同样适用。" = "Use this view when opening or switching images. Fit to Width makes long images easier to read and also works with fixed windows.";
 "缩放图片" = "Zoom Image";
 "上下滚动" = "Scroll Vertically";
 "选择用滚轮缩放图片，或上下滚动查看图片。触控板手势不受影响。" = "Choose whether the mouse wheel zooms the image or scrolls vertically. Trackpad gestures are unaffected.";
@@ -309,7 +313,7 @@
 
 "最大放大倍数" = "Maximum enlargement";
 
-"仅调整全屏时小图的显示方式，大图仍按比例缩小并完整显示。" = "Only change how small images appear in full screen. Large images still scale down proportionally to fit the screen.";
+"使用“适合窗口”时生效，仅调整全屏小图的显示方式。" = "Applies when using Fit to Window. Only changes how small images appear in full screen.";
 
 "打印…" = "Print…";
 "无法打印图片" = "Unable to Print Image";

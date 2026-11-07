@@ -42,6 +42,10 @@ final class ImageViewerViewModel: ObservableObject {
     let slideshow: SlideshowController
     private var slideshowObservation: AnyCancellable?
     @Published var zoomScale: CGFloat = 1
+    @Published private(set) var displayMode: ImageDisplayMode = .fitWindow
+    @Published private(set) var defaultDisplayRequestID = 0
+    private let preferences: ViewerPreferences
+    private var displayModeObservation: AnyCancellable?
     @Published var panOffset: CGSize = .zero
     @Published var displayScale: CGFloat = 1
     @Published var rotationDegrees: Int = 0
@@ -72,9 +76,11 @@ final class ImageViewerViewModel: ObservableObject {
         imageTrash: any ImageTrashing = ImageTrash(),
         slideshow: SlideshowController = SlideshowController(),
         readImage: @escaping @Sendable (URL) async -> LoadedImage? = ImageLoadWorker.load,
-        prefetchImage: @escaping @Sendable (URL, Int) async -> LoadedImage? = ImageLoadWorker.prefetch
+        prefetchImage: @escaping @Sendable (URL, Int) async -> LoadedImage? = ImageLoadWorker.prefetch,
+        defaults: UserDefaults = .standard
     ) {
         self.loadingMode = loadingMode
+        self.preferences = defaults === UserDefaults.standard ? .shared : ViewerPreferences(defaults: defaults)
         self.readImage = readImage
         self.prefetchCache = ImagePrefetchCache(prefetchReader: prefetchImage)
         self.slideshow = slideshow
@@ -101,6 +107,13 @@ final class ImageViewerViewModel: ObservableObject {
         slideshowObservation = slideshow.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
+        displayModeObservation = preferences.$snapshot.map(\.imageDisplayMode).removeDuplicates().dropFirst()
+            .sink { [weak self] mode in
+                guard let self else { return }
+                self.slideshow.pause()
+                self.applyDefaultDisplayMode(mode)
+                self.zoomRequest = nil
+            }
         startImageOrder(waitForResult: false)
     }
 
@@ -383,8 +396,15 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     func resetViewTransform() {
+        displayMode = .fitWindow
         zoomScale = 1
         panOffset = .zero
+    }
+
+    func applyDefaultDisplayMode(_ mode: ImageDisplayMode) {
+        resetViewTransform()
+        displayMode = mode
+        defaultDisplayRequestID += 1
     }
 
     func fitToWindow() {
@@ -474,7 +494,7 @@ final class ImageViewerViewModel: ObservableObject {
 
     func startSlideshow() {
         guard image != nil, !isFolderEmpty, !isScreenshotEditing, !isImageLoading else { return }
-        resetViewTransform()
+        applyDefaultDisplayMode(preferences.snapshot.imageDisplayMode)
         slideshow.start(ready: isNavigationOrderReady)
     }
 
@@ -550,7 +570,7 @@ final class ImageViewerViewModel: ObservableObject {
         }
         isFolderEmpty = false
         currentURL = standardizedURL
-        resetViewTransform()
+        applyDefaultDisplayMode(preferences.snapshot.imageDisplayMode)
         rotationDegrees = 0
         zoomRequest = nil
         navigationDirection = direction

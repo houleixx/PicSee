@@ -67,6 +67,8 @@ struct ImageViewerView: View {
                 ImageCanvasView(
                     image: image,
                     imageURL: viewModel.currentURL,
+                    displayMode: viewModel.displayMode,
+                    defaultDisplayRequestID: viewModel.defaultDisplayRequestID,
                     zoomScale: $viewModel.zoomScale,
                     panOffset: $viewModel.panOffset,
                     rotationDegrees: $viewModel.rotationDegrees,
@@ -80,6 +82,7 @@ struct ImageViewerView: View {
                     onZoomIn: viewModel.zoomIn,
                     onZoomOut: viewModel.zoomOut,
                     onReset: viewModel.resetViewTransform,
+                    onDefaultDisplayModeRequested: viewModel.applyDefaultDisplayMode,
                     onClose: onCloseViewer,
                     onZoomRequestHandled: viewModel.clearZoomRequest,
                     onDisplayScaleChanged: {
@@ -303,7 +306,8 @@ struct ImageViewerView: View {
                             rotationDegrees: viewModel.rotationDegrees,
                             backingScaleFactor: backingScaleFactor,
                             maximumAutomaticPixelScale: preferences.snapshot.fullScreenSmallImageMode.maximumPixelScale(
-                                isFullScreen: isFullScreen, smartLimit: preferences.snapshot.maximumSmallImageScale)
+                                isFullScreen: isFullScreen, smartLimit: preferences.snapshot.maximumSmallImageScale),
+                            displayMode: viewModel.displayMode
                         ).imageRect,
                         onClose: closeScreenshot,
                         onCopy: {

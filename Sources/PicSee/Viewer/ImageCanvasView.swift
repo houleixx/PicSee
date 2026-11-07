@@ -9,6 +9,8 @@ import Vision
 struct ImageCanvasView: NSViewRepresentable {
     let image: NSImage
     let imageURL: URL
+    let displayMode: ImageDisplayMode
+    let defaultDisplayRequestID: Int
     @Binding var zoomScale: CGFloat
     @Binding var panOffset: CGSize
     @Binding var rotationDegrees: Int
@@ -22,6 +24,7 @@ struct ImageCanvasView: NSViewRepresentable {
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
     let onReset: () -> Void
+    let onDefaultDisplayModeRequested: (ImageDisplayMode) -> Void
     let onClose: () -> Void
     let onZoomRequestHandled: (Int) -> Void
     let onDisplayScaleChanged: (CGFloat) -> Void
@@ -45,6 +48,8 @@ struct ImageCanvasView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> CanvasNSView {
         let view = CanvasNSView()
+        view.displayMode = displayMode
+        view.defaultDisplayRequestID = defaultDisplayRequestID
         view.setImage(image, url: imageURL)
         view.titleBarVisible = titleBarVisible
         view.fileInfoVisible = fileInfoVisible
@@ -59,6 +64,7 @@ struct ImageCanvasView: NSViewRepresentable {
         view.onZoomIn = onZoomIn
         view.onZoomOut = onZoomOut
         view.onReset = onReset
+        view.onDefaultDisplayModeRequested = onDefaultDisplayModeRequested
         view.onClose = onClose
         view.onZoomRequestHandled = onZoomRequestHandled
         view.onDisplayScaleChanged = onDisplayScaleChanged
@@ -84,7 +90,8 @@ struct ImageCanvasView: NSViewRepresentable {
         let imageChanged = nsView.image !== image
         nsView.setImage(image, url: imageURL)
         nsView.updateTransform(zoom: zoomScale, pan: panOffset, rotation: rotationDegrees,
-                               animationID: transformAnimationID, imageChanged: imageChanged)
+                               animationID: transformAnimationID, imageChanged: imageChanged, displayMode: displayMode,
+                               defaultDisplayRequestID: defaultDisplayRequestID)
         nsView.onPrevious = onPrevious
         nsView.onNext = onNext
         nsView.onRotateLeft = onRotateLeft
@@ -92,6 +99,7 @@ struct ImageCanvasView: NSViewRepresentable {
         nsView.onZoomIn = onZoomIn
         nsView.onZoomOut = onZoomOut
         nsView.onReset = onReset
+        nsView.onDefaultDisplayModeRequested = onDefaultDisplayModeRequested
         nsView.onClose = onClose
         nsView.onZoomRequestHandled = onZoomRequestHandled
         nsView.onDisplayScaleChanged = onDisplayScaleChanged
@@ -613,6 +621,22 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private var imagePixelSize: CGSize = .zero
+    private var alignsImageToTop = false
+    // A fresh request restores top alignment even if the mode itself is unchanged.
+    var defaultDisplayRequestID = 0 {
+        didSet {
+            guard oldValue != defaultDisplayRequestID else { return }
+            alignsImageToTop = displayMode == .fitWidth
+            needsLayout = true
+        }
+    }
+    var displayMode: ImageDisplayMode = .fitWindow {
+        didSet {
+            guard oldValue != displayMode else { return }
+            alignsImageToTop = displayMode == .fitWidth
+            needsLayout = true
+        }
+    }
 
     var image: NSImage? {
         didSet {
@@ -629,6 +653,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 pendingRotationAnimation = nil
                 zoomScale = 1
                 panOffset = .zero
+                alignsImageToTop = displayMode == .fitWidth
                 resetTextSelectionState()
             }
             imageView.image = image
@@ -666,7 +691,10 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         imageURL = url
         image = newImage
         isUpdatingImage = false
-        if changed { analyzeImageIfPossible() }
+        if changed {
+            alignsImageToTop = displayMode == .fitWidth
+            analyzeImageIfPossible()
+        }
     }
 
     var zoomScale: CGFloat = 1 {
@@ -688,6 +716,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             let oldRotation = Self.normalizedRotationDegrees(oldValue)
             rotationDegrees = Self.normalizedRotationDegrees(rotationDegrees)
             if oldRotation != rotationDegrees {
+                alignsImageToTop = false
                 pendingRotationAnimation = (from: oldRotation, to: rotationDegrees)
             }
             needsLayout = true
@@ -704,6 +733,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     var onZoomIn: (() -> Void)?
     var onZoomOut: (() -> Void)?
     var onReset: (() -> Void)?
+    var onDefaultDisplayModeRequested: ((ImageDisplayMode) -> Void)?
     var onClose: (() -> Void)?
     var canTrashImage = false
     var canUndoDeletion = false
@@ -998,6 +1028,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     override func layout() {
         super.layout()
+        prepareDefaultDisplayLayout()
         let geometry = currentGeometry()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -1018,7 +1049,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             let scale = window?.backingScaleFactor ?? 1
             let fitsPreview = imageView.bounds.width * scale <= CGFloat(source.preview.width)
                 && imageView.bounds.height * scale <= CGFloat(source.preview.height)
-            let hidden = geometry.zoomScale <= 1.001 || fitsPreview
+            let hidden = (displayMode == .fitWindow && geometry.zoomScale <= 1.001) || fitsPreview
             if hidden && !tiles.isHidden { source.discardDetailCache() }
             let becomingVisible = tiles.isHidden && !hidden
             tiles.setActive(!hidden)
@@ -1049,6 +1080,24 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         }
         updateMinimap(geometry: geometry)
         reportDisplayScaleIfNeeded(geometry.pixelDisplayScale)
+    }
+
+    private func prepareDefaultDisplayLayout() {
+        guard displayMode != .fitWindow, image != nil, bounds.width > 0, bounds.height > 0 else { return }
+        let geometry = currentGeometry()
+        let nextPan = alignsImageToTop
+            ? CGSize(width: 0, height: -max(0, (geometry.displaySize.height - bounds.height) / 2))
+            : geometry.constrainedPan(panOffset, allowSlackWhenFitted: panImageMode(geometry))
+        guard nextPan != panOffset else { return }
+        panOffset = nextPan
+        let requestedImage = image
+        let requestedURL = imageURL
+        // Layout can run during a SwiftUI update; publish after that update.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.image === requestedImage, self.imageURL == requestedURL,
+                  self.panOffset == nextPan else { return }
+            self.onPanChanged?(nextPan)
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1107,6 +1156,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             // Discrete wheel deltas are in lines; precise devices already supply points.
             let distance = event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 1 : 16)
             guard distance != 0 else { return }
+            alignsImageToTop = false
             panOffset.height = geometry.constrainedPan(
                 CGSize(width: panOffset.width, height: panOffset.height - distance)
             ).height
@@ -1114,7 +1164,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             needsLayout = true
             return
         }
-        if isTrackpad, abs(zoomScale - 1) > 0.001 {
+        if isTrackpad, panImageMode(currentGeometry()) {
+            alignsImageToTop = false
             panOffset = constrainPan(
                 CGSize(width: panOffset.width + event.scrollingDeltaX, height: panOffset.height - event.scrollingDeltaY),
                 geometry: currentGeometry()
@@ -1156,6 +1207,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func applyZoom(multiplier: CGFloat, anchorPoint: CGPoint? = nil) {
+        alignsImageToTop = false
         let geometry = currentGeometry()
         let adjustment = ImageZoomAdjustment.adjustment(
             from: geometry,
@@ -1201,17 +1253,23 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         }
 
         if event.clickCount == 2, hitText == nil {
-            let isFitted = abs(zoomScale - 1) < 0.001 && abs(panOffset.width) < 0.5 && abs(panOffset.height) < 0.5
+            let isFitted = displayMode == .fitWindow && abs(zoomScale - 1) < 0.001 && abs(panOffset.width) < 0.5 && abs(panOffset.height) < 0.5
             if isFitted {
                 window?.toggleFullScreen(nil)
             } else {
                 let visual = visualTransform()
+                let previousBaseScale = currentGeometry().fitScale
+                displayMode = .fitWindow
                 zoomScale = 1
                 panOffset = .zero
                 onZoomChanged?(1)
                 onPanChanged?(.zero)
                 onReset?()
-                animateTransform(from: visual, duration: 0.20)
+                let adjustedVisual = ImageZoomAdjustment(
+                    zoomScale: visual.zoomScale * previousBaseScale / currentGeometry().fitScale,
+                    panOffset: visual.panOffset
+                )
+                animateTransform(from: adjustedVisual, duration: 0.20)
             }
             return
         }
@@ -1270,6 +1328,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             window?.performDrag(with: event)
         case .pan:
             guard let dragStartPoint else { return }
+            alignsImageToTop = false
             let geometry = currentGeometry()
             let nextOffset = CGSize(
                 width: dragStartOffset.width + point.x - dragStartPoint.x,
@@ -1450,6 +1509,9 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         if menuItem.action == #selector(selectTheme(_:)) {
             menuItem.state = menuItem.representedObject as? Int == snapshot.theme.rawValue ? .on : .off
         }
+        if menuItem.action == #selector(selectImageDisplayModeForMenu(_:)) {
+            menuItem.state = menuItem.representedObject as? String == snapshot.imageDisplayMode.rawValue ? .on : .off
+        }
         if menuItem.action == #selector(trashImageForMenu(_:)) { return canTrashImage }
         if menuItem.action == #selector(undoDeletionForMenu(_:)) { return canUndoDeletion }
         if menuItem.action == #selector(checkForUpdatesForMenu(_:)) { return onCheckForUpdates != nil }
@@ -1587,6 +1649,15 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         onCheckForUpdates?()
     }
 
+    @objc func selectImageDisplayModeForMenu(_ sender: Any?) {
+        guard let rawValue = (sender as? NSMenuItem)?.representedObject as? String,
+              let mode = ImageDisplayMode(rawValue: rawValue) else { return }
+        slideshow?.pause()
+        let alreadySelected = ImageDisplayPreference.mode(in: defaults) == mode
+        preferences.setImageDisplayMode(mode)
+        if alreadySelected { onDefaultDisplayModeRequested?(mode) }
+    }
+
     @objc func selectTheme(_ sender: Any?) {
         guard
             let item = sender as? NSMenuItem,
@@ -1694,6 +1765,23 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 menu.addItem(.separator())
             }
         }
+
+        let imageDisplayItem = NSMenuItem(title: L10n.text("图片默认显示方式"), action: nil, keyEquivalent: "")
+        LanguageSettings.bind(imageDisplayItem) { $0.title = L10n.text("图片默认显示方式") }
+        imageDisplayItem.identifier = NSUserInterfaceItemIdentifier("PicSee.ImageDisplayMode")
+        imageDisplayItem.image = contextMenuImage("photo")
+        let imageDisplayMenu = NSMenu(title: L10n.text("图片默认显示方式"))
+        imageDisplayItem.submenu = imageDisplayMenu
+        let selectedDisplayMode = ImageDisplayPreference.mode(in: defaults)
+        for mode in ImageDisplayMode.allCases {
+            let item = NSMenuItem(title: mode.displayName, action: #selector(selectImageDisplayModeForMenu(_:)), keyEquivalent: "")
+            LanguageSettings.bind(item) { $0.title = mode.displayName }
+            item.target = self
+            item.representedObject = mode.rawValue
+            item.state = mode == selectedDisplayMode ? .on : .off
+            imageDisplayMenu.addItem(item)
+        }
+        menu.addItem(imageDisplayItem)
 
         let displayItem = NSMenuItem(title: L10n.text("显示选项"), action: nil, keyEquivalent: "")
         LanguageSettings.bind(displayItem) { $0.title = L10n.text("显示选项") }
@@ -1955,7 +2043,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             panOffset: panOffset,
             rotationDegrees: rotationDegrees,
             backingScaleFactor: window?.backingScaleFactor ?? 1,
-            maximumAutomaticPixelScale: automaticPixelScaleLimit
+            maximumAutomaticPixelScale: automaticPixelScaleLimit,
+            displayMode: displayMode
         )
     }
 
@@ -2007,9 +2096,28 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         CATransaction.commit()
     }
 
-    func updateTransform(zoom: CGFloat, pan: CGSize, rotation: Int, animationID: Int, imageChanged: Bool) {
+    func updateTransform(zoom: CGFloat, pan: CGSize, rotation: Int, animationID: Int, imageChanged: Bool,
+                         displayMode nextDisplayMode: ImageDisplayMode? = nil, defaultDisplayRequestID: Int? = nil) {
         let shouldAnimate = animationID != handledTransformAnimationID && !imageChanged
-        let visual = visualTransform()
+        let hasNewDisplayRequest = (nextDisplayMode.map { $0 != displayMode } ?? false)
+            || (defaultDisplayRequestID.map { $0 != self.defaultDisplayRequestID } ?? false)
+        var visual = visualTransform()
+        if let nextDisplayMode, nextDisplayMode != displayMode {
+            let previousBaseScale = currentGeometry().fitScale
+            displayMode = nextDisplayMode
+            visual = ImageZoomAdjustment(
+                zoomScale: visual.zoomScale * previousBaseScale / currentGeometry().fitScale,
+                panOffset: visual.panOffset
+            )
+        }
+        if let defaultDisplayRequestID { self.defaultDisplayRequestID = defaultDisplayRequestID }
+        if hasNewDisplayRequest && !shouldAnimate && !imageChanged {
+            imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
+            transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
+            transformMotion = nil
+            cancelNavigationAnimation()
+        }
+        if shouldAnimate { alignsImageToTop = false }
         handledTransformAnimationID = animationID
         zoomScale = zoom
         panOffset = pan
@@ -2155,13 +2263,16 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func prepareImageTransition() {
+        let previousImage = imageView.image
+        let previousSource = imageDetailLayer?.source
         let wasNavigating = pendingNavigationAnimation
             || imageMotionView.layer?.animation(forKey: Self.navigationAnimationKey) != nil
         let visual = visualTransform()
         cancelNavigationAnimation()
         imageMotionView.layer?.removeAnimation(forKey: Self.transformAnimationKey)
         transparencyBackground.motionMask.removeAnimation(forKey: Self.transformAnimationKey)
-        guard navigationAnimationEnabled, imageView.image != nil, image != nil, navigationDirection != nil else {
+        guard navigationAnimationEnabled, previousImage != nil || previousSource != nil,
+              image != nil, navigationDirection != nil else {
             lastNavigationTime = nil
             return
         }
@@ -2175,8 +2286,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                                            zoomScale: visual.zoomScale, panOffset: visual.panOffset,
                                            rotationDegrees: rotationDegrees,
                                            backingScaleFactor: window?.backingScaleFactor ?? 1,
-                                           maximumAutomaticPixelScale: automaticPixelScaleLimit)
-        outgoingImageView.image = imageView.image
+                                           maximumAutomaticPixelScale: automaticPixelScaleLimit,
+                                           displayMode: displayMode)
+        // Transparent tiled images hide their underlay to avoid double alpha.
+        // Use the retained preview for the short outgoing fade without decoding
+        // or allocating a full-resolution snapshot.
+        outgoingImageView.image = previousImage ?? previousSource.map {
+            NSImage(cgImage: $0.preview, size: $0.pixelSize)
+        }
         outgoingImageView.frame = geometry.unrotatedImageRect
         outgoingImageView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         outgoingImageView.layer?.position = CGPoint(x: geometry.imageRect.midX, y: geometry.imageRect.midY)
@@ -2340,6 +2457,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     private func navigateWithMinimap(to point: CGPoint) {
         interruptMotion()
+        alignsImageToTop = false
         let geometry = currentGeometry()
         guard geometry.shouldShowMinimap else { return }
 

@@ -295,6 +295,28 @@ private struct BrowsingSettingsView: View {
                 settingsCard(L10n.text("图片浏览")) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
+                            Text(L10n.text("图片默认显示方式")).font(.system(size: 13, weight: .medium))
+                            Spacer()
+                            Picker(L10n.text("图片默认显示方式"), selection: Binding(
+                                get: { preferences.snapshot.imageDisplayMode },
+                                set: { preferences.setImageDisplayMode($0) }
+                            )) {
+                                ForEach(ImageDisplayMode.allCases, id: \.rawValue) { mode in
+                                    Text(mode.displayName).tag(mode)
+                                }
+                            }
+                            .labelsHidden()
+                            .id(language.revision)
+                            .frame(width: 200)
+                        }
+                        Text(L10n.text("打开或切换图片时使用所选方式。适合宽度便于阅读长图，固定窗口时同样适用。"))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                    Divider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
                             Text(L10n.text("鼠标滚轮")).font(.system(size: 13, weight: .medium))
                             Spacer()
                             Picker(L10n.text("鼠标滚轮"), selection: Binding(
@@ -347,7 +369,7 @@ private struct BrowsingSettingsView: View {
                                 .frame(width: 200)
                             }
                         }
-                        Text(L10n.text("仅调整全屏时小图的显示方式，大图仍按比例缩小并完整显示。"))
+                        Text(L10n.text("使用“适合窗口”时生效，仅调整全屏小图的显示方式。"))
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

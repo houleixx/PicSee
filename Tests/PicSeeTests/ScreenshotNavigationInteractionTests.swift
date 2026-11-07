@@ -5,6 +5,62 @@ import XCTest
 
 @MainActor
 final class ScreenshotNavigationInteractionTests: XCTestCase {
+    func testScreenshotOverlayMatchesWidthAndActualSizeViews() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 400, pixelsHigh: 2400,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let url = directory.appendingPathComponent("long.png")
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
+        for mode in [ImageDisplayMode.fitWidth, .actualSize] {
+            let suite = "PicSee.ScreenshotDisplayMode.\(UUID())"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            ImageDisplayPreference.setMode(mode, in: defaults)
+            let model = ImageViewerViewModel(loadingMode: .immediate, imageURL: url, defaults: defaults)
+            let host = NSHostingView(rootView: ImageViewerView(viewModel: model, updateChecker: nil,
+                onTitleBarVisibilityChanged: { _ in }, onFixedWindowChanged: { _ in }, onRequestDeletion: {}))
+            let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 800, height: 600),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            window.orderFront(nil)
+            defer { window.close() }
+            try await Task.sleep(for: .milliseconds(150))
+            let viewer: CanvasNSView = try XCTUnwrap(find(in: host))
+            viewer.debugCancelTextRecognition()
+            NotificationCenter.default.post(name: ViewerOverlayPreference.beginScreenshotNotification, object: window)
+            try await Task.sleep(for: .milliseconds(150))
+            let editor: ScreenshotCanvasNSView = try XCTUnwrap(find(in: host))
+            let visibleImage = viewer.debugGeometry.imageRect
+            let overlayImage = try XCTUnwrap(editor.displayImageRect)
+            XCTAssertEqual(overlayImage.minX, visibleImage.minX, accuracy: 0.001, "\(mode)")
+            XCTAssertEqual(overlayImage.minY, visibleImage.minY, accuracy: 0.001, "\(mode)")
+            XCTAssertEqual(overlayImage.width, visibleImage.width, accuracy: 0.001, "\(mode)")
+            XCTAssertEqual(overlayImage.height, visibleImage.height, accuracy: 0.001, "\(mode)")
+            let exportScale = ScreenshotExportSizeMode.displayPixelScale(
+                imageDisplayScale: overlayImage.width / editor.document.pixelSize.width,
+                screenScale: window.backingScaleFactor)
+            XCTAssertEqual(exportScale, viewer.debugGeometry.pixelDisplayScale, accuracy: 0.001, "\(mode)")
+
+            let visible = visibleImage.intersection(editor.bounds)
+            let start = CGPoint(x: visible.minX + visible.width * 0.25, y: visible.minY + visible.height * 0.75)
+            let end = CGPoint(x: visible.minX + visible.width * 0.6, y: visible.minY + visible.height * 0.4)
+            try send([(.leftMouseDown, editor.convert(start, to: nil)),
+                      (.leftMouseDragged, editor.convert(end, to: nil)),
+                      (.leftMouseUp, editor.convert(end, to: nil))], to: window)
+            let crop = try XCTUnwrap(editor.document.state.selection)
+            let scale = viewer.debugGeometry.displayScale
+            XCTAssertEqual(crop.minX, (start.x - visibleImage.minX) / scale, accuracy: 0.01)
+            XCTAssertEqual(crop.minY, (end.y - visibleImage.minY) / scale, accuracy: 0.01)
+            XCTAssertEqual(crop.width, (end.x - start.x) / scale, accuracy: 0.01)
+            XCTAssertEqual(crop.height, (start.y - end.y) / scale, accuracy: 0.01)
+            editor.onCancel?()
+        }
+    }
+
     func testSelectionReceivesMouseDragImmediatelyAfterNavigation() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()

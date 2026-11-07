@@ -92,8 +92,8 @@ final class DefaultImageAppSettingsViewController: NSViewController {
         title.font = .systemFont(ofSize: 22, weight: .semibold)
         primaryLabels.append(title)
 
-        let subtitle = wrappingLabel(L10n.text("选择双击图片时交给 PicSee 打开的格式，已是 PicSee 默认打开的格式会自动勾选。"))
-        LanguageSettings.bind(subtitle) { $0.stringValue = L10n.text("选择双击图片时交给 PicSee 打开的格式，已是 PicSee 默认打开的格式会自动勾选。") }
+        let subtitle = wrappingLabel(L10n.text("选择双击时使用 PicSee 打开的图片格式。已设为默认的格式会自动勾选。"))
+        LanguageSettings.bind(subtitle) { $0.stringValue = L10n.text("选择双击时使用 PicSee 打开的图片格式。已设为默认的格式会自动勾选。") }
         secondaryLabels.append(subtitle)
 
         textStack.addArrangedSubview(title)

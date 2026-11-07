@@ -280,16 +280,16 @@ private struct BrowsingSettingsView: View {
                 settingsCard(L10n.text("界面元素")) {
                     preferenceRow(L10n.text("显示标题栏"), keyPath: \.titleBarVisible)
                     Divider()
-                    preferenceRow(L10n.text("关闭按钮显示在左上角"), detail: L10n.text("仅在隐藏标题栏时可用。开启后，缩放比例和文件信息显示在右上角。"), keyPath: \.closeButtonOnLeft)
+                    preferenceRow(L10n.text("关闭按钮显示在左上角"), detail: L10n.text("隐藏标题栏时可用。开启后，缩放比例和文件信息移至右上角。"), keyPath: \.closeButtonOnLeft)
                         .disabled(preferences.snapshot.titleBarVisible)
                     Divider()
-                    preferenceRow(L10n.text("显示缩略图"), detail: L10n.text("图片放大超出窗口时，显示定位缩略图"), keyPath: \.minimapEnabled)
+                    preferenceRow(L10n.text("显示缩略图"), detail: L10n.text("图片超出窗口时，显示用于快速定位的缩略图。"), keyPath: \.minimapEnabled)
                     Divider()
-                    preferenceRow(L10n.text("显示文件信息"), detail: L10n.text("隐藏标题栏时，在关闭按钮另一侧显示文件信息"), keyPath: \.fileInfoVisible)
+                    preferenceRow(L10n.text("显示文件信息"), detail: L10n.text("隐藏标题栏时，在关闭按钮的另一侧显示文件信息。"), keyPath: \.fileInfoVisible)
                     Divider()
                     preferenceRow(L10n.text("显示底部工具栏"), keyPath: \.toolbarVisible)
                     Divider()
-                    preferenceRow(L10n.text("显示图片参数"), detail: L10n.text("在右侧显示图片详细参数"), keyPath: \.imageParametersVisible)
+                    preferenceRow(L10n.text("显示图片参数"), detail: L10n.text("在窗口右侧显示图片的详细参数。"), keyPath: \.imageParametersVisible)
                 }
 
                 settingsCard(L10n.text("图片浏览")) {
@@ -309,7 +309,7 @@ private struct BrowsingSettingsView: View {
                             .id(language.revision)
                             .frame(width: 200)
                         }
-                        Text(L10n.text("上下滚动保持当前缩放比例，仅在图片超出窗口高度时移动图片。触控板手势不受影响。"))
+                        Text(L10n.text("上下滚动时保持当前缩放比例，仅移动超出窗口高度的图片。触控板手势不受影响。"))
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -347,7 +347,7 @@ private struct BrowsingSettingsView: View {
                                 .frame(width: 200)
                             }
                         }
-                        Text(L10n.text("仅影响全屏下的小图，大图始终按比例缩小，完整显示"))
+                        Text(L10n.text("仅调整全屏时小图的显示方式，大图仍按比例缩小并完整显示。"))
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -355,7 +355,7 @@ private struct BrowsingSettingsView: View {
                     Divider()
                     preferenceRow(
                         L10n.text("图片切换动画"),
-                        detail: L10n.text("切换图片时显示过渡效果，关闭后直接显示下一张"),
+                        detail: L10n.text("切换图片时显示过渡动画，关闭后直接显示图片。"),
                         keyPath: \.imageNavigationAnimationEnabled
                     )
                 }
@@ -363,39 +363,39 @@ private struct BrowsingSettingsView: View {
                 settingsCard(L10n.text("窗口")) {
                     preferenceRow(
                         L10n.text("单窗口看图"),
-                        detail: L10n.text("再次打开图片时，在已有窗口中显示"),
+                        detail: L10n.text("再次打开图片时，使用已有的看图窗口。"),
                         keyPath: \.singleWindowEnabled
                     )
                     Divider()
                     preferenceRow(
                         L10n.text("窗口置顶"),
-                        detail: L10n.text("所有看图窗口保持在普通窗口上方，切换应用时仍然显示"),
+                        detail: L10n.text("看图窗口保持在普通窗口上方，切换应用后仍可见。"),
                         keyPath: \.alwaysOnTopEnabled
                     )
                     Divider()
                     preferenceRow(
                         L10n.text("固定窗口大小和位置"),
-                        detail: L10n.text("开启时记住当前图片窗口，之后打开图片时沿用"),
+                        detail: L10n.text("记住当前看图窗口的大小和位置，用于之后打开的图片。"),
                         keyPath: \.fixedWindowEnabled
                     )
                     Divider()
                     preferenceRow(
                         L10n.text("根据图片自动调整窗口大小"),
-                        detail: L10n.text("打开或切换图片时调整窗口，固定窗口时不可用"),
+                        detail: L10n.text("打开或切换图片时，自动调整窗口大小。固定窗口后不可用。"),
                         keyPath: \.automaticWindowSizeEnabled
                     )
                     .disabled(preferences.snapshot.fixedWindowEnabled)
                     Divider()
                     preferenceRow(
                         L10n.text("窗口缩放动画"),
-                        detail: L10n.text("切换图片时，平滑调整窗口大小"),
+                        detail: L10n.text("切换图片时，平滑过渡到新的窗口大小。"),
                         keyPath: \.automaticWindowResizeAnimationEnabled
                     )
                     .disabled(preferences.snapshot.fixedWindowEnabled || !preferences.snapshot.automaticWindowSizeEnabled)
                     Divider()
                     preferenceRow(
                         L10n.text("右键手势关闭图片"),
-                        detail: L10n.text("按住右键向下再向右划动（↓ →），松开关闭"),
+                        detail: L10n.text("按住鼠标右键，先向下再向右拖动（↓ →），松开后关闭图片。"),
                         keyPath: \.rightMouseCloseGestureEnabled
                     )
                 }

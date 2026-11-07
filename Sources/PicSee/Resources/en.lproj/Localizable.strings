@@ -12,32 +12,32 @@
 "界面元素" = "Interface";
 "图片浏览" = "Image Browsing";
 "图片切换动画" = "Image Transition Animation";
-"切换图片时显示过渡效果，关闭后直接显示下一张" = "Animate image transitions; turn off to show the next image directly";
+"切换图片时显示过渡动画，关闭后直接显示图片。" = "Animate transitions between images. Turn off to show images immediately.";
 "显示标题栏" = "Show Title Bar";
 "关闭按钮显示在左上角" = "Show Close Button in Top-Left Corner";
-"仅在隐藏标题栏时可用。开启后，缩放比例和文件信息显示在右上角。" = "Available when the title bar is hidden. When enabled, zoom percentage and file information appear in the top-right corner.";
-"隐藏标题栏时，在关闭按钮另一侧显示文件信息" = "Show file information opposite the close button when the title bar is hidden";
+"隐藏标题栏时可用。开启后，缩放比例和文件信息移至右上角。" = "Available when the title bar is hidden. When enabled, the zoom percentage and file information move to the top-right corner.";
+"隐藏标题栏时，在关闭按钮的另一侧显示文件信息。" = "When the title bar is hidden, show file information on the opposite side from the close button.";
 "显示缩略图" = "Show Minimap";
-"图片放大超出窗口时，显示定位缩略图" = "Show a navigation preview when the zoomed image extends beyond the window";
+"图片超出窗口时，显示用于快速定位的缩略图。" = "Show a navigation preview when the image extends beyond the window.";
 "显示文件信息" = "Show File Information";
 "隐藏标题栏时，在左上角显示文件信息" = "Show file information in the top-left corner when the title bar is hidden";
 "显示底部工具栏" = "Show Bottom Toolbar";
 "显示图片参数" = "Show Image Details";
-"在右侧显示图片详细参数" = "Show detailed image information on the right";
+"在窗口右侧显示图片的详细参数。" = "Show detailed image information on the right side of the window.";
 "窗口" = "Window";
 "单窗口看图" = "Use a Single Window";
-"再次打开图片时，在已有窗口中显示" = "Open subsequent images in the existing window";
+"再次打开图片时，使用已有的看图窗口。" = "Use the existing viewer window when opening another image.";
 "窗口置顶" = "Always on Top";
 "窗口置顶（⌃⌘T）" = "Always on Top (⌃⌘T)";
 "取消置顶（⌃⌘T）" = "Turn Off Always on Top (⌃⌘T)";
-"所有看图窗口保持在普通窗口上方，切换应用时仍然显示" = "Keep all image windows above normal windows, even when switching apps";
+"看图窗口保持在普通窗口上方，切换应用后仍可见。" = "Keep all viewer windows above normal windows, even when switching apps.";
 "固定窗口大小和位置" = "Remember Window Size and Position";
 "根据图片自动调整窗口大小" = "Resize Window to Fit Image";
-"打开或切换图片时调整窗口，固定窗口时不可用" = "Resize when opening or browsing images. Unavailable while the window is fixed";
+"打开或切换图片时，自动调整窗口大小。固定窗口后不可用。" = "Automatically resize the window when opening or switching images. Unavailable when the window size and position are fixed.";
 "窗口缩放动画" = "Window Resize Animation";
-"切换图片时，平滑调整窗口大小" = "Smoothly resize the window when switching images";
+"切换图片时，平滑过渡到新的窗口大小。" = "Smoothly transition to the new window size when switching images.";
 "发现更新" = "Update Available";
-"开启时记住当前图片窗口，之后打开图片时沿用" = "Save the current image window’s size and position for future images";
+"记住当前看图窗口的大小和位置，用于之后打开的图片。" = "Save the current viewer window’s size and position for images opened later.";
 "下载地址：" = "Download:";
 "问题反馈" = "Send Feedback";
 "前往小红书反馈" = "Share feedback on Xiaohongshu";
@@ -53,7 +53,7 @@
 "重试下载" = "Retry Download";
 "下载并安装" = "Download and Install";
 "默认图片打开方式" = "Default Image App";
-"选择双击图片时交给 PicSee 打开的格式，已是 PicSee 默认打开的格式会自动勾选。" = "Choose which image formats open in PicSee when double-clicked. Formats already associated with PicSee are selected automatically.";
+"选择双击时使用 PicSee 打开的图片格式。已设为默认的格式会自动勾选。" = "Choose the image formats to open with PicSee when double-clicked. Formats that already use PicSee by default are selected automatically.";
 "支持的图片格式" = "Supported Image Formats";
 "常用图片格式" = "Common Image Formats";
 "dng, cr2, cr3 等" = "dng, cr2, cr3…";
@@ -276,13 +276,13 @@
 "可重试更新，或从发布页面手动安装。安装日志：%1$@" = "Retry the update or install it manually from the releases page. Installation log: %1$@";
 "输出尺寸超过当前内存预算，请减小选区或输出尺寸。" = "The output exceeds the current memory budget. Reduce the selection or output dimensions.";
 "右键手势关闭图片" = "Right-button gesture to close images";
-"按住右键向下再向右划动（↓ →），松开关闭" = "Hold the right mouse button, drag down then right (↓ →), and release to close.";
+"按住鼠标右键，先向下再向右拖动（↓ →），松开后关闭图片。" = "Hold the right mouse button, drag down then right (↓ →), and release to close the image.";
 "设为桌面壁纸" = "Set as Desktop Wallpaper";
 "设置桌面壁纸失败" = "Couldn’t Set Desktop Wallpaper";
 "鼠标滚轮" = "Mouse Wheel";
 "缩放图片" = "Zoom Image";
 "上下滚动" = "Scroll Vertically";
-"上下滚动保持当前缩放比例，仅在图片超出窗口高度时移动图片。触控板手势不受影响。" = "Vertical scrolling keeps the current zoom and only moves images taller than the window. Trackpad gestures are unaffected.";
+"上下滚动时保持当前缩放比例，仅移动超出窗口高度的图片。触控板手势不受影响。" = "Vertical scrolling keeps the current zoom and only moves images taller than the window. Trackpad gestures are unaffected.";
 "无法退出全屏，请退出全屏后重试。" = "Couldn’t leave full screen. Exit full screen and try again.";
 "向左旋转 90 度（⌘←）" = "Rotate Left 90° (⌘←)";
 "向右旋转 90 度（⌘→）" = "Rotate Right 90° (⌘→)";
@@ -309,7 +309,7 @@
 
 "最大放大倍数" = "Maximum enlargement";
 
-"仅影响全屏下的小图，大图始终按比例缩小，完整显示" = "Applies only to small images in full screen; large images always fit proportionally and remain fully visible";
+"仅调整全屏时小图的显示方式，大图仍按比例缩小并完整显示。" = "Only change how small images appear in full screen. Large images still scale down proportionally to fit the screen.";
 
 "打印…" = "Print…";
 "无法打印图片" = "Unable to Print Image";

@@ -295,6 +295,28 @@ private struct BrowsingSettingsView: View {
                 settingsCard(L10n.text("图片浏览")) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
+                            Text(L10n.text("鼠标滚轮")).font(.system(size: 13, weight: .medium))
+                            Spacer()
+                            Picker(L10n.text("鼠标滚轮"), selection: Binding(
+                                get: { preferences.snapshot.mouseWheelBehavior },
+                                set: { preferences.setMouseWheelBehavior($0) }
+                            )) {
+                                ForEach(MouseWheelBehavior.allCases, id: \.rawValue) { behavior in
+                                    Text(behavior.displayName).tag(behavior)
+                                }
+                            }
+                            .labelsHidden()
+                            .id(language.revision)
+                            .frame(width: 200)
+                        }
+                        Text(L10n.text("上下滚动保持当前缩放比例，仅在图片超出窗口高度时移动图片。触控板手势不受影响。"))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                    Divider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
                             Text(L10n.text("全屏时小图显示方式")).font(.system(size: 13, weight: .medium))
                             Spacer()
                             Picker(L10n.text("全屏时小图显示方式"), selection: Binding(

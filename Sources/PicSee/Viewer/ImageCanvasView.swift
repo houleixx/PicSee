@@ -555,6 +555,15 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private let imageView = NSImageView(frame: .zero)
     private var imageDetailLayer: LargeImageTileLayer?
     private var isSettingWallpaper = false
+    private let desktopWallpaperRequest = DesktopWallpaperRequest()
+    var applyDesktopWallpaper: (NSImage, NSScreen) async throws -> Void = { image, screen in
+        try await DesktopWallpaperSetter().set(image) { url in
+            let workspace = NSWorkspace.shared
+            try workspace.setDesktopImageURL(
+                url, for: screen, options: workspace.desktopImageOptions(for: screen) ?? [:]
+            )
+        }
+    }
     private let transparencyBackground = TransparencyBackgroundView(frame: .zero)
     private let outgoingTransparencyBackground = TransparencyBackgroundView(frame: .zero)
     // Animate a container, leaving the image's rotation and AppKit layout independent.
@@ -568,6 +577,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private var pendingNavigationAnimation = false
     private var lastNavigationTime: CFTimeInterval?
     private var navigationAnimationEnabled = true
+    private var mouseWheelBehavior: MouseWheelBehavior = .zoom
     private var smallImageMode: FullScreenSmallImageMode = .original
     private var maximumSmallImageScale: Double = 2
     var navigationTime: () -> CFTimeInterval = { CACurrentMediaTime() }
@@ -812,6 +822,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func applyPreferences(_ snapshot: ViewerPreferencesSnapshot) {
+        mouseWheelBehavior = snapshot.mouseWheelBehavior
         if smallImageMode != snapshot.fullScreenSmallImageMode || maximumSmallImageScale != snapshot.maximumSmallImageScale {
             interruptMotion()
             smallImageMode = snapshot.fullScreenSmallImageMode
@@ -1090,6 +1101,19 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         slideshow?.pause()
         interruptMotion()
         let isTrackpad = event.hasPreciseScrollingDeltas && (event.phase != [] || event.momentumPhase != [])
+        if !isTrackpad, mouseWheelBehavior == .scroll {
+            let geometry = currentGeometry()
+            guard geometry.displaySize.height > geometry.viewportSize.height else { return }
+            // Discrete wheel deltas are in lines; precise devices already supply points.
+            let distance = event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 1 : 16)
+            guard distance != 0 else { return }
+            panOffset.height = geometry.constrainedPan(
+                CGSize(width: panOffset.width, height: panOffset.height - distance)
+            ).height
+            onPanChanged?(panOffset)
+            needsLayout = true
+            return
+        }
         if isTrackpad, abs(zoomScale - 1) > 0.001 {
             panOffset = constrainPan(
                 CGSize(width: panOffset.width + event.scrollingDeltaX, height: panOffset.height - event.scrollingDeltaY),
@@ -1442,31 +1466,42 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     @objc func setDesktopWallpaperForMenu(_ sender: Any?) {
-        guard !isSettingWallpaper, let image, let screen = window?.screen ?? NSScreen.main else { return }
+        guard !isSettingWallpaper, let image, let window, let screen = window.screen ?? NSScreen.main else { return }
         slideshow?.pause()
         isSettingWallpaper = true
+        desktopWallpaperRequest.perform(in: window, apply: { [weak self] in
+            self?.setDesktopWallpaper(image, screen: screen)
+        }, cancel: { [weak self] exitFailed in
+            guard let self else { return }
+            self.isSettingWallpaper = false
+            if exitFailed {
+                self.presentWallpaperError(message: L10n.text("无法退出全屏，请退出全屏后重试。"))
+            }
+        })
+    }
+
+    private func setDesktopWallpaper(_ image: NSImage, screen: NSScreen) {
         Task { [weak self] in
             defer { self?.isSettingWallpaper = false }
             do {
-                try await DesktopWallpaperSetter().set(image) { url in
-                    let workspace = NSWorkspace.shared
-                    try workspace.setDesktopImageURL(
-                        url, for: screen, options: workspace.desktopImageOptions(for: screen) ?? [:]
-                    )
-                }
+                try await self?.applyDesktopWallpaper(image, screen)
             } catch {
                 guard let self else { return }
-                let alert = NSAlert()
-                LanguageSettings.bind(alert) {
-                    $0.messageText = L10n.text("设置桌面壁纸失败")
-                    $0.informativeText = L10n.errorDescription(error)
-                    $0.buttons.first?.title = L10n.text("好")
-                }
-                alert.addButton(withTitle: L10n.text("好"))
-                if let window = self.window { await alert.beginSheetModal(for: window) }
-                else { alert.runPicSeeModal() }
+                self.presentWallpaperError(message: L10n.errorDescription(error))
             }
         }
+    }
+
+    private func presentWallpaperError(message: String) {
+        let alert = NSAlert()
+        LanguageSettings.bind(alert) {
+            $0.messageText = L10n.text("设置桌面壁纸失败")
+            $0.informativeText = message
+            $0.buttons.first?.title = L10n.text("好")
+        }
+        alert.addButton(withTitle: L10n.text("好"))
+        if let window { alert.beginSheetModal(for: window) }
+        else { alert.runPicSeeModal() }
     }
 
     @objc func exportImageForMenu(_ sender: Any?) {

@@ -101,6 +101,15 @@ extension NSAlert {
             }
             WindowPinningController.prepareModalWindow(modalWindow, preferences: preferences)
         }
+        // Becoming key can precede AppKit's modal-level reset, or be omitted
+        // when another accessory app owns focus. Reapply inside the modal loop.
+        RunLoop.main.perform(inModes: [.modalPanel]) {
+            MainActor.assumeIsolated {
+                guard NSApp.modalWindow === modalWindow else { return }
+                modalWindow.level = NSWindow.Level(rawValue: max(modalWindow.level.rawValue, originalLevel.rawValue))
+                WindowPinningController.prepareModalWindow(modalWindow, preferences: preferences)
+            }
+        }
         defer {
             observation.cancel()
             modalWindow.level = originalLevel

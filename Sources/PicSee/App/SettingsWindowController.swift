@@ -309,7 +309,7 @@ private struct BrowsingSettingsView: View {
                             .id(language.revision)
                             .frame(width: 200)
                         }
-                        Text(L10n.text("上下滚动时保持当前缩放比例，仅移动超出窗口高度的图片。触控板手势不受影响。"))
+                        Text(L10n.text("选择用滚轮缩放图片，或上下滚动查看图片。触控板手势不受影响。"))
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

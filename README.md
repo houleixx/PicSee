@@ -66,7 +66,9 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 “显示设置 → 图片浏览 → 图片切换动画”默认开启。关闭后直接显示新图片，并立即清理正在播放或等待播放的过渡；不影响缩放和旋转动画。选择会保存并同步到已打开的看图窗口。开启时，快速连续切换仍直接显示图片，避免动画排队。
 
-“显示设置 → 图片浏览 → 全屏时小图显示方式”可选原始尺寸（100%，默认）、始终适应屏幕或智能放大。智能放大默认最多 2 倍，可选 1.5、2、3、4 倍；仅影响全屏下的小图，大图按比例缩小并完整显示，普通窗口保持原始尺寸上限。显示尺寸与百分比按图片原始像素和屏幕 backing scale 计算，不受文件 DPI 影响；Retina 屏幕上的 100% 表示一个图片像素对应一个屏幕实际像素。自动放大时双击可直接退出全屏；手动缩放或拖动后，第一次双击恢复当前模式默认显示，第二次退出。手动缩放不受智能放大的上限限制。
+“显示设置 → 图片浏览 → 图片默认显示方式”可选择“适合窗口”（默认）、“适合宽度”或“原始尺寸（100%）”；右键菜单也提供同名子菜单，并使用现有 Phosphor 资源库图标，勾选状态与设置同步。修改立即应用到当前图片，并保存、同步到其他看图窗口；打开、切换图片和开始幻灯片时使用所选方式。“适合宽度”按窗口宽度显示图片，长图从顶部开始，搭配滚轮“上下滚动”可直接阅读；原始尺寸按屏幕实际像素显示。固定窗口只影响窗口大小和位置，不限制图片显示方式；自动调窗时按调整后的窗口尺寸计算显示比例。工具栏和双击可临时恢复适合窗口，下次切图仍使用已保存的默认方式。
+
+“显示设置 → 图片浏览 → 全屏时小图显示方式”在当前图片使用“适合窗口”时生效，可选原始尺寸（100%，默认）、始终适应屏幕或智能放大。智能放大默认最多 2 倍，可选 1.5、2、3、4 倍；仅影响全屏下的小图，大图按比例缩小并完整显示，普通窗口保持原始尺寸上限。使用“适合宽度”或“原始尺寸”时，全屏继续遵循该方式。显示尺寸与百分比按图片原始像素和屏幕 backing scale 计算，不受文件 DPI 影响；Retina 屏幕上的 100% 表示一个图片像素对应一个屏幕实际像素。自动放大时双击可直接退出全屏；手动缩放或拖动后，第一次双击恢复适合窗口，第二次退出。手动缩放不受智能放大的上限限制。
 
 测试及实测范围见 [DPI 与 Retina 显示验证](docs/verification/2026-10-09-dpi-retina-display.md)和[全屏小图显示验证](docs/verification/2026-10-09-fullscreen-small-image.md)。
 
@@ -148,7 +150,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.88 PICSEE_BUILD_NUMBER=88 Scripts/build-app.sh
+PICSEE_VERSION=0.2.89 PICSEE_BUILD_NUMBER=89 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -165,15 +167,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.88.dmg`
+- DMG: `build/dmg/PicSee-0.2.89.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.88 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.89 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.88.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.89.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -307,14 +309,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.88
-git push origin v0.2.88
+git tag v0.2.89
+git push origin v0.2.89
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.88`
-- Asset: `PicSee-0.2.88.dmg`
+- Release: `v0.2.89`
+- Asset: `PicSee-0.2.89.dmg`
 
 ## Release 说明
 

@@ -279,6 +279,11 @@
 "按住右键向下再向右划动（↓ →），松开关闭" = "Hold the right mouse button, drag down then right (↓ →), and release to close.";
 "设为桌面壁纸" = "Set as Desktop Wallpaper";
 "设置桌面壁纸失败" = "Couldn’t Set Desktop Wallpaper";
+"鼠标滚轮" = "Mouse Wheel";
+"缩放图片" = "Zoom Image";
+"上下滚动" = "Scroll Vertically";
+"上下滚动保持当前缩放比例，仅在图片超出窗口高度时移动图片。触控板手势不受影响。" = "Vertical scrolling keeps the current zoom and only moves images taller than the window. Trackpad gestures are unaffected.";
+"无法退出全屏，请退出全屏后重试。" = "Couldn’t leave full screen. Exit full screen and try again.";
 "向左旋转 90 度（⌘←）" = "Rotate Left 90° (⌘←)";
 "向右旋转 90 度（⌘→）" = "Rotate Right 90° (⌘→)";
 

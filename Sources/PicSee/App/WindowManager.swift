@@ -4,6 +4,7 @@ import ObjectiveC
 import SwiftUI
 
 final class ViewerWindow: NSWindow {
+    static let didFailToExitFullScreenNotification = Notification.Name("PicSee.WindowDidFailToExitFullScreen")
     var pinningController: WindowPinningController?
     var automaticImageResizeTarget: NSRect?
     private struct NativeFullScreenSnapshot {
@@ -929,6 +930,7 @@ private final class WindowDelegate: NSObject, NSWindowDelegate {
 
     func windowDidFailToExitFullScreen(_ window: NSWindow) {
         slideshow?.endFullScreenTransition()
+        NotificationCenter.default.post(name: ViewerWindow.didFailToExitFullScreenNotification, object: window)
     }
 
     func windowWillClose(_ notification: Notification) {

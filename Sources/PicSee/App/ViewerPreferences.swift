@@ -34,6 +34,7 @@ struct ViewerPreferencesSnapshot: Equatable {
     var rightMouseCloseGestureEnabled: Bool
     var imageNavigationAnimationEnabled: Bool
     var mouseWheelBehavior: MouseWheelBehavior
+    var imageDisplayMode: ImageDisplayMode
     var fullScreenSmallImageMode: FullScreenSmallImageMode
     var maximumSmallImageScale: Double
 
@@ -53,6 +54,7 @@ struct ViewerPreferencesSnapshot: Equatable {
         rightMouseCloseGestureEnabled = ImageCloseGesturePreference.isEnabled(in: defaults)
         imageNavigationAnimationEnabled = ImageNavigationAnimationPreference.isEnabled(in: defaults)
         mouseWheelBehavior = MouseWheelPreference.behavior(in: defaults)
+        imageDisplayMode = ImageDisplayPreference.mode(in: defaults)
         fullScreenSmallImageMode = FullScreenSmallImagePreference.mode(in: defaults)
         maximumSmallImageScale = FullScreenSmallImagePreference.maximumScale(in: defaults)
     }
@@ -106,6 +108,11 @@ final class ViewerPreferences: ObservableObject {
 
     func setMouseWheelBehavior(_ behavior: MouseWheelBehavior) {
         MouseWheelPreference.setBehavior(behavior, in: defaults)
+        reload()
+    }
+
+    func setImageDisplayMode(_ mode: ImageDisplayMode) {
+        ImageDisplayPreference.setMode(mode, in: defaults)
         reload()
     }
 

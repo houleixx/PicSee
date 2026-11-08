@@ -1,9 +1,52 @@
 import AppKit
+import Combine
 import XCTest
 @testable import PicSee
 
 @MainActor
 final class AppMenuTests: XCTestCase {
+    func testImageDisplayModeMenuUsesLibraryIconAndSyncsWithSettings() async throws {
+        let suite = "PicSee.DisplayModeMenuTests.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let view = CanvasNSView(frame: .zero, backend: .vision, defaults: defaults)
+        let menu = NSMenu()
+        view.debugAppendPicSeeContextMenuItems(to: menu)
+        view.debugAppendPicSeeContextMenuItems(to: menu)
+        let roots = menu.items.filter { $0.identifier?.rawValue == "PicSee.ImageDisplayMode" }
+        XCTAssertEqual(roots.count, 1)
+        let root = try XCTUnwrap(roots.first)
+        XCTAssertEqual(root.title, L10n.text("图片默认显示方式"))
+        XCTAssertTrue(root.image === PhosphorImages.contextMenuImage(for: "photo"))
+        XCTAssertTrue(try XCTUnwrap(root.image).isTemplate)
+        XCTAssertEqual(root.image?.size, NSSize(width: 16, height: 16))
+        let items = try XCTUnwrap(root.submenu).items
+        XCTAssertEqual(items.map(\.title), ImageDisplayMode.allCases.map(\.displayName))
+        XCTAssertTrue(items.allSatisfy { $0.target === view && $0.action == #selector(CanvasNSView.selectImageDisplayModeForMenu(_:)) })
+        XCTAssertEqual(items.filter { $0.state == .on }.map { $0.representedObject as? String }, ["fitWindow"])
+
+        let preferences = ViewerPreferences(defaults: defaults)
+        let received = expectation(description: "Settings receives menu selection")
+        let observation = preferences.$snapshot.dropFirst().filter { $0.imageDisplayMode == .fitWidth }.first()
+            .sink { _ in received.fulfill() }
+        defer { observation.cancel() }
+        view.selectImageDisplayModeForMenu(items[1])
+        await fulfillment(of: [received], timeout: 2)
+        XCTAssertEqual(ViewerPreferences(defaults: defaults).snapshot.imageDisplayMode, .fitWidth)
+        var reappliedModes: [ImageDisplayMode] = []
+        view.onDefaultDisplayModeRequested = { reappliedModes.append($0) }
+        view.selectImageDisplayModeForMenu(items[1])
+        XCTAssertEqual(reappliedModes, [.fitWidth], "Selecting the saved mode must also reset a temporary view")
+
+        preferences.setImageDisplayMode(.actualSize)
+        for item in items { XCTAssertTrue(view.validateMenuItem(item)) }
+        XCTAssertEqual(items.filter { $0.state == .on }.map { $0.representedObject as? String }, ["actualSize"])
+        let invalid = NSMenuItem()
+        invalid.representedObject = "unknown"
+        view.selectImageDisplayModeForMenu(invalid)
+        XCTAssertEqual(ImageDisplayPreference.mode(in: defaults), .actualSize)
+    }
+
     func testBuildsApplicationMenuWithAboutItem() {
         let menu = AppMenu.buildMainMenu(appName: "PicSee")
 

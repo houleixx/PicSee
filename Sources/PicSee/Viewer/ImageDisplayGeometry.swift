@@ -33,7 +33,8 @@ struct ImageZoomAdjustment {
             panOffset: geometry.panOffset,
             rotationDegrees: geometry.rotationDegrees,
             backingScaleFactor: geometry.backingScaleFactor,
-            maximumAutomaticPixelScale: geometry.maximumAutomaticPixelScale
+            maximumAutomaticPixelScale: geometry.maximumAutomaticPixelScale,
+            displayMode: geometry.displayMode
         )
         let allowsPanAfterZoom = abs(nextGeometry.zoomScale - 1) > 0.001 || nextGeometry.canPan
 
@@ -60,6 +61,7 @@ struct ImageDisplayGeometry {
     let rotationDegrees: Int
     let backingScaleFactor: CGFloat
     let maximumAutomaticPixelScale: CGFloat
+    let displayMode: ImageDisplayMode
 
     init(
         imageSize: CGSize,
@@ -68,7 +70,8 @@ struct ImageDisplayGeometry {
         panOffset: CGSize,
         rotationDegrees: Int = 0,
         backingScaleFactor: CGFloat = 1,
-        maximumAutomaticPixelScale: CGFloat = 1
+        maximumAutomaticPixelScale: CGFloat = 1,
+        displayMode: ImageDisplayMode = .fitWindow
     ) {
         self.imageSize = imageSize
         self.viewportSize = viewportSize
@@ -77,6 +80,7 @@ struct ImageDisplayGeometry {
         self.rotationDegrees = ((rotationDegrees % 360) + 360) % 360
         self.backingScaleFactor = backingScaleFactor.isFinite && backingScaleFactor > 0 ? backingScaleFactor : 1
         self.maximumAutomaticPixelScale = maximumAutomaticPixelScale.isNaN ? 1 : max(1, maximumAutomaticPixelScale)
+        self.displayMode = displayMode
     }
 
     var rotatedImageSize: CGSize {
@@ -88,6 +92,11 @@ struct ImageDisplayGeometry {
     var fitScale: CGFloat {
         guard rotatedImageSize.width > 0, rotatedImageSize.height > 0, viewportSize.width > 0, viewportSize.height > 0 else {
             return 1
+        }
+        switch displayMode {
+        case .fitWidth: return viewportSize.width / rotatedImageSize.width
+        case .actualSize: return 1 / backingScaleFactor
+        case .fitWindow: break
         }
         // imageSize is source pixels; viewportSize is AppKit points. The automatic
         // limit is measured in backing pixels and defaults to actual size (100%).
@@ -234,7 +243,8 @@ struct ImageDisplayGeometry {
             panOffset: panOffset,
             rotationDegrees: rotationDegrees,
             backingScaleFactor: backingScaleFactor,
-            maximumAutomaticPixelScale: maximumAutomaticPixelScale
+            maximumAutomaticPixelScale: maximumAutomaticPixelScale,
+            displayMode: displayMode
         )
         let proposed = CGSize(
             width: anchor.x - viewportCenter.x + nextGeometry.displaySize.width / 2 - imagePoint.x * nextGeometry.displayScale,

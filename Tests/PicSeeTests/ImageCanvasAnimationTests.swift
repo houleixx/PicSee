@@ -615,6 +615,23 @@ final class ImageCanvasAnimationTests: XCTestCase {
         }
     }
 
+    func testNewImageDefaultDisplayRequestPreservesNavigationAnimation() {
+        for mode in ImageDisplayMode.allCases {
+            let view = canvas()
+            view.displayMode = mode
+            view.navigationDirection = 1
+            view.setImage(NSImage(size: NSSize(width: 800, height: 1200)),
+                          url: URL(fileURLWithPath: "/tmp/navigation-default-display.png"))
+            // Match updateNSView: assigning the new image is followed by its
+            // default-display request before layout starts the transition.
+            view.updateTransform(zoom: 1, pan: .zero, rotation: 0, animationID: 0,
+                                 imageChanged: true, displayMode: mode, defaultDisplayRequestID: 1)
+            view.layoutSubtreeIfNeeded()
+            XCTAssertNotNil(view.debugMotionLayer?.animation(forKey: "PicSee.NavigationAnimation"), "\(mode)")
+            XCTAssertNotNil(view.debugOutgoingImage, "\(mode)")
+        }
+    }
+
     func testNavigationBurstStaysImmediateIncludingDirectionChanges() {
         let view = canvas()
         var time: CFTimeInterval = 10

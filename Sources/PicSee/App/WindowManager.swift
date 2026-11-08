@@ -166,6 +166,7 @@ final class WindowManager {
     private var initialImageFailureObserver: AnyCancellable?
     private var automaticImageObserver: AnyCancellable?
     private var automaticSizePreferenceObserver: AnyCancellable?
+    private var automaticDisplayModeObserver: AnyCancellable?
     private var fileAccessObserver: AnyCancellable?
     private var applicationActivationObserver: AnyCancellable?
     private let loadingMode: ImageLoadingMode
@@ -430,6 +431,16 @@ final class WindowManager {
                     self.resizeWindowToImage(image, in: window)
                 }
             }
+        automaticDisplayModeObserver = ViewerPreferences.shared.$snapshot
+            .map(\.imageDisplayMode).removeDuplicates().dropFirst()
+            .sink { [weak self, weak window] _ in
+                DispatchQueue.main.async { [weak self, weak window] in
+                    guard let self, let window, self.currentWindow === window,
+                          let image = self.currentViewModel?.image else { return }
+                    self.automaticSizingPausedByUser = false
+                    self.resizeWindowToImage(image, in: window)
+                }
+            }
         automaticImageObserver = viewModel.$image.compactMap { $0 }
             .sink { [weak self, weak window] image in
                 let shouldAnimate = self?.hasPresentedInitialImage == true
@@ -524,6 +535,7 @@ final class WindowManager {
                 self?.initialImageFailureObserver = nil
                 self?.automaticImageObserver = nil
                 self?.automaticSizePreferenceObserver = nil
+                self?.automaticDisplayModeObserver = nil
                 self?.fileAccessObserver = nil
                 self?.authorizationFocusRecovery.setFileAccessPending(false, for: nil)
                 self?.titleObserver = nil
@@ -568,7 +580,8 @@ final class WindowManager {
         if AutomaticWindowSizePreference.isEnabled(), !WindowFramePreference.isFixedEnabled(),
            let image, let imageSize = ImageExporter.pixelSize(of: image),
            let frame = WindowPlacement.automaticFrame(for: imageSize, in: availableContentFrame,
-                                                     backingScale: screen.backingScale) {
+                                                     backingScale: screen.backingScale,
+                                                     displayMode: ImageDisplayPreference.mode()) {
             return frame
         }
         return WindowPlacement.frame(for: image.flatMap { ImageExporter.pixelSize(of: $0) },
@@ -591,8 +604,11 @@ final class WindowManager {
               let screen = screenGeometry(for: window),
               let imageSize = currentViewModel?.imagePixelSize ?? ImageExporter.pixelSize(of: image) else { return }
         let availableContentFrame = NSWindow.contentRect(forFrameRect: screen.visibleFrame, styleMask: window.styleMask)
-        guard let contentFrame = WindowPlacement.automaticFrame(for: imageSize, in: availableContentFrame,
-                                                               backingScale: screen.backingScale) else { return }
+        let rotation = currentViewModel?.rotationDegrees ?? 0
+        let orientedSize = rotation % 180 == 0 ? imageSize : NSSize(width: imageSize.height, height: imageSize.width)
+        guard let contentFrame = WindowPlacement.automaticFrame(for: orientedSize, in: availableContentFrame,
+                                                               backingScale: screen.backingScale,
+                                                               displayMode: currentViewModel?.displayMode ?? ImageDisplayPreference.mode()) else { return }
         let targetSize = NSWindow.frameRect(forContentRect: contentFrame, styleMask: window.styleMask).size
         let centered = NSRect(x: window.frame.midX - targetSize.width / 2,
                               y: window.frame.midY - targetSize.height / 2,

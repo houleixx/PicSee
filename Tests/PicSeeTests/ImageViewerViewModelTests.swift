@@ -225,17 +225,22 @@ final class ImageViewerViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testShowActualSizeAdjustsZoomToOneHundredPercentDisplayScale() throws {
+    func testShowActualSizeSelectsPixelModeWithoutChangingSavedDefault() throws {
         let imageURL = try writePNG(named: "001.png", color: .red)
         let viewModel = ImageViewerViewModel(loadingMode: .immediate, imageURL: imageURL)
         viewModel.zoomScale = 1
         viewModel.displayScale = 0.5
         viewModel.panOffset = CGSize(width: 20, height: 30)
+        let savedDefault = ImageDisplayPreference.mode()
+        let requestID = viewModel.defaultDisplayRequestID
 
         viewModel.showActualSize()
 
-        XCTAssertEqual(viewModel.zoomScale, 2, accuracy: 0.001)
+        XCTAssertEqual(viewModel.displayMode, .actualSize)
+        XCTAssertEqual(viewModel.zoomScale, 1, accuracy: 0.001)
         XCTAssertEqual(viewModel.panOffset, .zero)
+        XCTAssertEqual(viewModel.defaultDisplayRequestID, requestID + 1)
+        XCTAssertEqual(ImageDisplayPreference.mode(), savedDefault)
     }
 
     @MainActor

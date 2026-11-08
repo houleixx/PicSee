@@ -5,6 +5,13 @@ enum ImageDisplayMode: String, CaseIterable, Sendable {
     case fitWidth
     case actualSize
 
+    var startsOverflowAtTop: Bool {
+        switch self {
+        case .fitWindow: false
+        case .fitWidth, .actualSize: true
+        }
+    }
+
     var displayName: String {
         switch self {
         case .fitWindow: L10n.text("适合窗口")

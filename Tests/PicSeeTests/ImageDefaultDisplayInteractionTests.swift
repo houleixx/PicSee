@@ -4,6 +4,117 @@ import XCTest
 
 @MainActor
 final class ImageDefaultDisplayInteractionTests: XCTestCase {
+    func testToolbarActualSizeAlsoStartsAtTopAndKeepsItsZoomAnimation() throws {
+        let (window, canvas) = fixture()
+        defer { window.close() }
+        canvas.image = try bitmapImage(width: 100, height: 600)
+        canvas.debugCancelTextRecognition()
+        canvas.motionPreference = { false }
+        canvas.layoutSubtreeIfNeeded()
+        canvas.updateTransform(zoom: 1, pan: .zero, rotation: 0, animationID: 1, imageChanged: false,
+                               displayMode: .actualSize, defaultDisplayRequestID: 1)
+        canvas.layoutSubtreeIfNeeded()
+        XCTAssertEqual(canvas.debugGeometry.pixelDisplayScale, 1, accuracy: 0.001)
+        XCTAssertEqual(canvas.debugGeometry.imageRect.maxY, canvas.bounds.height, accuracy: 0.001)
+        XCTAssertNotNil(canvas.debugMotionLayer?.animation(forKey: "PicSee.ZoomAnimation"))
+    }
+
+    func testLongImageWindowSizingFollowsModeButRespectsFixedAndManualWindows() async throws {
+        let defaults = UserDefaults.standard
+        let keys = [ImageDisplayPreference.defaultsKey, AutomaticWindowSizePreference.defaultsKey,
+                    AutomaticWindowResizeAnimationPreference.defaultsKey, "PicSee.FixedWindowFrameEnabled",
+                    "PicSee.FixedWindowFrame", WindowFramePreference.defaultsKey,
+                    "PicSee.TemporaryDesktopFullScreenRestoreFrame"]
+        let originals = keys.map { defaults.object(forKey: $0) }
+        defer {
+            for (key, value) in zip(keys, originals) {
+                if let value { defaults.set(value, forKey: key) }
+                else { defaults.removeObject(forKey: key) }
+            }
+            ViewerPreferences.shared.reload()
+        }
+        let image = try bitmapImage(width: 1279, height: 6826)
+        let bitmap = try XCTUnwrap(image.representations.first as? NSBitmapImageRep)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("long-window-\(UUID()).png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
+        for loadingMode in [ImageLoadingMode.immediate, .background] {
+            defaults.set(ImageDisplayMode.actualSize.rawValue, forKey: ImageDisplayPreference.defaultsKey)
+            defaults.set(true, forKey: AutomaticWindowSizePreference.defaultsKey)
+            defaults.set(false, forKey: AutomaticWindowResizeAnimationPreference.defaultsKey)
+            defaults.set(false, forKey: "PicSee.FixedWindowFrameEnabled")
+            ViewerPreferences.shared.reload()
+            let manager = WindowManager(updateChecker: nil, finderOrderProvider: FilenameFolderOrderProvider(),
+                loadingMode: loadingMode, screenGeometryOverride: (NSRect(x: 0, y: 0, width: 1440, height: 900), 2))
+            manager.openViewer(for: url, presentsWindow: false)
+            let window = try XCTUnwrap(manager.currentWindow)
+            defer { window.close() }
+            let deadline = Date().addingTimeInterval(3)
+            while (manager.currentViewModel?.image == nil || findCanvas(window.contentView) == nil) && Date() < deadline {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            try await settle()
+            let canvas = try XCTUnwrap(findCanvas(window.contentView))
+            canvas.debugCancelTextRecognition()
+            // Native windows may round their content dimensions to whole points.
+            XCTAssertEqual(window.contentView!.bounds.width, 639.5, accuracy: 1)
+            XCTAssertEqual(canvas.debugGeometry.imageRect.maxY, canvas.bounds.height, accuracy: 0.01)
+            defaults.set(ImageDisplayMode.fitWidth.rawValue, forKey: ImageDisplayPreference.defaultsKey)
+            ViewerPreferences.shared.reload()
+            try await settle()
+            XCTAssertEqual(window.contentView!.bounds.width, 800, accuracy: 0.01)
+            assertWidthAndTop(canvas)
+            WindowFramePreference.saveFixedFrame(window.frame)
+            defaults.set(true, forKey: "PicSee.FixedWindowFrameEnabled")
+            ViewerPreferences.shared.reload()
+            let fixedFrame = window.frame
+            defaults.set(ImageDisplayMode.actualSize.rawValue, forKey: ImageDisplayPreference.defaultsKey)
+            ViewerPreferences.shared.reload()
+            try await settle()
+            XCTAssertEqual(window.frame, fixedFrame)
+            XCTAssertEqual(canvas.debugGeometry.pixelDisplayScale, 1, accuracy: 0.001)
+            defaults.set(false, forKey: AutomaticWindowSizePreference.defaultsKey)
+            defaults.set(false, forKey: "PicSee.FixedWindowFrameEnabled")
+            ViewerPreferences.shared.reload()
+            defaults.set(ImageDisplayMode.fitWidth.rawValue, forKey: ImageDisplayPreference.defaultsKey)
+            ViewerPreferences.shared.reload()
+            try await settle()
+            XCTAssertEqual(window.frame, fixedFrame)
+            manager.currentViewModel?.rotateRight()
+            defaults.set(true, forKey: AutomaticWindowSizePreference.defaultsKey)
+            defaults.set(ImageDisplayMode.actualSize.rawValue, forKey: ImageDisplayPreference.defaultsKey)
+            ViewerPreferences.shared.reload()
+            try await settle()
+            XCTAssertEqual(window.contentView!.bounds.width, 1296, accuracy: 0.01)
+            XCTAssertEqual(window.contentView!.bounds.height, 639.5, accuracy: 1)
+        }
+    }
+
+    func testActualSizeStartsTallImagesAtTopButKeepsSmallImagesCentered() throws {
+        let suite = "PicSee.ActualSizeTop.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        MouseWheelPreference.setBehavior(.scroll, in: defaults)
+        let (window, canvas) = fixture(defaults: defaults)
+        defer { window.close() }
+        canvas.displayMode = .actualSize
+        canvas.setImage(try bitmapImage(width: 100, height: 600), url: URL(fileURLWithPath: "/tmp/tall.png"))
+        canvas.debugCancelTextRecognition()
+        canvas.layoutSubtreeIfNeeded()
+        XCTAssertEqual(canvas.debugGeometry.pixelDisplayScale, 1, accuracy: 0.001)
+        XCTAssertEqual(canvas.debugGeometry.imageRect.maxY, canvas.bounds.height, accuracy: 0.001)
+        XCTAssertEqual(canvas.debugGeometry.imageRect.midX, canvas.bounds.midX, accuracy: 0.001)
+        let top = canvas.panOffset.height
+        canvas.scrollWheel(with: DefaultDisplayScrollEvent())
+        canvas.layoutSubtreeIfNeeded()
+        XCTAssertEqual(canvas.panOffset.height, top + 16, accuracy: 0.001)
+        canvas.setImage(try bitmapImage(width: 100, height: 100), url: URL(fileURLWithPath: "/tmp/small.png"))
+        canvas.debugCancelTextRecognition()
+        canvas.layoutSubtreeIfNeeded()
+        XCTAssertEqual(canvas.debugGeometry.imageRect.midX, canvas.bounds.midX, accuracy: 0.001)
+        XCTAssertEqual(canvas.debugGeometry.imageRect.midY, canvas.bounds.midY, accuracy: 0.001)
+    }
+
     func testChoosingDefaultDisplayWhileZoomingRemovesTheOldAnimation() throws {
         let (window, canvas) = fixture()
         defer { window.close() }
@@ -134,7 +245,12 @@ final class ImageDefaultDisplayInteractionTests: XCTestCase {
                     canvas.needsLayout = true
                     canvas.layoutSubtreeIfNeeded()
                     if mode == .fitWidth { assertWidthAndTop(canvas) }
-                    else { XCTAssertEqual(canvas.debugGeometry.pixelDisplayScale, 1, accuracy: 0.001) }
+                    else {
+                        XCTAssertEqual(canvas.debugGeometry.pixelDisplayScale, 1, accuracy: 0.001)
+                        if canvas.debugGeometry.displaySize.height > canvas.bounds.height {
+                            XCTAssertEqual(canvas.debugGeometry.imageRect.maxY, canvas.bounds.height, accuracy: 0.001)
+                        }
+                    }
                 }
             }
         }

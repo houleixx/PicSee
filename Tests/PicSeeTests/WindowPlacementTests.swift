@@ -3,6 +3,42 @@ import XCTest
 @testable import PicSee
 
 final class WindowPlacementTests: XCTestCase {
+    func testReadingModesDoNotLetLongImageHeightShrinkTheWindowWidth() throws {
+        let screen = NSRect(x: 0, y: 24, width: 1440, height: 856)
+        let image = NSSize(width: 1279, height: 6826)
+        let actual = try XCTUnwrap(WindowPlacement.automaticFrame(
+            for: image, in: screen, backingScale: 2, displayMode: .actualSize))
+        XCTAssertEqual(actual.width, 639.5, accuracy: 0.001)
+        XCTAssertEqual(actual.height, screen.height * 0.9, accuracy: 0.001)
+        let widthFit = try XCTUnwrap(WindowPlacement.automaticFrame(
+            for: image, in: screen, backingScale: 2, displayMode: .fitWidth))
+        XCTAssertEqual(widthFit.width, 800, accuracy: 0.001)
+        XCTAssertEqual(widthFit.height, screen.height * 0.9, accuracy: 0.001)
+        for frame in [actual, widthFit] {
+            XCTAssertTrue(screen.contains(frame))
+            XCTAssertEqual(frame.midX, screen.midX, accuracy: 0.001)
+            XCTAssertEqual(frame.midY, screen.midY, accuracy: 0.001)
+        }
+    }
+
+    func testReadingModesClampToScreenAndKeepSmallWindowsUsable() throws {
+        for mode in [ImageDisplayMode.actualSize, .fitWidth] {
+            let screen = NSRect(x: 30, y: 40, width: 600, height: 450)
+            let large = try XCTUnwrap(WindowPlacement.automaticFrame(
+                for: NSSize(width: 10000, height: 20000), in: screen, backingScale: 2, displayMode: mode))
+            XCTAssertTrue(screen.contains(large))
+            XCTAssertEqual(large.width, 540, accuracy: 0.001)
+            XCTAssertEqual(large.height, 405, accuracy: 0.001)
+            let tinyScreen = NSRect(x: 10, y: 20, width: 300, height: 200)
+            let tiny = try XCTUnwrap(WindowPlacement.automaticFrame(
+                for: NSSize(width: 100, height: 600), in: tinyScreen, backingScale: 2, displayMode: mode))
+            XCTAssertEqual(tiny, tinyScreen)
+        }
+        let small = try XCTUnwrap(WindowPlacement.automaticFrame(for: NSSize(width: 400, height: 240),
+            in: NSRect(x: 0, y: 0, width: 1440, height: 900), backingScale: 2, displayMode: .actualSize))
+        XCTAssertEqual(small.size, NSSize(width: 480, height: 320))
+    }
+
     func testAutomaticWindowUsesImageSizeWithUsableMinimum() throws {
         let screen = NSRect(x: 0, y: 0, width: 1440, height: 900)
         let small = try XCTUnwrap(WindowPlacement.automaticFrame(

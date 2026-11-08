@@ -626,14 +626,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     var defaultDisplayRequestID = 0 {
         didSet {
             guard oldValue != defaultDisplayRequestID else { return }
-            alignsImageToTop = displayMode == .fitWidth
+            alignsImageToTop = displayMode.startsOverflowAtTop
             needsLayout = true
         }
     }
     var displayMode: ImageDisplayMode = .fitWindow {
         didSet {
             guard oldValue != displayMode else { return }
-            alignsImageToTop = displayMode == .fitWidth
+            alignsImageToTop = displayMode.startsOverflowAtTop
             needsLayout = true
         }
     }
@@ -653,7 +653,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 pendingRotationAnimation = nil
                 zoomScale = 1
                 panOffset = .zero
-                alignsImageToTop = displayMode == .fitWidth
+                alignsImageToTop = displayMode.startsOverflowAtTop
                 resetTextSelectionState()
             }
             imageView.image = image
@@ -692,7 +692,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         image = newImage
         isUpdatingImage = false
         if changed {
-            alignsImageToTop = displayMode == .fitWidth
+            alignsImageToTop = displayMode.startsOverflowAtTop
             analyzeImageIfPossible()
         }
     }
@@ -2117,7 +2117,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             transformMotion = nil
             cancelNavigationAnimation()
         }
-        if shouldAnimate { alignsImageToTop = false }
+        if shouldAnimate && !hasNewDisplayRequest { alignsImageToTop = false }
         handledTransformAnimationID = animationID
         zoomScale = zoom
         panOffset = pan

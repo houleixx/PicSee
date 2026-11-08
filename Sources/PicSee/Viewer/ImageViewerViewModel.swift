@@ -416,13 +416,7 @@ final class ImageViewerViewModel: ObservableObject {
     func showActualSize() {
         slideshow.pause()
         transformAnimationID += 1
-        guard displayScale > 0 else {
-            resetViewTransform()
-            return
-        }
-        zoomScale = ImageZoomAdjustment.clampedZoom(currentZoom: zoomScale, multiplier: 1 / displayScale,
-            automaticPixelScale: displayScale / max(CGFloat.leastNormalMagnitude, zoomScale))
-        panOffset = .zero
+        applyDefaultDisplayMode(.actualSize)
     }
 
     func zoomIn() {

@@ -126,6 +126,7 @@ struct ImageViewerView: View {
                             }
                         }
                     },
+                    windowLongPressEnabled: screenshotDocument == nil,
                     canTrashImage: viewModel.canTrashCurrentImage,
                     canUndoDeletion: viewModel.canUndoDeletion,
                     onTrashImage: onRequestDeletion,

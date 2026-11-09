@@ -93,6 +93,35 @@ final class ImageCanvasOCRTests: XCTestCase {
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), "放大后选择")
     }
 
+    func testQuickVisionTextDragCancelsWindowLongPressAndSelectsText() throws {
+        let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 1152, height: 768), backend: .vision)
+        view.motionPreference = { false }
+        view.image = loadFixtureImage()
+        let window = NSWindow(contentRect: view.bounds, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        defer { window.contentView = nil; window.close() }
+        view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(view.debugWaitForVisionRecognition(timeout: 8))
+        let fragments = view.debugFragmentRects(forLine: 0)
+        XCTAssertGreaterThanOrEqual(fragments.count, 5)
+        guard fragments.count >= 5 else { return }
+        let start = CGPoint(x: fragments[1].midX, y: fragments[1].midY)
+        let end = CGPoint(x: fragments[4].midX, y: fragments[4].midY)
+        func event(_ type: NSEvent.EventType, at point: CGPoint) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        }
+        view.mouseDown(with: try event(.leftMouseDown, at: start))
+        XCTAssertTrue(view.debugHasWindowLongPressCandidate)
+        view.mouseDragged(with: try event(.leftMouseDragged, at: end))
+        XCTAssertFalse(view.debugHasWindowLongPressCandidate)
+        view.debugFireWindowLongPress(at: end)
+        XCTAssertFalse(view.debugIsLongPressMovingWindow)
+        view.mouseUp(with: try event(.leftMouseUp, at: end))
+        XCTAssertEqual(view.debugSelectedText(), "一行测试")
+    }
+
     func testPreferredBackendIsLiveTextOnSupportedHardware() {
         let expected: TextRecognitionBackend = ImageAnalyzer.isSupported ? .liveText : .vision
         let view = CanvasNSView(frame: .zero)
@@ -145,15 +174,30 @@ final class ImageCanvasOCRTests: XCTestCase {
         XCTAssertEqual(view.panOffset.height, 0, accuracy: 0.001)
     }
 
-    func testLiveTextControlFrameIsMovedAwayFromBottomRightResizeArea() {
+    func testLiveTextInterfaceUsesSystemInsetsToAvoidResizeCorner() {
         let view = CanvasNSView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), backend: .liveText)
-        let originalFrame = CGRect(x: 350, y: 8, width: 32, height: 32)
-
-        let adjustedFrame = view.debugAdjustedLiveTextControlFrame(for: originalFrame)
-
-        XCTAssertNotNil(adjustedFrame)
-        XCTAssertLessThanOrEqual(adjustedFrame!.maxX, 400 - 64 - 8)
-        XCTAssertGreaterThanOrEqual(adjustedFrame!.minY, 64 + 8)
+        view.titleBarVisible = false
+        view.fixedWindowEnabled = false
+        view.image = NSImage(size: NSSize(width: 800, height: 600))
+        view.layoutSubtreeIfNeeded()
+        let overlay = view.debugLiveTextOverlay
+        XCTAssertEqual(overlay.supplementaryInterfaceContentInsets.right, 24)
+        XCTAssertEqual(overlay.supplementaryInterfaceContentInsets.bottom, 24)
+        overlay.needsLayout = true
+        overlay.layoutSubtreeIfNeeded()
+        XCTAssertEqual(overlay.supplementaryInterfaceContentInsets.right, 24,
+                       "System relayout must retain the avoidance margin")
+        view.setFrameSize(NSSize(width: 600, height: 450))
+        view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(overlay.supplementaryInterfaceContentInsets.bottom, 24)
+        view.titleBarVisible = true
+        view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(overlay.supplementaryInterfaceContentInsets.right, 0)
+        XCTAssertEqual(overlay.supplementaryInterfaceContentInsets.bottom, 0)
+        view.titleBarVisible = false
+        view.fixedWindowEnabled = true
+        view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(overlay.supplementaryInterfaceContentInsets.right, 0)
     }
 
     func testPhosphorMenuAndNoticeIconsAreBundled() {

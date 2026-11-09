@@ -39,6 +39,7 @@ struct ImageCanvasView: NSViewRepresentable {
     let fixedWindowEnabled: Bool
     let onFixedWindowChanged: (Bool) -> Void
     let onCheckForUpdates: (() -> Void)?
+    var windowLongPressEnabled = true
     var canTrashImage = false
     var canUndoDeletion = false
     var onTrashImage: (() -> Void)?
@@ -48,6 +49,7 @@ struct ImageCanvasView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> CanvasNSView {
         let view = CanvasNSView()
+        view.windowLongPressEnabled = windowLongPressEnabled
         view.displayMode = displayMode
         view.defaultDisplayRequestID = defaultDisplayRequestID
         view.setImage(image, url: imageURL)
@@ -86,6 +88,7 @@ struct ImageCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: CanvasNSView, context: Context) {
+        nsView.windowLongPressEnabled = windowLongPressEnabled
         nsView.navigationDirection = navigationDirection
         let imageChanged = nsView.image !== image
         nsView.setImage(image, url: imageURL)
@@ -759,6 +762,56 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         case fileExport
     }
 
+    // Keep the trial interaction's tuning in one place (screen points).
+    private enum WindowLongPress {
+        static let duration: TimeInterval = 0.6
+        static let movementTolerance: CGFloat = 4
+    }
+    // A centered four-way arrow distinguishes window movement from image panning.
+    private static let windowMoveCursor: NSCursor = {
+        let size = NSSize(width: 20, height: 20)
+        let image = NSImage(size: size, flipped: false) { _ in
+            NSGraphicsContext.saveGraphicsState()
+            defer { NSGraphicsContext.restoreGraphicsState() }
+            let transform = NSAffineTransform()
+            transform.scale(by: size.width / 28)
+            transform.concat()
+            let points: [CGPoint] = [
+                CGPoint(x: 14, y: 26), CGPoint(x: 19, y: 21), CGPoint(x: 16, y: 21),
+                CGPoint(x: 16, y: 16), CGPoint(x: 21, y: 16), CGPoint(x: 21, y: 19),
+                CGPoint(x: 26, y: 14), CGPoint(x: 21, y: 9), CGPoint(x: 21, y: 12),
+                CGPoint(x: 16, y: 12), CGPoint(x: 16, y: 7), CGPoint(x: 19, y: 7),
+                CGPoint(x: 14, y: 2), CGPoint(x: 9, y: 7), CGPoint(x: 12, y: 7),
+                CGPoint(x: 12, y: 12), CGPoint(x: 7, y: 12), CGPoint(x: 7, y: 9),
+                CGPoint(x: 2, y: 14), CGPoint(x: 7, y: 19), CGPoint(x: 7, y: 16),
+                CGPoint(x: 12, y: 16), CGPoint(x: 12, y: 21), CGPoint(x: 9, y: 21)
+            ]
+            let path = NSBezierPath()
+            path.move(to: points[0])
+            for point in points.dropFirst() { path.line(to: point) }
+            path.close()
+            path.lineWidth = 2.5
+            path.lineJoinStyle = .round
+            // A white border keeps the black arrow visible over dark images.
+            NSColor.white.setStroke()
+            path.stroke()
+            NSColor.black.setFill()
+            path.fill()
+            return true
+        }
+        return NSCursor(image: image, hotSpot: NSPoint(x: size.width / 2, y: size.height / 2))
+    }()
+
+    var windowLongPressEnabled = true {
+        didSet { if !windowLongPressEnabled { resetMouseDrag() } }
+    }
+    private var windowLongPressTimer: Timer?
+    private var windowLongPressStart: CGPoint?
+    private var isLongPressMovingWindow = false
+    private var hasStartedLongPressWindowDrag = false
+    private var windowMoveCursorTimer: Timer?
+    private var windowLongPressMonitor: Any?
+
     var fileDragController = ImageFileDragController()
     private var fileDragStartScreenPoint: CGPoint?
     private var dragType: DragType = .none
@@ -789,12 +842,18 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     var fileInfoVisible: Bool
     var toolbarVisible: Bool
     var imageParametersVisible: Bool
-    var fixedWindowEnabled: Bool
+    var fixedWindowEnabled: Bool {
+        didSet {
+            guard oldValue != fixedWindowEnabled else { return }
+            needsLayout = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
 
     private let topDragRegionHeight: CGFloat = 36
     private let topLeftResizeRegionSize: CGFloat = 44
-    private let bottomRightResizeRegionSize: CGFloat = 64
-    private let resizeAvoidancePadding: CGFloat = 8
+    private let bottomRightResizeRegionSize: CGFloat = 20
+    private let resizeAvoidancePadding: CGFloat = 4
     private var minimumWindowSize: NSSize {
         AutomaticWindowSizePreference.isEnabled(in: defaults) && !fixedWindowEnabled
             ? WindowPlacement.minimumAutomaticContentSize
@@ -890,6 +949,9 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         if let closeGestureMonitor { NSEvent.removeMonitor(closeGestureMonitor) }
         closeGestureMonitor = nil
         resetCloseGesture()
+        resetMouseDrag()
+        if let windowLongPressMonitor { NSEvent.removeMonitor(windowLongPressMonitor) }
+        windowLongPressMonitor = nil
         window?.acceptsMouseMovedEvents = true
         slideshowWindowObservations.removeAll()
         guard let window else { return }
@@ -897,9 +959,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             NotificationCenter.default.publisher(for: name, object: window)
                 .sink { [weak self] _ in
                     self?.interruptMotion()
+                    self?.resetMouseDrag()
                     self?.needsLayout = true
                 }
                 .store(in: &slideshowWindowObservations)
+        }
+        windowLongPressMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            guard let self else { return event }
+            return self.handleWindowLongPressEvent(event)
         }
         closeGestureEnabled = preferences.snapshot.rightMouseCloseGestureEnabled
         closeGestureMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .rightMouseDragged, .rightMouseUp, .keyDown]) { [weak self] event in
@@ -912,18 +979,23 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
                 if let monitor = self.closeGestureMonitor { NSEvent.removeMonitor(monitor) }
                 self.closeGestureMonitor = nil
                 self.resetCloseGesture()
+                self.resetMouseDrag()
+                if let monitor = self.windowLongPressMonitor { NSEvent.removeMonitor(monitor) }
+                self.windowLongPressMonitor = nil
             }
             .store(in: &slideshowWindowObservations)
         NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification, object: window)
             .sink { [weak self] _ in
                 self?.slideshow?.pauseForWindowDeactivation()
                 self?.cancelCloseGesture()
+                self?.resetMouseDrag()
             }
             .store(in: &slideshowWindowObservations)
         NotificationCenter.default.publisher(for: NSWindow.willBeginSheetNotification, object: window)
             .sink { [weak self] _ in
                 self?.slideshow?.pause()
                 self?.cancelCloseGesture()
+                self?.resetMouseDrag()
             }
             .store(in: &slideshowWindowObservations)
     }
@@ -932,6 +1004,105 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         super.viewDidChangeBackingProperties()
         interruptMotion()
         needsLayout = true
+    }
+
+    /// Observe Live Text presses without withholding events from its selection handlers.
+    private func handleWindowLongPressEvent(_ event: NSEvent) -> NSEvent? {
+        guard let window, event.window === window else { return event }
+        if event.type == .leftMouseDown {
+            if let content = window.contentView,
+               let hit = content.hitTest(content.convert(event.locationInWindow, from: nil)),
+               hit === liveTextOverlay || hit.isDescendant(of: liveTextOverlay) {
+                armWindowLongPress(with: event)
+            }
+        } else if event.type == .leftMouseDragged {
+            if isLongPressMovingWindow {
+                mouseDragged(with: event)
+                return nil
+            }
+            updateWindowLongPressMovement(with: event)
+        } else if event.type == .leftMouseUp {
+            // Let Live Text receive its release too, even after a takeover.
+            if isLongPressMovingWindow { resetMouseDrag() }
+            cancelWindowLongPressCandidate()
+        }
+        return event
+    }
+
+    private func armWindowLongPress(with event: NSEvent) {
+        cancelWindowLongPressCandidate()
+        let point = convert(event.locationInWindow, from: nil)
+        guard event.type == .leftMouseDown, event.clickCount == 1,
+              event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+              windowLongPressEnabled, image != nil, let window,
+              window.attachedSheet == nil, !window.styleMask.contains(.fullScreen),
+              bounds.insetBy(dx: 4, dy: 4).contains(point), resizeAnchor(at: point) == nil, !isInTopDragRegion(point),
+              let content = window.contentView,
+              let hit = content.hitTest(content.convert(event.locationInWindow, from: nil)),
+              isCloseGestureImageHit(hit),
+              hit !== minimapView, !hit.isDescendant(of: minimapView),
+              !liveTextOverlay.hasSupplementaryInterface(at: liveTextOverlay.convert(event.locationInWindow, from: nil))
+        else { return }
+        windowLongPressStart = window.convertPoint(toScreen: event.locationInWindow)
+        let timer = Timer(timeInterval: WindowLongPress.duration, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let window = self.window else { return }
+                self.activateWindowLongPress(at: NSEvent.mouseLocation, leftButtonDown: NSEvent.pressedMouseButtons & 1 != 0,
+                                             window: window)
+            }
+        }
+        windowLongPressTimer = timer
+        // Live Text can run an AppKit event tracking loop while selecting.
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func updateWindowLongPressMovement(with event: NSEvent) {
+        guard let start = windowLongPressStart, let window else { return }
+        let point = window.convertPoint(toScreen: event.locationInWindow)
+        if hypot(point.x - start.x, point.y - start.y) > WindowLongPress.movementTolerance {
+            cancelWindowLongPressCandidate()
+        }
+    }
+
+    private func activateWindowLongPress(at point: CGPoint, leftButtonDown: Bool, window: NSWindow) {
+        guard let start = windowLongPressStart else { return }
+        let shouldActivate = leftButtonDown && windowLongPressEnabled && window.attachedSheet == nil
+            && !window.styleMask.contains(.fullScreen)
+            && hypot(point.x - start.x, point.y - start.y) <= WindowLongPress.movementTolerance
+        cancelWindowLongPressCandidate()
+        guard shouldActivate else { return }
+        fileDragStartScreenPoint = nil
+        selectionAnchorLocation = nil
+        selectionFocusLocation = nil
+        liveTextOverlay.resetSelection()
+        clearTextSelection()
+        dragType = .window
+        isLongPressMovingWindow = true
+        Self.windowMoveCursor.set()
+        // performDrag returns immediately and may consume mouse-up. Poll the actual
+        // button state so the cursor stays active until release in either case.
+        let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.updateWindowMoveCursor(leftButtonDown: NSEvent.pressedMouseButtons & 1 != 0)
+            }
+        }
+        windowMoveCursorTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func updateWindowMoveCursor(leftButtonDown: Bool) {
+        guard isLongPressMovingWindow else { return }
+        if leftButtonDown {
+            Self.windowMoveCursor.set()
+        } else {
+            resetMouseDrag()
+        }
+    }
+
+    private func cancelWindowLongPressCandidate() {
+        windowLongPressTimer?.invalidate()
+        windowLongPressTimer = nil
+        windowLongPressStart = nil
     }
 
     /// Intercept before Live Text or a child image view opens its context menu.
@@ -1132,7 +1303,9 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     override func hitTest(_ point: NSPoint) -> NSView? {
         // SwiftUI probes the canvas while routing toolbar clicks too. Hit testing
         // must not change image state; interrupt only when an interaction begins.
-        if resizeAnchor(at: point) != nil {
+        let localPoint = convert(point, from: superview)
+        if let control = interactiveControlHit(at: localPoint) { return control }
+        if resizeAnchor(at: localPoint) != nil {
             return self
         }
         return super.hitTest(point)
@@ -1230,13 +1403,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         let geometry = currentGeometry()
         let point = convert(event.locationInWindow, from: nil)
 
-        dragType = .none
-        dragStartPoint = nil
-        dragStartWindowFrame = nil
-        dragStartOffset = .zero
-        fileDragStartScreenPoint = nil
-        selectionAnchorLocation = nil
-        selectionFocusLocation = nil
+        resetMouseDrag()
 
         if let resizeAnchor = resizeAnchor(at: point), let window {
             dragType = .resize(resizeAnchor)
@@ -1274,6 +1441,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             return
         }
 
+        armWindowLongPress(with: event)
+
         if let textLocation = hitText {
             dragType = .textSelection
             selectionAnchorLocation = textLocation
@@ -1304,6 +1473,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        updateWindowLongPressMovement(with: event)
         let point = convert(event.locationInWindow, from: nil)
 
         if let start = fileDragStartScreenPoint, let window,
@@ -1325,7 +1495,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         case .none, .fileExport:
             break
         case .window:
-            window?.performDrag(with: event)
+            if isLongPressMovingWindow {
+                guard !hasStartedLongPressWindowDrag else { return }
+                hasStartedLongPressWindowDrag = true
+                window?.performDrag(with: event)
+                Self.windowMoveCursor.set()
+            } else {
+                window?.performDrag(with: event)
+            }
         case .pan:
             guard let dragStartPoint else { return }
             alignsImageToTop = false
@@ -1370,11 +1547,16 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func cancelImageDragCandidate() {
-        guard fileDragStartScreenPoint != nil else { return }
+        guard fileDragStartScreenPoint != nil || windowLongPressStart != nil || isLongPressMovingWindow else { return }
         resetMouseDrag()
     }
 
     private func resetMouseDrag() {
+        cancelWindowLongPressCandidate()
+        windowMoveCursorTimer?.invalidate()
+        windowMoveCursorTimer = nil
+        isLongPressMovingWindow = false
+        hasStartedLongPressWindowDrag = false
         fileDragStartScreenPoint = nil
         dragType = .none
         dragStartPoint = nil
@@ -2374,54 +2556,14 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func repositionLiveTextControlsIfNeeded() {
-        guard backend == .liveText, !titleBarVisible else { return }
-
-        let reservedSize = bottomRightResizeRegionSize + resizeAvoidancePadding
-        let protectedRect = CGRect(
-            x: liveTextOverlay.bounds.maxX - reservedSize,
-            y: liveTextOverlay.bounds.minY,
-            width: reservedSize,
-            height: reservedSize
-        )
-
-        for subview in liveTextOverlay.subviews {
-            let frame = subview.frame
-            guard
-                frame.width <= 96,
-                frame.height <= 96,
-                frame.intersects(protectedRect)
-            else {
-                continue
-            }
-
-            let adjustedFrame = Self.adjustedLiveTextControlFrame(
-                for: frame,
-                in: liveTextOverlay.bounds,
-                reservedSize: reservedSize
-            )
-
-            guard adjustedFrame.minX.isFinite, adjustedFrame.minY.isFinite else { continue }
-            subview.setFrameOrigin(adjustedFrame.origin)
-        }
-    }
-
-    private static func adjustedLiveTextControlFrame(
-        for frame: CGRect,
-        in bounds: CGRect,
-        reservedSize: CGFloat
-    ) -> CGRect {
-        let safeCornerInset = reservedSize + 10
-        let maxX = bounds.maxX - safeCornerInset - frame.width
-        let minY = bounds.minY + safeCornerInset
-
-        var adjustedFrame = frame
-        adjustedFrame.origin.x = min(frame.origin.x, maxX)
-        adjustedFrame.origin.y = max(frame.origin.y, minY)
-
-        let clampedX = max(bounds.minX + 8, min(adjustedFrame.origin.x, bounds.maxX - adjustedFrame.width - 8))
-        let clampedY = max(bounds.minY + 8, min(adjustedFrame.origin.y, bounds.maxY - adjustedFrame.height - 8))
-        adjustedFrame.origin = CGPoint(x: clampedX, y: clampedY)
-        return adjustedFrame
+        guard backend == .liveText else { return }
+        let inset = !titleBarVisible && !fixedWindowEnabled
+            ? bottomRightResizeRegionSize + resizeAvoidancePadding : 0
+        let current = liveTextOverlay.supplementaryInterfaceContentInsets
+        guard current.bottom != inset || current.right != inset || current.top != 0 || current.left != 0 else { return }
+        // Let VisionKit own the button layout so subsequent system layouts retain
+        // the avoidance margin instead of restoring a manually moved subview.
+        liveTextOverlay.supplementaryInterfaceContentInsets = NSEdgeInsets(top: 0, left: 0, bottom: inset, right: inset)
     }
 
     private func updateMinimap(geometry: ImageDisplayGeometry) {
@@ -2475,8 +2617,25 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         clickCount == 2 && isInTopDragRegion(point)
     }
 
+    /// Controls keep their native click behavior even if a system layout briefly
+    /// places the Live Text interface inside a corner resize region.
+    private func interactiveControlHit(at point: CGPoint) -> NSView? {
+        guard let hit = super.hitTest(convert(point, to: superview)), hit !== self else { return nil }
+        var current: NSView? = hit
+        while let view = current, view !== self {
+            if view is NSControl, !(view is NSImageView) { return hit }
+            current = view.superview
+        }
+        if backend == .liveText,
+           (hit === liveTextOverlay || hit.isDescendant(of: liveTextOverlay)),
+           liveTextOverlay.hasSupplementaryInterface(at: liveTextOverlay.convert(point, from: self)) {
+            return hit
+        }
+        return nil
+    }
+
     private func resizeAnchor(at point: CGPoint) -> WindowResizeAnchor? {
-        guard !titleBarVisible, !fixedWindowEnabled else { return nil }
+        guard !titleBarVisible, !fixedWindowEnabled, interactiveControlHit(at: point) == nil else { return nil }
         if point.x <= topLeftResizeRegionSize, point.y >= bounds.height - topLeftResizeRegionSize {
             return .topLeft
         }
@@ -2672,6 +2831,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func cursorForPoint(_ point: CGPoint) -> NSCursor {
+        if isLongPressMovingWindow { return Self.windowMoveCursor }
+        if interactiveControlHit(at: point) != nil { return .arrow }
         let geometry = currentGeometry()
         if resizeAnchor(at: point) != nil {
             return .resizeLeftRight
@@ -2698,7 +2859,14 @@ extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
         forAnalysisType analysisType: ImageAnalysisOverlayView.InteractionTypes
     ) -> Bool {
         slideshow?.pause()
-        cancelImageDragCandidate()
+        guard !isLongPressMovingWindow else { return false }
+        if fileDragStartScreenPoint != nil {
+            // Live Text owns selection; keep only the independent long-press candidate.
+            fileDragStartScreenPoint = nil
+            dragType = .none
+            dragStartPoint = nil
+            dragStartOffset = .zero
+        }
         interruptMotion()
         return true
     }
@@ -2717,6 +2885,15 @@ extension CanvasNSView: ImageAnalysisOverlayViewDelegate {
 
 #if DEBUG
 extension CanvasNSView {
+    func debugUpdateWindowMoveCursor(leftButtonDown: Bool) { updateWindowMoveCursor(leftButtonDown: leftButtonDown) }
+    var debugWindowMoveCursor: NSCursor { Self.windowMoveCursor }
+    var debugIsLongPressMovingWindow: Bool { isLongPressMovingWindow }
+    var debugHasWindowLongPressCandidate: Bool { windowLongPressStart != nil }
+    func debugFireWindowLongPress(at point: CGPoint) {
+        guard let window else { return }
+        activateWindowLongPress(at: window.convertPoint(toScreen: point), leftButtonDown: true, window: window)
+    }
+    func debugHandleWindowLongPressEvent(_ event: NSEvent) -> NSEvent? { handleWindowLongPressEvent(event) }
     var debugGeometry: ImageDisplayGeometry { currentGeometry() }
     func debugHandleCloseGestureEvent(_ event: NSEvent) -> NSEvent? { handleCloseGestureEvent(event) }
     func debugReloadGesturePreferences() { preferences.reload(); applyPreferences(preferences.snapshot) }
@@ -2750,11 +2927,6 @@ extension CanvasNSView {
 
     func debugApplyToolbarZoom(multiplier: CGFloat) {
         applyToolbarZoom(request: ImageZoomRequest(id: -1, multiplier: multiplier))
-    }
-
-    func debugAdjustedLiveTextControlFrame(for frame: CGRect) -> CGRect? {
-        guard backend == .liveText else { return nil }
-        return Self.adjustedLiveTextControlFrame(for: frame, in: bounds, reservedSize: bottomRightResizeRegionSize + resizeAvoidancePadding)
     }
 
     func debugCanDragWindow(at point: CGPoint) -> Bool {

@@ -224,22 +224,23 @@ final class AppMenuTests: XCTestCase {
     func testBottomRightResizeAnchorUsesInsetHitAreaForRoundedWindowCorner() {
         let view = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
 
-        XCTAssertEqual(view.debugResizeAnchor(at: CGPoint(x: 340, y: 20)), .bottomRight)
-        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 332, y: 72)))
+        XCTAssertEqual(view.debugResizeAnchor(at: CGPoint(x: 390, y: 10)), .bottomRight)
+        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 379, y: 10)))
+        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 390, y: 21)))
 
         view.titleBarVisible = true
 
-        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 340, y: 20)))
+        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 390, y: 10)))
     }
 
     func testResizeAnchorIsDisabledWhenWindowSizeIsFixed() {
         let view = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300), backend: .vision)
 
-        XCTAssertEqual(view.debugResizeAnchor(at: CGPoint(x: 340, y: 20)), .bottomRight)
+        XCTAssertEqual(view.debugResizeAnchor(at: CGPoint(x: 390, y: 10)), .bottomRight)
 
         view.fixedWindowEnabled = true
 
-        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 340, y: 20)))
+        XCTAssertNil(view.debugResizeAnchor(at: CGPoint(x: 390, y: 10)))
     }
 
     func testDefaultExportFilenameUsesCopySuffix() {

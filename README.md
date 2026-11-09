@@ -30,6 +30,12 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 按 `⌘P` 或右键选择“打印…”，打开 macOS 系统打印面板，可选择打印机、纸张、方向与份数，也可存储为 PDF。“预览”分组提供自动旋转、缩放百分比、缩放以适合（打印整个图像 / 填满纸张）与每页份数（1–16）。默认使用四边各 12 点（约 4.2 毫米）的对称纸张留白作为边界，按整张纸居中，自动选择更适合纸张的图片方向，等比适应一页并居中；关闭自动旋转后保留查看时的旋转方向。指定比例按图片实际尺寸（包含像素密度）计算，超出可打印区域的部分裁切；填满纸张会等比放大并裁切超出部分。每页份数将同一图片重复排在一张纸上，与系统的打印份数和“布局 → 每张页数”独立。修改设置实时更新系统预览；缩放百分比在输入有效数值时立即生效，无需回车。存储为 PDF 使用相同排版。打印使用原图像素，不包含工具栏、文字选框或屏幕缩放效果。动态图打印静态图像。截图编辑、文字输入及弹窗期间不触发打印快捷键；打印会暂停幻灯片。超过现有位图内存预算的图片会提示错误。
 
+### 长按移动窗口
+
+普通窗口看图时，在图片或内容留白处按住鼠标左键约 0.6 秒，期间移动不超过 4 点，指针变为四向箭头后即可拖动窗口，松开恢复原指针。提前开始拖动时继续使用图片平移、OCR 选字或拖出窗口保存；工具栏按钮、弹窗、裁剪与标注编辑及全屏期间不触发长按移窗。双击、无标题栏顶部拖窗和角落缩放继续沿用原有操作。
+
+无标题栏且未固定窗口大小时，右下角缩放热区为 20 × 20 点。Live Text 系统按钮向内预留 24 点边距，与缩放热区额外相隔 4 点；按钮优先接收点击。
+
 ### 拖拽保存图片
 
 在图片上按住鼠标，拖出 PicSee 窗口后，放到桌面、Finder 文件夹或支持文件拖放的应用中，即可复制当前图片，无需按 Option。窗口内仍保持原来的平移行为；离开图片边缘或进入窗口留白不会导出。鼠标需距按下位置移动至少 12 点，并越过整个窗口外边界至少 12 点，才开始系统文件拖拽。
@@ -152,7 +158,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.90 PICSEE_BUILD_NUMBER=90 Scripts/build-app.sh
+PICSEE_VERSION=0.2.91 PICSEE_BUILD_NUMBER=91 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -169,15 +175,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.90.dmg`
+- DMG: `build/dmg/PicSee-0.2.91.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.90 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.91 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.90.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.91.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -311,14 +317,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.90
-git push origin v0.2.90
+git tag v0.2.91
+git push origin v0.2.91
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.90`
-- Asset: `PicSee-0.2.90.dmg`
+- Release: `v0.2.91`
+- Asset: `PicSee-0.2.91.dmg`
 
 ## Release 说明
 

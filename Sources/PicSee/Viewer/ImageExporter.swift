@@ -15,7 +15,7 @@ extension NSImage {
     }
 }
 
-enum ImageExportFormat: Equatable {
+enum ImageExportFormat: Equatable, Sendable {
     case jpeg(quality: CGFloat)
     case png
 
@@ -47,7 +47,7 @@ enum ImageExportFormat: Equatable {
     }
 }
 
-struct ImageExportOptions: Equatable {
+struct ImageExportOptions: Equatable, Sendable {
     let format: ImageExportFormat
     let pixelSize: CGSize?
 }
@@ -70,24 +70,26 @@ enum ImageExporterError: LocalizedError {
     }
 }
 
+/// Snapshot AppKit's image on the caller before crossing into background encoding.
+/// CGImage is immutable; LargeImageSource serializes access to its full-size cache.
+enum ImageExportSource: Sendable {
+    case bitmap(CGImage)
+    case large(LargeImageSource)
+
+    init(image: NSImage) throws {
+        if let large = image.largeImageSource {
+            self = .large(large)
+        } else if let pixels = image.fullResolutionCGImage {
+            self = .bitmap(pixels)
+        } else {
+            throw ImageExporterError.missingCGImage
+        }
+    }
+}
+
 enum ImageExporter {
     static func export(_ image: NSImage, to url: URL, options: ImageExportOptions) throws {
-        let source: CGImage
-        if let large = image.largeImageSource {
-            let size = options.pixelSize ?? large.pixelSize
-            _ = try ImageRenderBudget.dimensions(for: size)
-            let ratio = max(size.width / large.pixelSize.width, size.height / large.pixelSize.height)
-            let edge = Int(ceil(max(large.pixelSize.width, large.pixelSize.height) * min(1, ratio)))
-            guard let pixels = ratio < 1 ? large.thumbnail(edge: edge) : large.fullResolutionImage() else {
-                throw ImageExporterError.missingCGImage
-            }
-            source = pixels
-        } else {
-            guard let pixels = image.fullResolutionCGImage else { throw ImageExporterError.missingCGImage }
-            source = pixels
-        }
-
-        let outputImage = try renderedImage(from: source, format: options.format, pixelSize: options.pixelSize)
+        let outputImage = try outputImage(from: image, options: options)
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -105,6 +107,45 @@ enum ImageExporter {
         guard CGImageDestinationFinalize(destination) else {
             throw ImageExporterError.failedToFinalize
         }
+    }
+
+    /// Uses the same rendering and encoder settings as the saved file.
+    static func encodedSize(of image: NSImage, options: ImageExportOptions) throws -> Int {
+        try encodedSize(of: ImageExportSource(image: image), options: options)
+    }
+
+    static func encodedSize(of source: ImageExportSource, options: ImageExportOptions) throws -> Int {
+        let output = try outputImage(from: source, options: options)
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data, options.format.contentType.identifier as CFString, 1, nil
+        ) else { throw ImageExporterError.invalidDestination }
+        CGImageDestinationAddImage(destination, output, options.format.destinationProperties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { throw ImageExporterError.failedToFinalize }
+        return data.length
+    }
+
+    private static func outputImage(from image: NSImage, options: ImageExportOptions) throws -> CGImage {
+        try outputImage(from: ImageExportSource(image: image), options: options)
+    }
+
+    private static func outputImage(from input: ImageExportSource, options: ImageExportOptions) throws -> CGImage {
+        let source: CGImage
+        switch input {
+        case .large(let large):
+            let size = options.pixelSize ?? large.pixelSize
+            _ = try ImageRenderBudget.dimensions(for: size)
+            let ratio = max(size.width / large.pixelSize.width, size.height / large.pixelSize.height)
+            let edge = Int(ceil(max(large.pixelSize.width, large.pixelSize.height) * min(1, ratio)))
+            guard let pixels = ratio < 1 ? large.thumbnail(edge: edge) : large.fullResolutionImage() else {
+                throw ImageExporterError.missingCGImage
+            }
+            source = pixels
+        case .bitmap(let pixels):
+            source = pixels
+        }
+
+        return try renderedImage(from: source, format: options.format, pixelSize: options.pixelSize)
     }
 
     static func pixelSize(of image: NSImage) -> CGSize? {
@@ -168,5 +209,13 @@ enum ImageExporter {
             throw ImageExporterError.failedToRender
         }
         return output
+    }
+}
+
+/// Serializes full-resolution encodes so dragging cannot multiply peak memory use.
+actor ImageExportSizeCalculator {
+    func byteCount(for source: ImageExportSource, options: ImageExportOptions) throws -> Int {
+        try Task.checkCancellation()
+        return try autoreleasepool { try ImageExporter.encodedSize(of: source, options: options) }
     }
 }

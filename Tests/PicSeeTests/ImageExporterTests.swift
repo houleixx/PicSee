@@ -13,19 +13,22 @@ final class ImageExporterTests: XCTestCase {
     }
 
     @MainActor
-    func testAccessoryViewHidesJPEGQualityControlsForPNGWithoutCollapsingRow() {
+    func testAccessoryViewHidesJPEGQualityWithoutChangingLayoutForPNG() {
         let accessoryView = ImageExportAccessoryView(defaultPixelSize: CGSize(width: 100, height: 80))
 
         XCTAssertTrue(accessoryView.debugQualityControlsVisible)
+        XCTAssertFalse(accessoryView.debugQualityRowHidden)
 
         accessoryView.debugSelectPNG()
 
         XCTAssertFalse(accessoryView.debugQualityControlsVisible)
+        XCTAssertFalse(accessoryView.debugQualityRowHidden)
         XCTAssertEqual(accessoryView.exportOptions.format, .png)
 
         accessoryView.debugSelectJPEG()
 
         XCTAssertTrue(accessoryView.debugQualityControlsVisible)
+        XCTAssertFalse(accessoryView.debugQualityRowHidden)
     }
 
     @MainActor
@@ -42,7 +45,7 @@ final class ImageExporterTests: XCTestCase {
     func testAccessoryViewUsesRoomierNativeSpacing() {
         let accessoryView = ImageExportAccessoryView(defaultPixelSize: CGSize(width: 100, height: 80))
 
-        XCTAssertEqual(accessoryView.frame.size, CGSize(width: 460, height: 190))
+        XCTAssertEqual(accessoryView.frame.size, CGSize(width: 460, height: 222))
         XCTAssertEqual(accessoryView.debugGridRowSpacing, 10)
         XCTAssertEqual(accessoryView.debugGridColumnSpacing, 12)
         XCTAssertEqual(accessoryView.debugGridLeadingInset, 38)
@@ -54,7 +57,7 @@ final class ImageExporterTests: XCTestCase {
     func testAccessoryViewMatchesSavePanelLabelAndControlRhythm() {
         let accessoryView = ImageExportAccessoryView(defaultPixelSize: CGSize(width: 100, height: 80))
 
-        XCTAssertEqual(accessoryView.debugLabelTexts, [L10n.text("格式:"), L10n.text("尺寸模式:"), L10n.text("宽度:"), L10n.text("高度:"), L10n.text("JPEG 质量:")])
+        XCTAssertEqual(accessoryView.debugLabelTexts, [L10n.text("格式:"), L10n.text("尺寸模式:"), L10n.text("宽度:"), L10n.text("高度:"), L10n.text("JPEG 质量:"), L10n.text("预计大小:")])
         XCTAssertEqual(accessoryView.debugFormatPopupWidth, 150)
         XCTAssertEqual(accessoryView.debugResizeModePopupWidth, 150)
     }
@@ -123,6 +126,47 @@ final class ImageExporterTests: XCTestCase {
 
         let exported = try XCTUnwrap(NSImage(contentsOf: url))
         XCTAssertEqual(ImageExporter.pixelSize(of: exported), CGSize(width: 12, height: 8))
+    }
+
+    func testCalculatedSizeMatchesSavedFileForEachFormatAndSize() throws {
+        let image = try makeImage(size: NSSize(width: 80, height: 40), color: .red)
+        for format in [ImageExportFormat.jpeg(quality: 0.4), .jpeg(quality: 0.9), .png] {
+            for size in [CGSize?.none, CGSize(width: 20, height: 10)] {
+                let options = ImageExportOptions(format: format, pixelSize: size)
+                let url = temporaryURL(named: "size.\(format.pathExtension)")
+                defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+                try ImageExporter.export(image, to: url, options: options)
+                XCTAssertEqual(try ImageExporter.encodedSize(of: image, options: options), try Data(contentsOf: url).count)
+            }
+        }
+    }
+
+    @MainActor
+    func testSizePreviewUpdatesToLatestQualityDimensionsAndFormat() async throws {
+        let image = try makeImage(size: NSSize(width: 80, height: 40), color: .red)
+        let view = ImageExportAccessoryView(defaultPixelSize: CGSize(width: 80, height: 40), image: image)
+        defer { view.cancelSizeCalculation() }
+
+        for quality in [0.4, 1.0] {
+            view.debugSetQuality(quality)
+            XCTAssertEqual(view.exportOptions.format, .jpeg(quality: quality))
+            try await waitForSizePreview(view, image: image)
+        }
+        view.debugSetWidth(40)
+        view.debugSetHeight(20)
+        view.debugSelectPNG()
+        try await waitForSizePreview(view, image: image)
+    }
+
+    @MainActor
+    private func waitForSizePreview(_ view: ImageExportAccessoryView, image: NSImage) async throws {
+        let count = try ImageExporter.encodedSize(of: image, options: view.exportOptions)
+        let expected = ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .file)
+        for _ in 0..<100 {
+            if view.debugEstimatedSizeText == expected { return }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertEqual(view.debugEstimatedSizeText, expected)
     }
 
     private func makeImage(size: NSSize, color: NSColor) throws -> NSImage {

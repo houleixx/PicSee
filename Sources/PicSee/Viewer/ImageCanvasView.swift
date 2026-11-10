@@ -258,6 +258,11 @@ final class ImageExportAccessoryView: NSView {
     private let heightField = NSTextField()
     private let qualitySlider = NSSlider(value: 0.9, minValue: 0.4, maxValue: 1.0, target: nil, action: nil)
     private let defaultPixelSize: CGSize?
+    private let exportImage: NSImage?
+    private let fileSizeField = NSTextField(labelWithString: "—")
+    private let sizeCalculator = ImageExportSizeCalculator()
+    private var sizeTask: Task<Void, Never>?
+    private var sizeRevision = 0
     private var labels: [NSTextField] = []
     private var qualityLabel: NSTextField?
     private var gridView: NSGridView?
@@ -266,9 +271,14 @@ final class ImageExportAccessoryView: NSView {
     private var pixelInputStacks: [NSStackView] = []
     var onFormatChanged: ((ImageExportFormat) -> Void)?
 
-    init(defaultPixelSize: CGSize?) {
+    init(defaultPixelSize: CGSize?, image: NSImage? = nil) {
+        self.exportImage = image
         self.defaultPixelSize = defaultPixelSize
-        super.init(frame: NSRect(x: 0, y: 0, width: 460, height: 190))
+        super.init(frame: NSRect(x: 0, y: 0, width: 460, height: 222))
+        qualitySlider.target = self
+        qualitySlider.action = #selector(qualityChanged(_:))
+        qualitySlider.isContinuous = true
+        fileSizeField.textColor = .secondaryLabelColor
         formatPopup.addItems(withTitles: ["JPEG", "PNG"])
         formatPopup.target = self
         formatPopup.action = #selector(formatChanged(_:))
@@ -289,7 +299,7 @@ final class ImageExportAccessoryView: NSView {
             heightField.stringValue = "\(Int(defaultPixelSize.height.rounded()))"
         }
 
-        let labels = [L10n.text("格式:"), L10n.text("尺寸模式:"), L10n.text("宽度:"), L10n.text("高度:"), L10n.text("JPEG 质量:")].map(Self.label)
+        let labels = [L10n.text("格式:"), L10n.text("尺寸模式:"), L10n.text("宽度:"), L10n.text("高度:"), L10n.text("JPEG 质量:"), L10n.text("预计大小:")].map(Self.label)
         self.labels = labels
         let widthInput = Self.pixelInput(field: widthField)
         let heightInput = Self.pixelInput(field: heightField)
@@ -300,6 +310,7 @@ final class ImageExportAccessoryView: NSView {
             [labels[1], resizeModePopup],
             [labels[2], widthInput],
             [labels[3], heightInput],
+            [labels[5], fileSizeField],
             [labels[4], qualitySlider]
         ])
         grid.translatesAutoresizingMaskIntoConstraints = false
@@ -325,6 +336,7 @@ final class ImageExportAccessoryView: NSView {
         ] + labels.map { $0.widthAnchor.constraint(equalToConstant: Self.labelColumnWidth) })
         updateFormatControls()
         updateResizeControls()
+        scheduleSizeCalculation()
         LanguageSettings.bind(self) { accessory in
             for (item, title) in zip(accessory.resizeModePopup.itemArray,
                                     [L10n.text("固定尺寸"), L10n.text("按宽等比"), L10n.text("按高等比")]) {
@@ -332,7 +344,7 @@ final class ImageExportAccessoryView: NSView {
             }
             accessory.widthField.placeholderString = L10n.text("宽")
             accessory.heightField.placeholderString = L10n.text("高")
-            for (label, text) in zip(accessory.labels, [L10n.text("格式:"), L10n.text("尺寸模式:"), L10n.text("宽度:"), L10n.text("高度:"), L10n.text("JPEG 质量:")]) {
+            for (label, text) in zip(accessory.labels, [L10n.text("格式:"), L10n.text("尺寸模式:"), L10n.text("宽度:"), L10n.text("高度:"), L10n.text("JPEG 质量:"), L10n.text("预计大小:")]) {
                 label.stringValue = text
             }
         }
@@ -353,15 +365,54 @@ final class ImageExportAccessoryView: NSView {
     @objc private func formatChanged(_ sender: Any?) {
         updateFormatControls()
         onFormatChanged?(selectedFormat)
+        scheduleSizeCalculation()
     }
 
     @objc private func resizeModeChanged(_ sender: Any?) {
         updateResizeControls()
         updateProportionalSize(changedField: nil)
+        scheduleSizeCalculation()
     }
 
     @objc private func sizeFieldChanged(_ sender: Any?) {
         updateProportionalSize(changedField: sender as? NSTextField)
+        scheduleSizeCalculation()
+    }
+
+    @objc private func qualityChanged(_ sender: Any?) {
+        scheduleSizeCalculation()
+    }
+
+    private func scheduleSizeCalculation() {
+        sizeRevision += 1
+        guard let exportImage else { return }
+        fileSizeField.stringValue = L10n.text("计算中…")
+        // Coalesce changes while an encode is running, but keep updating during a drag.
+        guard sizeTask == nil else { return }
+        let calculator = sizeCalculator
+        sizeTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(100)) }
+                catch { return }
+                guard let revision = self?.sizeRevision, let options = self?.exportOptions else { return }
+                let count = try? await calculator.byteCount(for: exportImage, options: options)
+                guard !Task.isCancelled, let self else { return }
+                guard self.sizeRevision == revision else { continue }
+                if let count {
+                    self.fileSizeField.stringValue = ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .file)
+                } else {
+                    self.fileSizeField.stringValue = L10n.text("无法计算")
+                }
+                self.sizeTask = nil
+                return
+            }
+        }
+    }
+
+    func cancelSizeCalculation() {
+        sizeTask?.cancel()
+        sizeTask = nil
+        sizeRevision += 1
     }
 
     private func updateFormatControls() {
@@ -372,6 +423,8 @@ final class ImageExportAccessoryView: NSView {
             showQualityControls = true
         }
 
+        // Preserve the grid geometry: hiding an NSGridRow makes NSSavePanel
+        // relayout and can shift the accessory horizontally when switching formats.
         qualityLabel?.alphaValue = showQualityControls ? 1 : 0
         qualitySlider.alphaValue = showQualityControls ? 1 : 0
         qualitySlider.isEnabled = showQualityControls
@@ -448,6 +501,15 @@ final class ImageExportAccessoryView: NSView {
     }
 
     #if DEBUG
+    var debugQualityRowHidden: Bool { gridView?.row(at: 5).isHidden ?? false }
+
+    var debugEstimatedSizeText: String { fileSizeField.stringValue }
+
+    func debugSetQuality(_ quality: Double) {
+        qualitySlider.doubleValue = quality
+        qualityChanged(nil)
+    }
+
     var debugQualityControlsVisible: Bool {
         qualityLabel?.alphaValue == 1 && qualitySlider.alphaValue == 1 && qualitySlider.isEnabled
     }
@@ -1753,7 +1815,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         guard let image else { return }
 
         let panel = NSSavePanel()
-        let accessoryView = ImageExportAccessoryView(defaultPixelSize: ImageExporter.pixelSize(of: image))
+        let accessoryView = ImageExportAccessoryView(defaultPixelSize: ImageExporter.pixelSize(of: image), image: image)
         LanguageSettings.bind(panel) {
             $0.title = L10n.text("图片另存为")
             $0.prompt = L10n.text("保存")
@@ -1770,6 +1832,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         }
 
         panel.begin { [weak self, weak accessoryView] response in
+            accessoryView?.cancelSizeCalculation()
             guard response == .OK, let url = panel.url, let accessoryView else { return }
             let options = accessoryView.exportOptions
             let destinationURL = Self.destinationURL(url, for: options.format)

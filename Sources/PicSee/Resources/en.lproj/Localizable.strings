@@ -340,3 +340,7 @@
 "开" = "On";
 
 "关" = "Off";
+
+"预计大小:" = "Estimated size:";
+"计算中…" = "Calculating…";
+"无法计算" = "Unavailable";

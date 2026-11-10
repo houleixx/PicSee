@@ -258,7 +258,7 @@ final class ImageExportAccessoryView: NSView {
     private let heightField = NSTextField()
     private let qualitySlider = NSSlider(value: 0.9, minValue: 0.4, maxValue: 1.0, target: nil, action: nil)
     private let defaultPixelSize: CGSize?
-    private let exportImage: NSImage?
+    private let exportSource: ImageExportSource?
     private let fileSizeField = NSTextField(labelWithString: "—")
     private let sizeCalculator = ImageExportSizeCalculator()
     private var sizeTask: Task<Void, Never>?
@@ -272,7 +272,7 @@ final class ImageExportAccessoryView: NSView {
     var onFormatChanged: ((ImageExportFormat) -> Void)?
 
     init(defaultPixelSize: CGSize?, image: NSImage? = nil) {
-        self.exportImage = image
+        self.exportSource = image.flatMap { try? ImageExportSource(image: $0) }
         self.defaultPixelSize = defaultPixelSize
         super.init(frame: NSRect(x: 0, y: 0, width: 460, height: 222))
         qualitySlider.target = self
@@ -385,7 +385,7 @@ final class ImageExportAccessoryView: NSView {
 
     private func scheduleSizeCalculation() {
         sizeRevision += 1
-        guard let exportImage else { return }
+        guard let exportSource else { return }
         fileSizeField.stringValue = L10n.text("计算中…")
         // Coalesce changes while an encode is running, but keep updating during a drag.
         guard sizeTask == nil else { return }
@@ -395,7 +395,7 @@ final class ImageExportAccessoryView: NSView {
                 do { try await Task.sleep(for: .milliseconds(100)) }
                 catch { return }
                 guard let revision = self?.sizeRevision, let options = self?.exportOptions else { return }
-                let count = try? await calculator.byteCount(for: exportImage, options: options)
+                let count = try? await calculator.byteCount(for: exportSource, options: options)
                 guard !Task.isCancelled, let self else { return }
                 guard self.sizeRevision == revision else { continue }
                 if let count {

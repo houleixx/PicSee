@@ -30,6 +30,14 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 
 按 `⌘P` 或右键选择“打印…”，打开 macOS 系统打印面板，可选择打印机、纸张、方向与份数，也可存储为 PDF。“预览”分组提供自动旋转、缩放百分比、缩放以适合（打印整个图像 / 填满纸张）与每页份数（1–16）。默认使用四边各 12 点（约 4.2 毫米）的对称纸张留白作为边界，按整张纸居中，自动选择更适合纸张的图片方向，等比适应一页并居中；关闭自动旋转后保留查看时的旋转方向。指定比例按图片实际尺寸（包含像素密度）计算，超出可打印区域的部分裁切；填满纸张会等比放大并裁切超出部分。每页份数将同一图片重复排在一张纸上，与系统的打印份数和“布局 → 每张页数”独立。修改设置实时更新系统预览；缩放百分比在输入有效数值时立即生效，无需回车。存储为 PDF 使用相同排版。打印使用原图像素，不包含工具栏、文字选框或屏幕缩放效果。动态图打印静态图像。截图编辑、文字输入及弹窗期间不触发打印快捷键；打印会暂停幻灯片。超过现有位图内存预算的图片会提示错误。
 
+### 图片另存为
+
+右键选择“图片另存为…”，可导出为 JPEG 或 PNG，并选择固定尺寸、按宽等比或按高等比调整像素尺寸。JPEG 质量滑块支持 40%～100%，默认 90%。
+
+高度输入框下方的“预计大小”会随质量、宽高、尺寸模式和格式自动更新。计算使用与实际保存相同的渲染和编码参数，在后台执行；计算期间显示“计算中…”，失败时显示“无法计算”。大图或 PNG 可能需要更长时间，快速调整时仅显示最新设置的结果。
+
+“预计大小”位于质量滑块上方；切换 PNG 时隐藏底部 JPEG 质量控件并保留占位，保持选项位置和面板布局稳定。
+
 ### 长按移动窗口
 
 普通窗口看图时，在图片或内容留白处按住鼠标左键约 0.6 秒，期间移动不超过 4 点，指针变为四向箭头后即可拖动窗口，松开恢复原指针。提前开始拖动时继续使用图片平移、OCR 选字或拖出窗口保存；工具栏按钮、弹窗、裁剪与标注编辑及全屏期间不触发长按移窗。双击、无标题栏顶部拖窗和角落缩放继续沿用原有操作。
@@ -158,7 +166,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.91 PICSEE_BUILD_NUMBER=91 Scripts/build-app.sh
+PICSEE_VERSION=0.2.92 PICSEE_BUILD_NUMBER=92 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -175,15 +183,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.91.dmg`
+- DMG: `build/dmg/PicSee-0.2.92.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.91 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.92 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.91.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.92.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -317,14 +325,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.91
-git push origin v0.2.91
+git tag v0.2.92
+git push origin v0.2.92
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.91`
-- Asset: `PicSee-0.2.91.dmg`
+- Release: `v0.2.92`
+- Asset: `PicSee-0.2.92.dmg`
 
 ## Release 说明
 

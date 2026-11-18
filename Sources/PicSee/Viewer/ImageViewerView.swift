@@ -163,20 +163,23 @@ struct ImageViewerView: View {
                         .allowsHitTesting(false)
                     }
                 }
-                .overlay(alignment: .bottomLeading) {
-                    if let updateChecker, !viewModel.slideshow.isActive {
-                        UpdatePromptView(updateChecker: updateChecker,
-                                         isCheckingFromMenu: isCheckingForUpdatesFromMenu)
-                            .padding(.horizontal, hudPadding)
-                            .padding(.bottom, hudPadding + ViewerToolbarMetrics.viewerButtonHeight
-                                     + 2 * ViewerToolbarMetrics.viewerVerticalPadding + 12)
-                    }
-                }
-                .overlay(alignment: .bottom) {
-                    if screenshotDocument == nil {
-                        viewerControls
-                            .padding(.bottom, hudPadding)
-                            .transition(.opacity)
+                .overlay {
+                    ViewerBottomControlsLayout(inset: hudPadding) {
+                        ZStack {
+                            if let updateChecker, !viewModel.slideshow.isActive {
+                                UpdatePromptView(
+                                    updateChecker: updateChecker,
+                                    isCheckingFromMenu: isCheckingForUpdatesFromMenu
+                                )
+                            }
+                        }
+
+                        ZStack {
+                            if screenshotDocument == nil {
+                                viewerControls
+                                    .transition(.opacity)
+                            }
+                        }
                     }
                 }
                 .overlay(alignment: .trailing) {
@@ -725,6 +728,37 @@ enum PicSeeResourceBundle {
     }
 }
 
+private struct ViewerBottomControlsLayout: Layout {
+    let inset: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let prompt = subviews[0]
+        let toolbar = subviews[1]
+        let toolbarProposal = ProposedViewSize(width: bounds.width, height: nil)
+        let toolbarSize = toolbar.sizeThatFits(toolbarProposal)
+        let toolbarLeading = bounds.midX - toolbarSize.width / 2
+        let bottom = bounds.maxY - inset
+        toolbar.place(at: CGPoint(x: bounds.midX, y: bottom), anchor: .bottom, proposal: toolbarProposal)
+
+        let promptProposal = ProposedViewSize(width: max(0, bounds.width - 2 * inset), height: nil)
+        let promptSize = prompt.sizeThatFits(promptProposal)
+        let promptLeading = bounds.minX + inset
+        let promptBottom: CGFloat
+        if toolbarSize.height == 0 {
+            promptBottom = bottom
+        } else if promptLeading + promptSize.width > toolbarLeading {
+            promptBottom = bottom - toolbarSize.height - inset
+        } else {
+            promptBottom = bottom - (toolbarSize.height - promptSize.height) / 2
+        }
+        prompt.place(at: CGPoint(x: promptLeading, y: promptBottom), anchor: .bottomLeading, proposal: promptProposal)
+    }
+}
+
 private struct UpdatePromptView: View {
     @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var updateChecker: UpdateChecker
@@ -756,7 +790,7 @@ private struct UpdatePromptView: View {
                 // Keep the popover anchored as the capsule text changes width.
                 Color.clear
                     .frame(width: 32)
-                    .popover(isPresented: $detailsVisible, arrowEdge: .bottom) {
+                    .popover(isPresented: $detailsVisible, arrowEdge: .top) {
                         details(for: update)
                     }
             }

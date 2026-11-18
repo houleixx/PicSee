@@ -166,7 +166,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.92 PICSEE_BUILD_NUMBER=92 Scripts/build-app.sh
+PICSEE_VERSION=0.2.93 PICSEE_BUILD_NUMBER=93 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -183,15 +183,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.92.dmg`
+- DMG: `build/dmg/PicSee-0.2.93.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.92 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.93 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.92.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.93.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -325,14 +325,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.92
-git push origin v0.2.92
+git tag v0.2.93
+git push origin v0.2.93
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.92`
-- Asset: `PicSee-0.2.92.dmg`
+- Release: `v0.2.93`
+- Asset: `PicSee-0.2.93.dmg`
 
 ## Release 说明
 

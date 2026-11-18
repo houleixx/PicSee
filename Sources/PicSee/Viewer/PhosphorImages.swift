@@ -12,6 +12,7 @@ enum PhosphorImages {
         "stop": "stop",
         "slider.horizontal.3": "sliders-horizontal",
         "macwindow": "app-window",
+        "square.grid.2x2": "squares-four",
         "pin": "push-pin",
         "lock": "lock-simple",
         "circle.lefthalf.filled": "circle-half",

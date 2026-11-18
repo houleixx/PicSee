@@ -818,6 +818,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private enum DragType {
         case none
         case window
+        case longPressWindow(pendingMouseDown: NSEvent?)
         case pan
         case textSelection
         case resize(WindowResizeAnchor)
@@ -868,9 +869,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         didSet { if !windowLongPressEnabled { resetMouseDrag() } }
     }
     private var windowLongPressTimer: Timer?
-    private var windowLongPressStart: CGPoint?
-    private var isLongPressMovingWindow = false
-    private var hasStartedLongPressWindowDrag = false
+    private var windowLongPressCandidate: (screenPoint: CGPoint, mouseDown: NSEvent)?
+    private var isLongPressMovingWindow: Bool {
+        if case .longPressWindow = dragType { return true }
+        return false
+    }
     private var windowMoveCursorTimer: Timer?
     private var windowLongPressMonitor: Any?
 
@@ -1105,7 +1108,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
               hit !== minimapView, !hit.isDescendant(of: minimapView),
               !liveTextOverlay.hasSupplementaryInterface(at: liveTextOverlay.convert(event.locationInWindow, from: nil))
         else { return }
-        windowLongPressStart = window.convertPoint(toScreen: event.locationInWindow)
+        windowLongPressCandidate = (window.convertPoint(toScreen: event.locationInWindow), event)
         let timer = Timer(timeInterval: WindowLongPress.duration, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, let window = self.window else { return }
@@ -1119,7 +1122,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func updateWindowLongPressMovement(with event: NSEvent) {
-        guard let start = windowLongPressStart, let window else { return }
+        guard let start = windowLongPressCandidate?.screenPoint, let window else { return }
         let point = window.convertPoint(toScreen: event.locationInWindow)
         if hypot(point.x - start.x, point.y - start.y) > WindowLongPress.movementTolerance {
             cancelWindowLongPressCandidate()
@@ -1127,7 +1130,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func activateWindowLongPress(at point: CGPoint, leftButtonDown: Bool, window: NSWindow) {
-        guard let start = windowLongPressStart else { return }
+        guard let candidate = windowLongPressCandidate else { return }
+        let start = candidate.screenPoint
         let shouldActivate = leftButtonDown && windowLongPressEnabled && window.attachedSheet == nil
             && !window.styleMask.contains(.fullScreen)
             && hypot(point.x - start.x, point.y - start.y) <= WindowLongPress.movementTolerance
@@ -1138,8 +1142,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         selectionFocusLocation = nil
         liveTextOverlay.resetSelection()
         clearTextSelection()
-        dragType = .window
-        isLongPressMovingWindow = true
+        dragType = .longPressWindow(pendingMouseDown: candidate.mouseDown)
         Self.windowMoveCursor.set()
         // performDrag returns immediately and may consume mouse-up. Poll the actual
         // button state so the cursor stays active until release in either case.
@@ -1164,7 +1167,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private func cancelWindowLongPressCandidate() {
         windowLongPressTimer?.invalidate()
         windowLongPressTimer = nil
-        windowLongPressStart = nil
+        windowLongPressCandidate = nil
     }
 
     /// Intercept before Live Text or a child image view opens its context menu.
@@ -1557,14 +1560,13 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         case .none, .fileExport:
             break
         case .window:
-            if isLongPressMovingWindow {
-                guard !hasStartedLongPressWindowDrag else { return }
-                hasStartedLongPressWindowDrag = true
-                window?.performDrag(with: event)
-                Self.windowMoveCursor.set()
-            } else {
-                window?.performDrag(with: event)
-            }
+            window?.performDrag(with: event)
+        case .longPressWindow(let pendingMouseDown):
+            guard let pendingMouseDown, let window else { return }
+            // AppKit uses the original mouse-down event to hand off the drag.
+            dragType = .longPressWindow(pendingMouseDown: nil)
+            window.performDrag(with: pendingMouseDown)
+            if isLongPressMovingWindow { Self.windowMoveCursor.set() }
         case .pan:
             guard let dragStartPoint else { return }
             alignsImageToTop = false
@@ -1609,7 +1611,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     }
 
     private func cancelImageDragCandidate() {
-        guard fileDragStartScreenPoint != nil || windowLongPressStart != nil || isLongPressMovingWindow else { return }
+        guard fileDragStartScreenPoint != nil || windowLongPressCandidate != nil || isLongPressMovingWindow else { return }
         resetMouseDrag()
     }
 
@@ -1617,8 +1619,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         cancelWindowLongPressCandidate()
         windowMoveCursorTimer?.invalidate()
         windowMoveCursorTimer = nil
-        isLongPressMovingWindow = false
-        hasStartedLongPressWindowDrag = false
         fileDragStartScreenPoint = nil
         dragType = .none
         dragStartPoint = nil
@@ -2951,7 +2951,7 @@ extension CanvasNSView {
     func debugUpdateWindowMoveCursor(leftButtonDown: Bool) { updateWindowMoveCursor(leftButtonDown: leftButtonDown) }
     var debugWindowMoveCursor: NSCursor { Self.windowMoveCursor }
     var debugIsLongPressMovingWindow: Bool { isLongPressMovingWindow }
-    var debugHasWindowLongPressCandidate: Bool { windowLongPressStart != nil }
+    var debugHasWindowLongPressCandidate: Bool { windowLongPressCandidate != nil }
     func debugFireWindowLongPress(at point: CGPoint) {
         guard let window else { return }
         activateWindowLongPress(at: window.convertPoint(toScreen: point), leftButtonDown: true, window: window)

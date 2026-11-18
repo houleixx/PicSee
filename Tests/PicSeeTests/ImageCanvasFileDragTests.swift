@@ -179,9 +179,11 @@ final class ImageCanvasFileDragTests: XCTestCase {
 
     func testWindowMoveCursorPersistsAfterNativeDragReturnsUntilRelease() throws {
         canvas.zoomScale = 2
-        try down(200, 150)
+        let mouseDown = try event(.leftMouseDown, 200, 150)
+        canvas.mouseDown(with: mouseDown)
         canvas.debugFireWindowLongPress(at: CGPoint(x: 200, y: 150))
         try drag(220, 150)
+        XCTAssertTrue(window.lastWindowDragEvent === mouseDown, "AppKit requires the original mouse-down event")
         XCTAssertTrue(canvas.debugIsLongPressMovingWindow)
         XCTAssertEqual(NSCursor.current, canvas.debugWindowMoveCursor)
         canvas.cursorUpdate(with: try event(.leftMouseDragged, 220, 150))
@@ -191,6 +193,14 @@ final class ImageCanvasFileDragTests: XCTestCase {
         try up(240, 150)
         XCTAssertFalse(canvas.debugIsLongPressMovingWindow)
         XCTAssertNotEqual(NSCursor.current, canvas.debugWindowMoveCursor)
+
+        let nextMouseDown = try event(.leftMouseDown, 205, 150)
+        canvas.mouseDown(with: nextMouseDown)
+        canvas.debugFireWindowLongPress(at: CGPoint(x: 205, y: 150))
+        try drag(225, 150)
+        XCTAssertEqual(window.moveCount, 2)
+        XCTAssertTrue(window.lastWindowDragEvent === nextMouseDown)
+        try up(225, 150)
     }
 
     func testMissingNativeMouseUpRestoresCursorWhenPhysicalButtonIsReleased() throws {
@@ -339,5 +349,10 @@ final class ImageCanvasFileDragTests: XCTestCase {
 @MainActor
 private final class FileDragTestWindow: NSWindow {
     var moveCount = 0
-    override func performDrag(with event: NSEvent) { moveCount += 1 }
+    var lastWindowDragEvent: NSEvent?
+
+    override func performDrag(with event: NSEvent) {
+        moveCount += 1
+        lastWindowDragEvent = event
+    }
 }

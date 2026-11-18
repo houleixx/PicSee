@@ -157,6 +157,7 @@ final class WindowManager {
 
     let updateChecker: UpdateChecker?
     private var updateRestoreObserver: AnyCancellable?
+    private var updateViewerRestoreURL: URL?
     private(set) var currentWindow: NSWindow?
     private(set) var currentViewModel: ImageViewerViewModel?
     private var pendingOpenURL: URL?
@@ -238,12 +239,19 @@ final class WindowManager {
     func restoreUpdateViewer(_ state: UpdateSession.Viewer, completion: @escaping @MainActor () -> Void = {}) {
         openViewer(for: state.url, presentsWindow: false)
         guard let window = currentWindow, let model = currentViewModel else { return }
-        automaticSizingPausedByUser = true
+        let restoreURL = state.url.standardizedFileURL
+        updateViewerRestoreURL = restoreURL
         initialImageObserver = nil
         window.setFrame(state.frame, display: true)
         let restore: @MainActor @Sendable () -> Void = { [weak self, weak window, weak model] in
             guard let self, let window, let model, self.currentWindow === window,
-                  model.currentURL == state.url else { return }
+                  self.updateViewerRestoreURL == restoreURL else { return }
+            defer {
+                self.updateViewerRestoreURL = nil
+                self.updateRestoreObserver = nil
+                completion()
+            }
+            guard model.currentURL == restoreURL else { return }
             window.setFrame(state.frame, display: true)
             model.zoomScale = state.zoom
             model.panOffset = state.pan
@@ -252,8 +260,6 @@ final class WindowManager {
             else if state.desktopFullScreen { (window as? ViewerWindow)?.toggleTemporaryDesktopFullScreen() }
             window.makeKeyAndOrderFront(nil)
             if state.minimized { window.miniaturize(nil) }
-            self.updateRestoreObserver = nil
-            completion()
         }
         if model.image != nil {
             DispatchQueue.main.async(execute: restore)
@@ -442,9 +448,11 @@ final class WindowManager {
                 }
             }
         automaticImageObserver = viewModel.$image.compactMap { $0 }
-            .sink { [weak self, weak window] image in
+            .sink { [weak self, weak window, weak viewModel] image in
                 let shouldAnimate = self?.hasPresentedInitialImage == true
                 self?.hasPresentedInitialImage = true
+                // The queued restore can finish before the background image's resize runs.
+                if let restoreURL = self?.updateViewerRestoreURL, viewModel?.currentURL == restoreURL { return }
                 DispatchQueue.main.async { [weak self, weak window] in
                     guard let self, let window, self.currentWindow === window else { return }
                     self.resizeWindowToImage(image, in: window, animate: shouldAnimate)
@@ -499,6 +507,7 @@ final class WindowManager {
             },
             onUserFrameChanged: { [weak self, weak window] in
                 guard let self, let window, !self.isApplyingAutomaticFrame,
+                      self.updateViewerRestoreURL == nil,
                       !window.isNativeFullScreenTransitionActive,
                       self.currentViewModel?.slideshow.isFullScreenTransitioning != true,
                       !window.styleMask.contains(.fullScreen),
@@ -508,6 +517,7 @@ final class WindowManager {
             },
             onWindowResized: { [weak self, weak window] in
                 guard let self, let window, !self.isApplyingAutomaticFrame,
+                      self.updateViewerRestoreURL == nil,
                       !window.isNativeFullScreenTransitionActive,
                       self.currentViewModel?.slideshow.isFullScreenTransitioning != true,
                       NSApp.currentEvent?.type == .leftMouseDragged,
@@ -518,6 +528,7 @@ final class WindowManager {
             },
             onWindowMoved: { [weak self, weak window] in
                 guard let self, let window, !self.isApplyingAutomaticFrame,
+                      self.updateViewerRestoreURL == nil,
                       !window.isNativeFullScreenTransitionActive,
                       self.currentViewModel?.slideshow.isFullScreenTransitioning != true,
                       !window.styleMask.contains(.fullScreen),
@@ -531,6 +542,7 @@ final class WindowManager {
                     self.saveWindowFrame(window)
                 }
                 self?.updateRestoreObserver = nil
+                self?.updateViewerRestoreURL = nil
                 self?.initialImageObserver = nil
                 self?.initialImageFailureObserver = nil
                 self?.automaticImageObserver = nil
@@ -597,6 +609,7 @@ final class WindowManager {
     private func resizeWindowToImage(_ image: NSImage, in window: NSWindow, animate: Bool = true) {
         guard AutomaticWindowSizePreference.isEnabled(),
               !WindowFramePreference.isFixedEnabled(), !automaticSizingPausedByUser,
+              updateViewerRestoreURL == nil,
               (window as? ViewerWindow)?.isNativeFullScreenTransitionActive != true,
               !window.styleMask.contains(.fullScreen), window.attachedSheet == nil,
               (window as? ViewerWindow)?.isTemporaryDesktopFullScreenActive != true,

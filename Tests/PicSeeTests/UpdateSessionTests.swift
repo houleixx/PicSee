@@ -69,22 +69,54 @@ final class UpdateSessionTests: XCTestCase {
 
     private func verifyViewerRestoration(loadingMode: ImageLoadingMode) async throws {
         _ = NSApplication.shared
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("picsee-restore-\(UUID()).png")
-        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 100, pixelsHigh: 100,
-            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
-        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
-        defer { try? FileManager.default.removeItem(at: url) }
-        let manager = WindowManager(updateChecker: nil, loadingMode: loadingMode)
-        let state = UpdateSession.Viewer(url: url.standardizedFileURL,
+        let defaults = UserDefaults.standard
+        let preferences: [String: Any] = [
+            AutomaticWindowSizePreference.defaultsKey: true,
+            AutomaticWindowResizeAnimationPreference.defaultsKey: false,
+            "PicSee.FixedWindowFrameEnabled": false,
+            ImageDisplayPreference.defaultsKey: ImageDisplayMode.fitWindow.rawValue
+        ]
+        let savedPreferences = (Array(preferences.keys) + [WindowFramePreference.defaultsKey])
+            .map { ($0, defaults.object(forKey: $0)) }
+        defer {
+            for (key, value) in savedPreferences { defaults.set(value, forKey: key) }
+            ViewerPreferences.shared.reload()
+        }
+        for (key, value) in preferences { defaults.set(value, forKey: key) }
+        ViewerPreferences.shared.reload()
+
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("picsee-restore-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func writePNG(_ name: String, width: Int, height: Int) throws -> URL {
+            let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height,
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+            let url = folder.appendingPathComponent(name).standardizedFileURL
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
+            return url
+        }
+        let first = try writePNG("01.png", width: 100, height: 100)
+        let second = try writePNG("02.png", width: 1600, height: 1000)
+        let manager = WindowManager(updateChecker: nil, finderOrderProvider: FilenameFolderOrderProvider(),
+            loadingMode: loadingMode, screenGeometryOverride: (CGRect(x: 0, y: 0, width: 1440, height: 900), 2))
+        let state = UpdateSession.Viewer(url: first,
             frame: CGRect(x: 100, y: 100, width: 640, height: 480), zoom: 2,
             pan: CGSize(width: 10, height: 20), rotation: 90,
             fullScreen: false, desktopFullScreen: false, minimized: false)
         let restored = expectation(description: "Viewer restored")
-        manager.restoreUpdateViewer(state) { restored.fulfill() }
+        manager.restoreUpdateViewer(state) { DispatchQueue.main.async { restored.fulfill() } }
         defer { manager.currentWindow?.close() }
         await fulfillment(of: [restored], timeout: 3)
         XCTAssertEqual(manager.captureUpdateViewer(), state)
+        let window = try XCTUnwrap(manager.currentWindow)
+        let model = try XCTUnwrap(manager.currentViewModel)
+        model.navigate(to: second)
+        for _ in 0..<100 where window.frame.width != 800 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(model.currentURL, second)
+        XCTAssertEqual(window.frame.width, 800, accuracy: 0.5)
         manager.currentWindow?.close()
         XCTAssertNil(manager.captureUpdateViewer())
     }

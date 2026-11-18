@@ -165,17 +165,11 @@ struct ImageViewerView: View {
                 }
                 .overlay(alignment: .bottomLeading) {
                     if let updateChecker, !viewModel.slideshow.isActive {
-                        GeometryReader { geometry in
-                            VStack {
-                                Spacer()
-                                UpdatePromptView(updateChecker: updateChecker,
-                                                 compact: geometry.size.width < 950,
-                                                 isCheckingFromMenu: isCheckingForUpdatesFromMenu)
-                                    .padding(.bottom, geometry.size.width < 950 ? 62 : hudPadding)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, hudPadding)
-                        }
+                        UpdatePromptView(updateChecker: updateChecker,
+                                         isCheckingFromMenu: isCheckingForUpdatesFromMenu)
+                            .padding(.horizontal, hudPadding)
+                            .padding(.bottom, hudPadding + ViewerToolbarMetrics.viewerButtonHeight
+                                     + 2 * ViewerToolbarMetrics.viewerVerticalPadding + 12)
                     }
                 }
                 .overlay(alignment: .bottom) {
@@ -734,9 +728,9 @@ enum PicSeeResourceBundle {
 private struct UpdatePromptView: View {
     @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var updateChecker: UpdateChecker
-    let compact: Bool
     let isCheckingFromMenu: Bool
     @State private var detailsVisible = false
+    private let detailWidth: CGFloat = 240
 
     @ViewBuilder
     var body: some View {
@@ -745,98 +739,108 @@ private struct UpdatePromptView: View {
                 ProgressView()
                     .controlSize(.small)
                     .colorScheme(.dark)
-                if !compact {
-                    Text(L10n.text("正在检查更新…"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white)
-                }
+                Text(L10n.text("正在检查更新…"))
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(.black.opacity(0.6), in: Capsule())
-            .help(L10n.text("正在检查更新…"))
+            .modifier(UpdateCapsuleStyle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(L10n.text("正在检查更新…"))
         } else if let update = updateChecker.availableUpdate, updateChecker.status != .downloaded {
-            if compact {
-                Button(updateChecker.status == .downloading ? L10n.text("下载中...") : L10n.text("发现更新")) {
-                    detailsVisible = true
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(.black.opacity(0.6), in: Capsule())
-                .popover(isPresented: $detailsVisible, arrowEdge: .bottom) {
-                    prompt(for: update)
-                        .padding(8)
-                }
-            } else {
-                prompt(for: update)
+            Button {
+                detailsVisible = true
+            } label: {
+                Text(capsuleTitle)
+                    .modifier(UpdateCapsuleStyle())
             }
+            .buttonStyle(.plain)
+            .background(alignment: .leading) {
+                // Keep the popover anchored as the capsule text changes width.
+                Color.clear
+                    .frame(width: 32)
+                    .popover(isPresented: $detailsVisible, arrowEdge: .bottom) {
+                        details(for: update)
+                    }
+            }
+            .onDisappear { detailsVisible = false }
         }
     }
 
-    private func prompt(for update: GitHubRelease) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(message(for: update))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white)
-
-                Button(action: {
-                    Task { await updateChecker.downloadAvailableUpdate() }
-                }) {
-                    Text(updateButtonTitle)
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
-                .disabled(updateChecker.status == .downloading)
-
-                Button(action: updateChecker.ignoreAvailableUpdate) {
-                    Text(L10n.text("忽略"))
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.78))
-                .disabled(updateChecker.status == .downloading)
-            }
-
+    private func details(for update: GitHubRelease) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             if updateChecker.status == .downloading {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(L10n.text("正在下载更新…"))
+                    Spacer(minLength: 0)
+                    Text(downloadPercentage)
+                        .monospacedDigit()
+                        .fixedSize()
+                        .accessibilityHidden(true)
+                }
                 ProgressView(value: updateChecker.downloadProgress ?? 0)
                     .progressViewStyle(.linear)
-                    .controlSize(.mini)
-                    .tint(Color(red: 0.18, green: 0.48, blue: 0.95))
-                    .frame(width: 180)
+                    .controlSize(.small)
+                    .accessibilityLabel(L10n.text("正在下载更新…"))
+            } else {
+                Text(L10n.text("发现新版本 %1$@", update.version.displayString))
+                    .fontWeight(.medium)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if updateChecker.status == .failed {
+                    let error = Text(updateChecker.downloadError ?? L10n.text("下载失败，请重试。"))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ViewThatFits(in: .vertical) {
+                        error
+                        ScrollView {
+                            error.frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .frame(maxHeight: 40, alignment: .topLeading)
+                }
+
+                HStack(spacing: 8) {
+                    Button(L10n.text(updateChecker.status == .failed ? "重试" : "更新")) {
+                        Task { await updateChecker.downloadAvailableUpdate() }
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button(L10n.text("忽略"), action: updateChecker.ignoreAvailableUpdate)
+                        .buttonStyle(.bordered)
+                }
+                .controlSize(.small)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .frame(maxWidth: 260, alignment: .leading)
-        .fixedSize(horizontal: true, vertical: true)
-        .background(.black.opacity(0.48), in: RoundedRectangle(cornerRadius: 8))
+        .font(.system(size: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .frame(width: detailWidth)
     }
 
-    private var updateButtonTitle: String {
+    private var capsuleTitle: String {
         switch updateChecker.status {
         case .downloading:
-            return L10n.text("下载中...")
+            return L10n.text("下载中 · %1$@", downloadPercentage)
         case .failed:
-            return L10n.text("重试")
+            return L10n.text("下载失败")
         default:
-            return L10n.text("更新")
+            return L10n.text("发现更新")
         }
     }
 
-    private func message(for update: GitHubRelease) -> String {
-        if updateChecker.status == .failed {
-            return updateChecker.downloadError ?? L10n.text("下载失败")
-        }
-        return L10n.text("发现新版本 %1$@", String(describing: update.version.displayString))
+    private var downloadPercentage: String {
+        (updateChecker.downloadProgress ?? 0).formatted(
+            .percent.precision(.fractionLength(0)).rounded(rule: .down).locale(L10n.locale)
+        )
+    }
+}
+
+private struct UpdateCapsuleStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(.black.opacity(0.6), in: Capsule())
     }
 }

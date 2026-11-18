@@ -98,6 +98,7 @@ final class AppMenuTests: XCTestCase {
         }
         XCTAssertEqual(menu.items.first?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
         XCTAssertEqual(menu.items[1].title, L10n.text("图片打开方式"))
+        XCTAssertTrue(menu.items[1].image === PhosphorImages.image(named: "squares-four"))
         XCTAssertFalse(menu.items[1].isEnabled)
         XCTAssertEqual(menu.items[2].action, #selector(CanvasNSView.exportImageForMenu(_:)))
         let wallpaper = menu.items[3]

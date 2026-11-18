@@ -10,7 +10,7 @@ extension CanvasNSView {
     func makeOpenWithMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: L10n.text("图片打开方式"), action: nil, keyEquivalent: "")
         item.identifier = NSUserInterfaceItemIdentifier("PicSee.OpenWith")
-        item.image = PhosphorImages.contextMenuImage(for: "macwindow")
+        item.image = PhosphorImages.contextMenuImage(for: "square.grid.2x2")
         LanguageSettings.bind(item) { $0.title = L10n.text("图片打开方式") }
         guard image != nil, let imageURL, Self.hasOriginalFile(at: imageURL) else {
             item.isEnabled = false

@@ -186,10 +186,22 @@ final class ImageViewerViewModel: ObservableObject {
     }
 
     var titleBarText: String {
+        titleBarText()
+    }
+
+    func titleBarText(
+        fitting frameWidth: CGFloat = .infinity,
+        styleMask: NSWindow.StyleMask = []
+    ) -> String {
         if isFolderEmpty { return L10n.text("%1$@ — 此文件夹中没有可浏览的图片", String(describing: currentFilename)) }
-        return [imageMetadataText, zoomPercentageText]
-            .compactMap { $0 }
-            .joined(separator: " | ")
+        return ViewerTitleBarText.fitting(
+            filename: currentFilename,
+            fileSize: fileSizeText,
+            pixelSize: imagePixelSizeText,
+            zoom: zoomPercentageText,
+            frameWidth: frameWidth,
+            styleMask: styleMask
+        )
     }
 
     var previousURL: URL? {

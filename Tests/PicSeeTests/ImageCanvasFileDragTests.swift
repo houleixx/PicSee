@@ -96,11 +96,46 @@ final class ImageCanvasFileDragTests: XCTestCase {
         XCTAssertEqual(canvas.panOffset.width, 20, accuracy: 0.001)
     }
 
-    func testTitlelessTopDragKeepsMovingWindowEvenOutsideBoundary() throws {
-        try down(200, 285)
+    func testTitlelessTopDragMovesWindowIfNativeDragDoesNotTakeOver() throws {
+        let original = window.frame
+        let mouseDown = try event(.leftMouseDown, 200, 285)
+        canvas.mouseDown(with: mouseDown)
+        XCTAssertEqual(window.moveCount, 0)
         try drag(430, 330)
+        XCTAssertTrue(window.lastWindowDragEvent === mouseDown)
+        try drag(450, 340)
+        XCTAssertEqual(window.frame.origin, CGPoint(x: original.minX + 250, y: original.minY + 55))
+        XCTAssertEqual(window.frame.size, original.size)
+        try drag(215, 295)
+        XCTAssertEqual(window.frame.origin, CGPoint(x: original.minX + 265, y: original.minY + 65))
+        try up(450, 340)
+        let frameAfterRelease = window.frame
+        try drag(460, 350)
+        XCTAssertEqual(window.frame, frameAfterRelease)
         XCTAssertEqual(window.moveCount, 1)
         XCTAssertTrue(startedURLs.isEmpty)
+    }
+
+    func testTitlelessTopDragLeavesMovementToNativeDragAfterItMovesWindow() throws {
+        try down(200, 285)
+        try drag(230, 290)
+        window.setFrameOrigin(CGPoint(x: 300, y: 300))
+        try drag(250, 300)
+        XCTAssertEqual(window.frame.origin, CGPoint(x: 300, y: 300))
+        XCTAssertEqual(window.moveCount, 1)
+    }
+
+    func testTitlelessTopClickDoesNotStartDragOrReuseItsPress() throws {
+        try down(200, 285)
+        try up(200, 285)
+        try drag(230, 290)
+        XCTAssertEqual(window.moveCount, 0)
+
+        let nextMouseDown = try event(.leftMouseDown, 205, 285)
+        canvas.mouseDown(with: nextMouseDown)
+        try drag(430, 330)
+        XCTAssertEqual(window.moveCount, 1)
+        XCTAssertTrue(window.lastWindowDragEvent === nextMouseDown)
     }
 
     func testTitlelessBottomRightDragKeepsResizingEvenOutsideBoundary() throws {

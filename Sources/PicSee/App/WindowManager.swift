@@ -41,6 +41,15 @@ final class ViewerWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
+    func updateImageTitle(from viewModel: ImageViewerViewModel, titleBarVisible: Bool) {
+        let newTitle = titleBarVisible
+            ? viewModel.titleBarText(fitting: frame.width, styleMask: styleMask)
+            : viewModel.currentFilename
+        if title != newTitle {
+            title = newTitle
+        }
+    }
+
     override func animationResizeTime(_ newFrame: NSRect) -> TimeInterval {
         if let automaticImageResizeTarget,
            newFrame.isApproximatelyEqual(to: automaticImageResizeTarget) {
@@ -359,7 +368,7 @@ final class WindowManager {
                 guard let self, let window else { return }
                 self.applyTitleBarVisibility(visible, to: window)
                 if let viewModel {
-                    window.title = visible ? viewModel.titleBarText : viewModel.currentFilename
+                    window.updateImageTitle(from: viewModel, titleBarVisible: visible)
                 }
             },
             onFixedWindowChanged: { [weak self, weak window] fixed in
@@ -394,19 +403,14 @@ final class WindowManager {
         appearanceObserver = ViewerPreferences.shared.$snapshot.map(\.theme).removeDuplicates()
             .sink { [weak window] theme in window?.appearance = theme.appearance }
         window.collectionBehavior = [.fullScreenPrimary, .fullScreenAllowsTiling]
+        let updateTitle = { [weak window, weak viewModel] in
+            guard let window, let viewModel else { return }
+            window.updateImageTitle(from: viewModel, titleBarVisible: ViewerTitleBarPreference.isVisible())
+        }
         titleObserver = viewModel.$currentURL
             .combineLatest(viewModel.$displayScale, viewModel.$image)
             .receive(on: RunLoop.main)
-            .sink { [weak window, weak viewModel] _, _, _ in
-                guard let window, let viewModel else { return }
-                window.title = ViewerTitleBarPreference.isVisible() ? viewModel.titleBarText : viewModel.currentFilename
-            }
-
-        LanguageSettings.bind(window) { [weak viewModel] window in
-            guard let viewModel else { return }
-            window.title = ViewerTitleBarPreference.isVisible() ? viewModel.titleBarText : viewModel.currentFilename
-        }
-        window.title = titleBarVisible ? viewModel.titleBarText : viewModel.currentFilename
+            .sink { _, _, _ in updateTitle() }
         window.isMovableByWindowBackground = false
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
@@ -426,6 +430,7 @@ final class WindowManager {
         window.minSize = minimumWindowSize
         window.contentViewController = hostingController
         window.setFrame(initialWindowFrame, display: false)
+        LanguageSettings.bind(window) { _ in updateTitle() }
         applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
         automaticSizePreferenceObserver = ViewerPreferences.shared.$snapshot
             .map(\.automaticWindowSizeEnabled).removeDuplicates().dropFirst()
@@ -516,6 +521,7 @@ final class WindowManager {
                 self.automaticSizingPausedByUser = true
             },
             onWindowResized: { [weak self, weak window] in
+                updateTitle()
                 guard let self, let window, !self.isApplyingAutomaticFrame,
                       self.updateViewerRestoreURL == nil,
                       !window.isNativeFullScreenTransitionActive,
@@ -569,6 +575,7 @@ final class WindowManager {
             onExitFullScreen: { [weak self, weak window] in
                 guard let self, let window else { return }
                 self.restoreStyleMaskAfterFullScreen(to: window)
+                updateTitle()
                 // Navigation in full screen defers sizing until the normal frame is restored.
                 if let image = self.currentViewModel?.image {
                     self.resizeWindowToImage(image, in: window)
@@ -576,6 +583,7 @@ final class WindowManager {
             },
             onFailToEnterFullScreen: { [weak window] in
                 window?.restoreStyleMaskAfterFailedFullScreenEntry()
+                updateTitle()
             },
             slideshow: viewModel.slideshow
         )

@@ -322,6 +322,47 @@ final class ImageViewerViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.titleBarText, "sample image.png | \(expectedFileSize) | 12 × 34 px | 125%")
     }
 
+    @MainActor
+    func testWindowResizeTruncatesOnlyFilenameAndRestoresFullTitle() throws {
+        _ = NSApplication.shared
+        let defaults = UserDefaults.standard
+        let key = ViewerTitleBarPreference.defaultsKey
+        let previousValue = defaults.object(forKey: key)
+        let previousFrame = defaults.object(forKey: WindowFramePreference.defaultsKey)
+        defaults.set(true, forKey: key)
+        ViewerPreferences.shared.reload()
+        defer {
+            defaults.set(previousValue, forKey: key)
+            defaults.set(previousFrame, forKey: WindowFramePreference.defaultsKey)
+            ViewerPreferences.shared.reload()
+        }
+
+        let filename = "产品图_" + String(repeating: "W产品", count: 15) + "_2222.png"
+        let url = try writePNG(named: filename, color: .red, size: NSSize(width: 12, height: 34))
+        let manager = WindowManager(finderOrderProvider: FilenameFolderOrderProvider(), loadingMode: .immediate)
+        manager.openViewer(for: url, presentsWindow: false)
+        let window = try XCTUnwrap(manager.currentWindow)
+        defer { window.close() }
+        let viewModel = try XCTUnwrap(manager.currentViewModel)
+        let fileSize = try XCTUnwrap(viewModel.fileSizeText)
+        let details = " | \(fileSize) | 12 × 34 px | \(viewModel.zoomPercentageText)"
+        let fullTitle = filename + details
+        var frame = window.frame
+        frame.size.width = 320
+        window.setFrame(frame, display: false)
+
+        XCTAssertTrue(window.title.hasPrefix("产"), window.title)
+        XCTAssertTrue(window.title.contains("…"))
+        XCTAssertTrue(window.title.hasSuffix(".png" + details))
+        XCTAssertLessThanOrEqual(NSWindow.minFrameWidth(withTitle: window.title, styleMask: window.styleMask),
+                                 window.frame.width)
+
+        frame.size.width = ceil(NSWindow.minFrameWidth(withTitle: fullTitle, styleMask: window.styleMask))
+        window.setFrame(frame, display: false)
+
+        XCTAssertEqual(window.title, fullTitle)
+    }
+
     func testImageParametersTextIncludesCameraExposureApertureAndLensMetadata() throws {
         let metadata = try XCTUnwrap(ImageParameterMetadata(properties: [
             kCGImagePropertyPixelWidth: 2448,

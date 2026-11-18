@@ -330,9 +330,11 @@ final class ImageViewerViewModelTests: XCTestCase {
         let previousValue = defaults.object(forKey: key)
         let previousFrame = defaults.object(forKey: WindowFramePreference.defaultsKey)
         defaults.set(true, forKey: key)
+        ViewerPreferences.shared.reload()
         defer {
             defaults.set(previousValue, forKey: key)
             defaults.set(previousFrame, forKey: WindowFramePreference.defaultsKey)
+            ViewerPreferences.shared.reload()
         }
 
         let filename = "产品图_" + String(repeating: "W产品", count: 15) + "_2222.png"

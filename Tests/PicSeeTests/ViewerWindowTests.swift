@@ -107,12 +107,14 @@ final class ViewerWindowTests: XCTestCase {
 
     func testHiddenTitleBarTopDragRegionDoubleClickRequestsDesktopFillToggle() {
         let view = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 640, height: 420), backend: .vision)
+        view.titleBarVisible = false
 
         XCTAssertTrue(view.debugShouldToggleDesktopFillOnMouseDown(clickCount: 2, at: CGPoint(x: 320, y: 410)))
     }
 
     func testHiddenTitleBarTopDragRegionSingleClickDoesNotRequestDesktopFillToggle() {
         let view = CanvasNSView(frame: NSRect(x: 0, y: 0, width: 640, height: 420), backend: .vision)
+        view.titleBarVisible = false
 
         XCTAssertFalse(view.debugShouldToggleDesktopFillOnMouseDown(clickCount: 1, at: CGPoint(x: 320, y: 410)))
     }

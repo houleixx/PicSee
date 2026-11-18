@@ -629,6 +629,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     private var imageDetailLayer: LargeImageTileLayer?
     private var isSettingWallpaper = false
     private let desktopWallpaperRequest = DesktopWallpaperRequest()
+    var applicationsForOpeningImage: (URL) -> [URL] = { NSWorkspace.shared.urlsForApplications(toOpen: $0) }
+    var openImageInApplication: (URL, URL) async throws -> Void = { imageURL, applicationURL in
+        _ = try await NSWorkspace.shared.open([imageURL], withApplicationAt: applicationURL,
+                                              configuration: NSWorkspace.OpenConfiguration())
+    }
     var applyDesktopWallpaper: (NSImage, NSScreen) async throws -> Void = { image, screen in
         try await DesktopWallpaperSetter().set(image) { url in
             let workspace = NSWorkspace.shared
@@ -1954,6 +1959,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             pathItem.isEnabled = imageURL != nil
             menu.addItem(pathItem)
         }
+
+        menu.addItem(makeOpenWithMenuItem())
 
         if menu.items.first(where: { $0.action == #selector(exportImageForMenu(_:)) }) == nil {
             let exportItem = NSMenuItem(title: L10n.text("图片另存为..."), action: #selector(exportImageForMenu(_:)), keyEquivalent: "")

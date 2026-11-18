@@ -97,14 +97,63 @@ final class AppMenuTests: XCTestCase {
             XCTAssertFalse(menu.items.contains { $0.action == action })
         }
         XCTAssertEqual(menu.items.first?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
-        XCTAssertEqual(menu.items[1].action, #selector(CanvasNSView.exportImageForMenu(_:)))
-        let wallpaper = menu.items[2]
+        XCTAssertEqual(menu.items[1].title, L10n.text("图片打开方式"))
+        XCTAssertFalse(menu.items[1].isEnabled)
+        XCTAssertEqual(menu.items[2].action, #selector(CanvasNSView.exportImageForMenu(_:)))
+        let wallpaper = menu.items[3]
         XCTAssertEqual(wallpaper.action, #selector(CanvasNSView.setDesktopWallpaperForMenu(_:)))
         XCTAssertEqual(wallpaper.title, L10n.text("设为桌面壁纸"))
         XCTAssertTrue(wallpaper.target === view)
         XCTAssertFalse(view.validateMenuItem(wallpaper))
         view.image = NSImage(size: NSSize(width: 12, height: 8))
         XCTAssertTrue(view.validateMenuItem(wallpaper))
+    }
+
+    func testOpenWithQueriesTheOriginalFileAndDispatchesTheSelectedApplication() async throws {
+        _ = NSApplication.shared
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("PicSeeOpenWith-\(UUID())")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let first = folder.appendingPathComponent("01.CR3")
+        let second = folder.appendingPathComponent("02.JPG")
+        try Data([1]).write(to: first)
+        try Data([2]).write(to: second)
+        let picSee = folder.appendingPathComponent("PicSee.app")
+        let contents = picSee.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let info = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "local.picsee.viewer"],
+                                                     format: .xml, options: 0)
+        try info.write(to: contents.appendingPathComponent("Info.plist"))
+        let editor = folder.appendingPathComponent("Photo Editor.app")
+        let view = CanvasNSView(frame: .zero, backend: .vision)
+        var queriedFiles: [URL] = []
+        view.applicationsForOpeningImage = { file in
+            queriedFiles.append(file)
+            return file == first ? [picSee, editor, editor] : []
+        }
+        let opened = expectation(description: "Selected app receives the original file")
+        view.openImageInApplication = { file, app in
+            XCTAssertEqual(file, first)
+            XCTAssertEqual(app, editor)
+            opened.fulfill()
+        }
+
+        let image = NSImage(size: NSSize(width: 12, height: 8))
+        view.setImage(image, url: first)
+        let firstMenu = try XCTUnwrap(view.menu(for: rightClickEvent()))
+        let openWith = try XCTUnwrap(firstMenu.items[1].submenu)
+        XCTAssertEqual(openWith.items.filter { !$0.isSeparatorItem }.map(\.title),
+                       ["Photo Editor", L10n.text("其他…")])
+        let choice = try XCTUnwrap(openWith.items.first)
+
+        view.setImage(image, url: second)
+        let secondMenu = NSMenu()
+        view.debugAppendPicSeeContextMenuItems(to: secondMenu)
+        let otherOnly = try XCTUnwrap(secondMenu.items[1].submenu)
+        XCTAssertEqual(otherOnly.items.map(\.title), [L10n.text("其他…")])
+        XCTAssertEqual(queriedFiles, [first, second])
+        XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(choice.action), to: choice.target, from: choice))
+        await fulfillment(of: [opened], timeout: 2)
     }
 
     func testPrintContextMenuRequiresImageAndUsesCommandP() throws {

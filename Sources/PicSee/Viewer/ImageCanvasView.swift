@@ -1394,7 +1394,23 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         slideshow?.pause()
         interruptMotion()
         let isTrackpad = event.hasPreciseScrollingDeltas && (event.phase != [] || event.momentumPhase != [])
-        if !isTrackpad, mouseWheelBehavior == .scroll {
+        if isTrackpad {
+            let geometry = currentGeometry()
+            guard geometry.canPan else { return }
+            let constrained = geometry.constrainedPan(
+                CGSize(width: panOffset.width + event.scrollingDeltaX, height: panOffset.height - event.scrollingDeltaY)
+            )
+            let nextPan = CGSize(
+                width: geometry.displaySize.width > geometry.viewportSize.width ? constrained.width : panOffset.width,
+                height: geometry.displaySize.height > geometry.viewportSize.height ? constrained.height : panOffset.height
+            )
+            guard nextPan != panOffset else { return }
+            alignsImageToTop = false
+            panOffset = nextPan
+            onPanChanged?(nextPan)
+            return
+        }
+        if mouseWheelBehavior == .scroll {
             let geometry = currentGeometry()
             guard geometry.displaySize.height > geometry.viewportSize.height else { return }
             // Discrete wheel deltas are in lines; precise devices already supply points.
@@ -1404,16 +1420,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             panOffset.height = geometry.constrainedPan(
                 CGSize(width: panOffset.width, height: panOffset.height - distance)
             ).height
-            onPanChanged?(panOffset)
-            needsLayout = true
-            return
-        }
-        if isTrackpad, panImageMode(currentGeometry()) {
-            alignsImageToTop = false
-            panOffset = constrainPan(
-                CGSize(width: panOffset.width + event.scrollingDeltaX, height: panOffset.height - event.scrollingDeltaY),
-                geometry: currentGeometry()
-            )
             onPanChanged?(panOffset)
             needsLayout = true
             return

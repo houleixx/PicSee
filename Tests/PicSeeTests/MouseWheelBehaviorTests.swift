@@ -76,11 +76,35 @@ final class MouseWheelBehaviorTests: XCTestCase {
         XCTAssertEqual(canvas.zoomScale, 3)
         canvas.magnify(with: WheelEvent(y: 0))
         XCTAssertGreaterThan(canvas.zoomScale, 3)
+    }
 
-        canvas.zoomScale = 1
-        canvas.panOffset = .zero
-        canvas.scrollWheel(with: WheelEvent(y: 3, precise: true, phase: .changed))
-        XCTAssertGreaterThan(canvas.zoomScale, 1, "Keep the existing fitted-trackpad behavior")
+    func testTrackpadScrollingLeavesFullyVisibleImagesInPlace() {
+        let canvas = makeCanvas()
+        for zoom: CGFloat in [1, 0.5] {
+            canvas.zoomScale = zoom
+            canvas.panOffset = .zero
+            canvas.scrollWheel(with: WheelEvent(y: 3, precise: true, phase: .changed))
+            canvas.scrollWheel(with: WheelEvent(y: 0, x: 8, precise: true, momentum: .changed))
+            XCTAssertEqual(canvas.zoomScale, zoom)
+            XCTAssertEqual(canvas.panOffset, .zero)
+        }
+    }
+
+    func testTrackpadScrollingMovesOnlyOverflowingAxisAndStopsAtEdges() {
+        let canvas = makeCanvas()
+        canvas.image = NSImage(size: CGSize(width: 1000, height: 100))
+        canvas.zoomScale = 2
+        canvas.panOffset.height = 20
+        let geometry = canvas.debugGeometry
+        let limit = (geometry.displaySize.width - geometry.viewportSize.width) / 2
+
+        canvas.scrollWheel(with: WheelEvent(y: 7, x: 8, precise: true, phase: .changed))
+        XCTAssertEqual(canvas.panOffset, CGSize(width: 8, height: 20))
+        canvas.scrollWheel(with: WheelEvent(y: 7, x: 10_000, precise: true, phase: .changed))
+        XCTAssertEqual(canvas.panOffset, CGSize(width: limit, height: 20))
+        canvas.scrollWheel(with: WheelEvent(y: 7, x: -10_000, precise: true, momentum: .changed))
+        XCTAssertEqual(canvas.panOffset, CGSize(width: -limit, height: 20))
+        XCTAssertEqual(canvas.zoomScale, 2)
     }
 
     func testSettingsUpdateExistingCanvasAndPersist() async {

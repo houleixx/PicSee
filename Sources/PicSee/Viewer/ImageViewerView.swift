@@ -833,15 +833,21 @@ private struct UpdatePromptView: View {
                 }
 
                 HStack(spacing: 8) {
-                    Button(L10n.text(updateChecker.status == .failed ? "重试" : "更新")) {
+                    Button {
                         Task { await updateChecker.downloadAvailableUpdate() }
+                    } label: {
+                        Text(L10n.text(updateChecker.status == .failed ? "重试" : "更新"))
+                            .frame(minWidth: 42)
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Button(L10n.text("忽略"), action: updateChecker.ignoreAvailableUpdate)
-                        .buttonStyle(.bordered)
+                    Button(action: updateChecker.ignoreAvailableUpdate) {
+                        Text(L10n.text("忽略"))
+                            .frame(minWidth: 42)
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .controlSize(.small)
+                .controlSize(.regular)
             }
         }
         .font(.system(size: 12))

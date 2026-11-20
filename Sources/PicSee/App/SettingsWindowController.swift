@@ -278,6 +278,12 @@ private struct BrowsingSettingsView: View {
                 }
 
                 settingsCard(L10n.text("界面元素")) {
+                    preferenceRow(
+                        L10n.text("显示 Dock 图标"),
+                        detail: L10n.text("点击 Dock 中的 PicSee 图标可回到窗口。关闭后，切换到其他应用时隐藏图标。"),
+                        keyPath: \.dockIconVisible
+                    )
+                    Divider()
                     preferenceRow(L10n.text("显示标题栏"), keyPath: \.titleBarVisible)
                     Divider()
                     preferenceRow(L10n.text("关闭按钮显示在左上角"), detail: L10n.text("隐藏标题栏时可用。开启后，缩放比例和文件信息移至右上角。"), keyPath: \.closeButtonOnLeft)

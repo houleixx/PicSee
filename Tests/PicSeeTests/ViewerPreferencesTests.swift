@@ -1,7 +1,24 @@
 import AppKit
 import Combine
+import Testing
 import XCTest
 @testable import PicSee
+
+@Test @MainActor
+func dockIconPreferenceDefaultsToHiddenAndPersistsBothChoices() throws {
+    let suite = "PicSee.DockIconPreference.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let preferences = ViewerPreferences(defaults: defaults)
+    #expect(!preferences.snapshot.dockIconVisible)
+
+    for visible in [true, false] {
+        preferences.set(\.dockIconVisible, to: visible)
+        #expect(preferences.snapshot.dockIconVisible == visible)
+        let reopened = try #require(UserDefaults(suiteName: suite))
+        #expect(ViewerPreferences(defaults: reopened).snapshot.dockIconVisible == visible)
+    }
+}
 
 @MainActor
 final class ViewerPreferencesTests: XCTestCase {

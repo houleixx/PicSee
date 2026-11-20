@@ -4,6 +4,68 @@ import XCTest
 
 @MainActor
 final class ImageDefaultDisplayInteractionTests: XCTestCase {
+    func testTitleBarToggleKeepsFittedImageFillingViewer() async throws {
+        let defaults = UserDefaults.standard
+        let settings: [String: Any] = [
+            ViewerTitleBarPreference.defaultsKey: false,
+            ImageDisplayPreference.defaultsKey: ImageDisplayMode.fitWindow.rawValue,
+            AutomaticWindowSizePreference.defaultsKey: false,
+            "PicSee.FixedWindowFrameEnabled": false
+        ]
+        let keys = Array(settings.keys) + [WindowFramePreference.defaultsKey]
+        let originals = keys.map { ($0, defaults.object(forKey: $0)) }
+        defer {
+            for (key, value) in originals { defaults.set(value, forKey: key) }
+            ViewerPreferences.shared.reload()
+        }
+        for (key, value) in settings { defaults.set(value, forKey: key) }
+        ViewerPreferences.shared.reload()
+
+        let image = try bitmapImage(width: 1600, height: 1200)
+        let bitmap = try XCTUnwrap(image.representations.first as? NSBitmapImageRep)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("title-fit-\(UUID()).png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: url)
+
+        let screen = NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let manager = WindowManager(updateChecker: nil, finderOrderProvider: FilenameFolderOrderProvider(),
+            loadingMode: .immediate, screenGeometryOverride: (screen, 2))
+        manager.openViewer(for: url, presentsWindow: false)
+        let window = try XCTUnwrap(manager.currentWindow)
+        defer { window.close() }
+        try await settle()
+        let canvas = try XCTUnwrap(findCanvas(window.contentView))
+        canvas.debugCancelTextRecognition()
+        let initialFrame = window.frame
+        let initialImageSize = canvas.debugGeometry.imageRect.size
+        XCTAssertEqual(canvas.bounds.size, NSSize(width: 800, height: 600))
+        XCTAssertEqual(initialImageSize, canvas.bounds.size)
+
+        for visible in [true, false] {
+            ViewerPreferences.shared.set(\.titleBarVisible, to: visible)
+            try await settle()
+            XCTAssertEqual(window.styleMask.contains(.titled), visible)
+            XCTAssertEqual(canvas.bounds.size, NSSize(width: 800, height: 600))
+            XCTAssertEqual(canvas.debugGeometry.imageRect.size, initialImageSize)
+            if visible { XCTAssertGreaterThan(window.frame.height, initialFrame.height) }
+            else { XCTAssertEqual(window.frame, initialFrame) }
+        }
+
+        window.setFrameOrigin(NSPoint(x: initialFrame.minX, y: screen.maxY - initialFrame.height))
+        ViewerPreferences.shared.set(\.titleBarVisible, to: true)
+        try await settle()
+        XCTAssertEqual(window.frame.maxY, screen.maxY)
+        XCTAssertEqual(canvas.debugGeometry.imageRect.size, initialImageSize)
+
+        ViewerPreferences.shared.set(\.fixedWindowEnabled, to: true)
+        try await settle()
+        let fixedFrame = window.frame
+        ViewerPreferences.shared.set(\.titleBarVisible, to: false)
+        try await settle()
+        XCTAssertFalse(window.styleMask.contains(.titled))
+        XCTAssertEqual(window.frame, fixedFrame)
+    }
+
     func testToolbarActualSizeAlsoStartsAtTopAndKeepsItsZoomAnimation() throws {
         let (window, canvas) = fixture()
         defer { window.close() }

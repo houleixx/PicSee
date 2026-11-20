@@ -18,8 +18,23 @@ enum ViewerPreferenceChange {
     }
 }
 
+enum DockIconPreference {
+    static let defaultsKey = "PicSee.DockIconVisible"
+
+    static func isVisible(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: defaultsKey)
+    }
+
+    static func setVisible(_ visible: Bool, in defaults: UserDefaults) {
+        guard visible != isVisible(in: defaults) else { return }
+        defaults.set(visible, forKey: defaultsKey)
+        ViewerPreferenceChange.post(in: defaults)
+    }
+}
+
 struct ViewerPreferencesSnapshot: Equatable {
     var theme: ViewerTheme
+    var dockIconVisible: Bool
     var titleBarVisible: Bool
     var closeButtonOnLeft: Bool
     var minimapEnabled: Bool
@@ -40,6 +55,7 @@ struct ViewerPreferencesSnapshot: Equatable {
 
     init(defaults: UserDefaults) {
         theme = ViewerTheme.current(in: defaults)
+        dockIconVisible = DockIconPreference.isVisible(in: defaults)
         titleBarVisible = ViewerTitleBarPreference.isVisible(in: defaults)
         closeButtonOnLeft = ViewerCloseButtonPreference.isOnLeft(in: defaults)
         minimapEnabled = ViewerOverlayPreference.isMinimapEnabled(in: defaults)
@@ -123,6 +139,7 @@ final class ViewerPreferences: ObservableObject {
 
     func set(_ keyPath: WritableKeyPath<ViewerPreferencesSnapshot, Bool>, to value: Bool) {
         switch keyPath {
+        case \.dockIconVisible: DockIconPreference.setVisible(value, in: defaults)
         case \.titleBarVisible: ViewerTitleBarPreference.setVisible(value, in: defaults)
         case \.closeButtonOnLeft: ViewerCloseButtonPreference.setOnLeft(value, in: defaults)
         case \.minimapEnabled: ViewerOverlayPreference.setMinimapEnabled(value, in: defaults)

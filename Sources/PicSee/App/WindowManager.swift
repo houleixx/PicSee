@@ -732,17 +732,28 @@ final class WindowManager {
         frameView.layer?.masksToBounds = true
     }
 
-    private func applyTitleBarVisibility(_ visible: Bool, to window: NSWindow) {
+    private func applyTitleBarVisibility(_ visible: Bool, to window: ViewerWindow) {
         let isFull = window.styleMask.contains(.fullScreen)
-        if !isFull {
-            let frame = window.frame
-            window.styleMask = ViewerTitleBarPreference.styleMask(titleBarVisible: visible)
+        let fixed = WindowFramePreference.isFixedEnabled()
+        let style = ViewerTitleBarPreference.styleMask(titleBarVisible: visible)
+        if !isFull, window.styleMask != style {
+            var frame = window.frame
+            if !fixed, !window.isTemporaryDesktopFullScreenActive, !window.isNativeFullScreenTransitionActive,
+               let model = currentViewModel, model.image != nil, !model.isScreenshotEditing,
+               model.displayMode == .fitWindow, model.zoomScale == 1 {
+                let contentFrame = window.contentRect(forFrameRect: frame)
+                frame = ViewerTitleBarPreference.windowFrame(forContentFrame: contentFrame, titleBarVisible: visible)
+                if let screen = screenGeometry(for: window) {
+                    frame = WindowResizeGeometry.clamped(frame, to: screen.visibleFrame, minimumSize: .zero)
+                }
+            }
+            window.styleMask = style
             window.setFrame(frame, display: true)
         }
-        (window as? ViewerWindow)?.pinningController?.apply()
+        window.pinningController?.apply()
         applyWindowShape(to: window, titleBarVisible: visible)
         if !isFull {
-            applyFixedWindowState(WindowFramePreference.isFixedEnabled(), to: window)
+            applyFixedWindowState(fixed, to: window)
         }
     }
 

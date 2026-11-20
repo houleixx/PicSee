@@ -25,21 +25,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func configureDockIcon(for application: NSApplication, preferences: ViewerPreferences = .shared) {
-        let afterDeactivation = NotificationCenter.default.publisher(
-            for: NSApplication.didResignActiveNotification, object: application
-        )
-        .receive(on: DispatchQueue.main)
-        .compactMap { [weak preferences] _ in preferences?.snapshot.dockIconVisible }
-
         dockIconObservation = preferences.$snapshot.map(\.dockIconVisible).removeDuplicates()
-            .merge(with: afterDeactivation)
             .sink { [weak application] visible in
                 guard let application else { return }
                 let policy: NSApplication.ActivationPolicy = visible ? .regular : .accessory
                 guard application.activationPolicy() != policy else { return }
-                // Switching to accessory mode while active briefly hands focus to another app.
-                guard visible || !application.isActive else { return }
-                application.setActivationPolicy(policy)
+                // Removing the Dock icon can deactivate the foreground app.
+                let restoreFocus = !visible && application.isActive
+                if application.setActivationPolicy(policy), restoreFocus {
+                    application.activate()
+                }
             }
     }
 

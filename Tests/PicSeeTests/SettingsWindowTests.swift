@@ -61,9 +61,9 @@ final class SettingsWindowTests: XCTestCase {
             XCTAssertTrue(window.isVisible)
         }
 
-        let disablingInForeground = application.isActive
         preferences.set(\.dockIconVisible, to: false)
-        XCTAssertEqual(application.activationPolicy(), disablingInForeground ? .regular : .accessory)
+        XCTAssertEqual(application.activationPolicy(), .accessory)
+        XCTAssertFalse(preferences.snapshot.dockIconVisible)
         XCTAssertTrue(window.isVisible)
     }
 

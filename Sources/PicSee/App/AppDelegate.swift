@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let successTip = SuccessTipPresenter()
     private var updateObservation: AnyCancellable?
     private var languageObservation: AnyCancellable?
+    private var dockIconObservation: AnyCancellable?
     private var didReceiveOpenRequest = false
     private var settingsWindowController: SettingsWindowController?
 
@@ -21,6 +22,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.showSettings(page: .about)
             }
         }
+    }
+
+    func configureDockIcon(for application: NSApplication, preferences: ViewerPreferences = .shared) {
+        let afterDeactivation = NotificationCenter.default.publisher(
+            for: NSApplication.didResignActiveNotification, object: application
+        )
+        .receive(on: DispatchQueue.main)
+        .compactMap { [weak preferences] _ in preferences?.snapshot.dockIconVisible }
+
+        dockIconObservation = preferences.$snapshot.map(\.dockIconVisible).removeDuplicates()
+            .merge(with: afterDeactivation)
+            .sink { [weak application] visible in
+                guard let application else { return }
+                let policy: NSApplication.ActivationPolicy = visible ? .regular : .accessory
+                guard application.activationPolicy() != policy else { return }
+                // Switching to accessory mode while active briefly hands focus to another app.
+                guard visible || !application.isActive else { return }
+                application.setActivationPolicy(policy)
+            }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -75,6 +95,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         Task { await windowManager.updateChecker?.checkForUpdatesIfNeeded() }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        guard sender.activationPolicy() == .regular else { return true }
+        if sender.isHidden { sender.unhide(nil) }
+        // AppKit counts minimized windows as visible in the delegate argument.
+        guard !sender.windows.contains(where: { $0.isVisible && $0.canBecomeKey }) else { return true }
+        let windows = [windowManager.currentWindow, settingsWindowController?.window]
+        guard let window = windows.compactMap({ $0 }).first(where: \.isMiniaturized) else { return true }
+        // AppKit orders the window forward as part of deminiaturization.
+        window.deminiaturize(nil)
+        return false
     }
 
     @objc func showAboutSettings(_ sender: Any?) {

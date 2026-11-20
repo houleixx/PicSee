@@ -10,6 +10,8 @@
 "外观" = "Appearance";
 "主题" = "Theme";
 "界面元素" = "Interface";
+"显示 Dock 图标" = "Show Dock Icon";
+"点击 Dock 中的 PicSee 图标可回到窗口。关闭后，切换到其他应用时隐藏图标。" = "Click the PicSee icon in the Dock to return to its window. When turned off, the icon hides after you switch to another app.";
 "图片浏览" = "Image Browsing";
 "图片切换动画" = "Image Transition Animation";
 "切换图片时显示过渡动画，关闭后直接显示图片。" = "Animate transitions between images. Turn off to show images immediately.";

@@ -11,6 +11,62 @@ final class SettingsWindowTests: XCTestCase {
         }
     }
 
+    private final class ReopenTestWindow: NSWindow {
+        private(set) var frontOrderingWhileMinimized = 0
+
+        override func makeKeyAndOrderFront(_ sender: Any?) {
+            if isMiniaturized { frontOrderingWhileMinimized += 1 }
+            super.makeKeyAndOrderFront(sender)
+        }
+    }
+
+    func testDockIconPreferenceUpdatesPolicyAndReopenRestoresMinimizedWindow() async throws {
+        let application = NSApplication.shared
+        let previousPolicy = application.activationPolicy()
+        let suite = "PicSee.SettingsDockTests.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer {
+            application.setActivationPolicy(previousPolicy)
+            defaults.removePersistentDomain(forName: suite)
+        }
+        let preferences = ViewerPreferences(defaults: defaults)
+        let controller = SettingsWindowController(
+            preferences: preferences, updateChecker: nil,
+            defaultAppHandler: ReadOnlyDefaultAppHandler(), captureFixedWindowFrame: {}
+        )
+        let window = ReopenTestWindow(
+            contentRect: NSRect(origin: .zero, size: SettingsWindowController.contentSize),
+            styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false
+        )
+        controller.window = window
+        defer { window.orderOut(nil) }
+        let delegate = AppDelegate(settingsWindowController: controller, windowManager: WindowManager(updateChecker: nil))
+        delegate.configureDockIcon(for: application, preferences: preferences)
+        XCTAssertEqual(application.activationPolicy(), .accessory)
+
+        preferences.set(\.dockIconVisible, to: true)
+        XCTAssertEqual(application.activationPolicy(), .regular)
+        controller.show(page: .browsing)
+        for _ in 0..<3 {
+            let minimized = expectation(forNotification: NSWindow.didMiniaturizeNotification, object: window)
+            window.miniaturize(nil)
+            await fulfillment(of: [minimized], timeout: 3)
+            XCTAssertTrue(window.isMiniaturized)
+
+            let restored = expectation(forNotification: NSWindow.didDeminiaturizeNotification, object: window)
+            XCTAssertFalse(delegate.applicationShouldHandleReopen(application, hasVisibleWindows: true))
+            await fulfillment(of: [restored], timeout: 3)
+            XCTAssertEqual(window.frontOrderingWhileMinimized, 0)
+            XCTAssertFalse(window.isMiniaturized)
+            XCTAssertTrue(window.isVisible)
+        }
+
+        let disablingInForeground = application.isActive
+        preferences.set(\.dockIconVisible, to: false)
+        XCTAssertEqual(application.activationPolicy(), disablingInForeground ? .regular : .accessory)
+        XCTAssertTrue(window.isVisible)
+    }
+
     // Native UI integration uses XCTest's serial lifecycle because application language
     // is a process-wide preference shared by existing windows and menus.
     func testLiveLanguageSwitchUpdatesNativeControlsAndPreservesEditingState() throws {

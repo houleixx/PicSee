@@ -280,7 +280,7 @@ private struct BrowsingSettingsView: View {
                 settingsCard(L10n.text("界面元素")) {
                     preferenceRow(
                         L10n.text("显示 Dock 图标"),
-                        detail: L10n.text("点击 Dock 中的 PicSee 图标可回到窗口。关闭后，切换到其他应用时隐藏图标。"),
+                        detail: L10n.text("点击 Dock 中的 PicSee 图标可回到窗口。"),
                         keyPath: \.dockIconVisible
                     )
                     Divider()

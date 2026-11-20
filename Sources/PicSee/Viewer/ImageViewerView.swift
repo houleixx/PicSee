@@ -836,7 +836,7 @@ private struct UpdatePromptView: View {
                     Button {
                         Task { await updateChecker.downloadAvailableUpdate() }
                     } label: {
-                        Text(L10n.text(updateChecker.status == .failed ? "重试" : "更新"))
+                        Text(updateChecker.status == .failed ? L10n.text("重试") : L10n.text("更新"))
                             .frame(minWidth: 42)
                     }
                     .buttonStyle(.borderedProminent)

@@ -96,48 +96,40 @@ final class ImageCanvasFileDragTests: XCTestCase {
         XCTAssertEqual(canvas.panOffset.width, 20, accuracy: 0.001)
     }
 
-    func testTitlelessTopDragWaitsForNativeFrameUpdateWithoutMovingWindow() throws {
+    func testTitlelessTopDragTracksScreenMovementUntilRelease() throws {
         let original = window.frame
-        let mouseDown = try event(.leftMouseDown, 200, 285)
-        canvas.mouseDown(with: mouseDown)
+        try down(200, 285)
+
+        try drag(240, 285)
+        XCTAssertEqual(window.frame.origin, CGPoint(x: original.minX + 40, y: original.minY))
+
+        // Event locations are relative to the window's current origin.
+        try drag(200, 310)
+        XCTAssertEqual(window.frame.origin, CGPoint(x: original.minX + 40, y: original.minY + 25))
+        try drag(180, 285)
+        XCTAssertEqual(window.frame.origin, CGPoint(x: original.minX + 20, y: original.minY + 25))
+        XCTAssertEqual(window.frame.size, original.size)
+        XCTAssertEqual(canvas.panOffset, .zero)
         XCTAssertEqual(window.moveCount, 0)
-        try drag(430, 330)
-        XCTAssertTrue(window.lastWindowDragEvent === mouseDown)
-        try drag(450, 340)
-        XCTAssertEqual(window.frame, original)
-        // Simulate AppKit updating the window after the next drag event.
-        window.setFrameOrigin(CGPoint(x: original.minX + 100, y: original.minY + 20))
-        let nativeFrame = window.frame
-        try drag(215, 295)
-        XCTAssertEqual(window.frame, nativeFrame)
-        try up(450, 340)
+        XCTAssertTrue(startedURLs.isEmpty)
+
+        try up(180, 285)
         let frameAfterRelease = window.frame
         try drag(460, 350)
         XCTAssertEqual(window.frame, frameAfterRelease)
-        XCTAssertEqual(window.moveCount, 1)
-        XCTAssertTrue(startedURLs.isEmpty)
-    }
-
-    func testTitlelessTopDragLeavesMovementToNativeDragAfterItMovesWindow() throws {
-        try down(200, 285)
-        try drag(230, 290)
-        window.setFrameOrigin(CGPoint(x: 300, y: 300))
-        try drag(250, 300)
-        XCTAssertEqual(window.frame.origin, CGPoint(x: 300, y: 300))
-        XCTAssertEqual(window.moveCount, 1)
     }
 
     func testTitlelessTopClickDoesNotStartDragOrReuseItsPress() throws {
+        let original = window.frame
         try down(200, 285)
         try up(200, 285)
         try drag(230, 290)
-        XCTAssertEqual(window.moveCount, 0)
+        XCTAssertEqual(window.frame, original)
 
-        let nextMouseDown = try event(.leftMouseDown, 205, 285)
-        canvas.mouseDown(with: nextMouseDown)
-        try drag(430, 330)
-        XCTAssertEqual(window.moveCount, 1)
-        XCTAssertTrue(window.lastWindowDragEvent === nextMouseDown)
+        try down(205, 285)
+        try drag(230, 290)
+        XCTAssertEqual(window.frame.origin, CGPoint(x: original.minX + 25, y: original.minY + 5))
+        XCTAssertEqual(window.moveCount, 0)
     }
 
     func testTitlelessBottomRightDragKeepsResizingEvenOutsideBoundary() throws {

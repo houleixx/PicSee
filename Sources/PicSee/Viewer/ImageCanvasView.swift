@@ -822,7 +822,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     private enum DragType {
         case none
-        case window(pendingMouseDown: NSEvent)
+        case window(startPoint: CGPoint, startOrigin: CGPoint)
         case longPressWindow(pendingMouseDown: NSEvent?)
         case pan
         case textSelection
@@ -1527,8 +1527,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             return
         }
 
-        if isInTopDragRegion(point), window != nil {
-            dragType = .window(pendingMouseDown: event)
+        if isInTopDragRegion(point), let window {
+            dragType = .window(
+                startPoint: window.convertPoint(toScreen: event.locationInWindow),
+                startOrigin: window.frame.origin
+            )
             return
         }
 
@@ -1570,11 +1573,17 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         switch dragType {
         case .none, .fileExport:
             break
-        case .window(let pendingMouseDown):
-            guard let window else { return }
-            // The window server may update the frame after more drag events arrive.
-            dragType = .none
-            window.performDrag(with: pendingMouseDown)
+        case .window(let startPoint, let startOrigin):
+            guard let window, window.isMovable, window.attachedSheet == nil,
+                  !window.styleMask.contains(.fullScreen) else { return }
+            let screenPoint = window.convertPoint(toScreen: event.locationInWindow)
+            let origin = CGPoint(
+                x: startOrigin.x + (screenPoint.x - startPoint.x),
+                y: startOrigin.y + (screenPoint.y - startPoint.y)
+            )
+            if origin != window.frame.origin {
+                window.setFrameOrigin(origin)
+            }
         case .longPressWindow(let pendingMouseDown):
             guard let pendingMouseDown, let window else { return }
             // AppKit uses the original mouse-down event to hand off the drag.

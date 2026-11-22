@@ -822,8 +822,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
 
     private enum DragType {
         case none
-        case window(pendingMouseDown: NSEvent?)
-        case windowMovingInApp
+        case window(pendingMouseDown: NSEvent)
         case longPressWindow(pendingMouseDown: NSEvent?)
         case pan
         case textSelection
@@ -1528,10 +1527,8 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             return
         }
 
-        if isInTopDragRegion(point), let window {
+        if isInTopDragRegion(point), window != nil {
             dragType = .window(pendingMouseDown: event)
-            dragStartPoint = window.convertPoint(toScreen: event.locationInWindow)
-            dragStartWindowFrame = window.frame
             return
         }
 
@@ -1575,20 +1572,9 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             break
         case .window(let pendingMouseDown):
             guard let window else { return }
-            if let pendingMouseDown {
-                dragType = .window(pendingMouseDown: nil)
-                window.performDrag(with: pendingMouseDown)
-                return
-            }
-            // If the window server took over, leave the movement to it.
-            guard window.frame.origin == dragStartWindowFrame?.origin else {
-                dragType = .none
-                return
-            }
-            dragType = .windowMovingInApp
-            moveWindow(with: event)
-        case .windowMovingInApp:
-            moveWindow(with: event)
+            // The window server may update the frame after more drag events arrive.
+            dragType = .none
+            window.performDrag(with: pendingMouseDown)
         case .longPressWindow(let pendingMouseDown):
             guard let pendingMouseDown, let window else { return }
             // AppKit uses the original mouse-down event to hand off the drag.
@@ -1636,16 +1622,6 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
     override func mouseUp(with event: NSEvent) {
         guard !fileDragController.isDragging else { return }
         resetMouseDrag()
-    }
-
-    private func moveWindow(with event: NSEvent) {
-        guard let window, window.isMovable, !window.styleMask.contains(.fullScreen),
-              let dragStartPoint, let dragStartWindowFrame else { return }
-        let point = window.convertPoint(toScreen: event.locationInWindow)
-        window.setFrameOrigin(CGPoint(
-            x: dragStartWindowFrame.minX + (point.x - dragStartPoint.x),
-            y: dragStartWindowFrame.minY + (point.y - dragStartPoint.y)
-        ))
     }
 
     private func cancelImageDragCandidate() {

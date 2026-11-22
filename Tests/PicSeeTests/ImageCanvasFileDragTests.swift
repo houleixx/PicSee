@@ -96,7 +96,7 @@ final class ImageCanvasFileDragTests: XCTestCase {
         XCTAssertEqual(canvas.panOffset.width, 20, accuracy: 0.001)
     }
 
-    func testTitlelessTopDragMovesWindowIfNativeDragDoesNotTakeOver() throws {
+    func testTitlelessTopDragWaitsForNativeFrameUpdateWithoutMovingWindow() throws {
         let original = window.frame
         let mouseDown = try event(.leftMouseDown, 200, 285)
         canvas.mouseDown(with: mouseDown)
@@ -104,10 +104,12 @@ final class ImageCanvasFileDragTests: XCTestCase {
         try drag(430, 330)
         XCTAssertTrue(window.lastWindowDragEvent === mouseDown)
         try drag(450, 340)
-        XCTAssertEqual(window.frame.origin, CGPoint(x: original.minX + 250, y: original.minY + 55))
-        XCTAssertEqual(window.frame.size, original.size)
+        XCTAssertEqual(window.frame, original)
+        // Simulate AppKit updating the window after the next drag event.
+        window.setFrameOrigin(CGPoint(x: original.minX + 100, y: original.minY + 20))
+        let nativeFrame = window.frame
         try drag(215, 295)
-        XCTAssertEqual(window.frame.origin, CGPoint(x: original.minX + 265, y: original.minY + 65))
+        XCTAssertEqual(window.frame, nativeFrame)
         try up(450, 340)
         let frameAfterRelease = window.frame
         try drag(460, 350)

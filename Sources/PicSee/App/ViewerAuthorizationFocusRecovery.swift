@@ -9,6 +9,8 @@ final class ViewerAuthorizationFocusRecovery {
     private weak var fileAccessWindow: NSWindow?
     private var fileAccessPending = false
     private var fileAccessHadPrompt = false
+    private weak var recentlyCompletedFileAccessWindow: NSWindow?
+    private var fileAccessCompletionDeadline: TimeInterval = 0
     private weak var recentlyRestoredWindow: NSWindow?
     private var handoffDeadline: TimeInterval = 0
     private let uptime: () -> TimeInterval
@@ -45,7 +47,9 @@ final class ViewerAuthorizationFocusRecovery {
             guard !fileAccessPending else { return }
             fileAccessPending = true
             fileAccessHadPrompt = false
-            fileAccessWindow = window.flatMap { Self.canRestore($0) ? $0 : nil }
+            recentlyCompletedFileAccessWindow = nil
+            // Initial image sizing can keep the requesting viewer offscreen until loading finishes.
+            fileAccessWindow = window
             return
         }
         let requestedWindow = fileAccessWindow
@@ -53,8 +57,15 @@ final class ViewerAuthorizationFocusRecovery {
         fileAccessPending = false
         fileAccessHadPrompt = false
         fileAccessWindow = nil
-        guard shouldRestore, let requestedWindow, requestedWindow === window,
+        if window == nil { recentlyCompletedFileAccessWindow = nil }
+        guard let requestedWindow, requestedWindow === window,
               Self.canRestore(requestedWindow) else { return }
+        guard shouldRestore else {
+            // Workspace activation and the background read can finish in either order.
+            recentlyCompletedFileAccessWindow = requestedWindow
+            fileAccessCompletionDeadline = uptime() + 1
+            return
+        }
         Self.logger.notice("Restoring viewer after Files and Folders consent")
         restoreAfterConsent(requestedWindow)
     }
@@ -70,7 +81,16 @@ final class ViewerAuthorizationFocusRecovery {
     func applicationActivated(bundleIdentifier: String?) {
         guard let bundleIdentifier else { return }
         if bundleIdentifier == "com.apple.UserNotificationCenter" || bundleIdentifier == "com.apple.SecurityAgent" {
-            if fileAccessPending, fileAccessWindow != nil { fileAccessHadPrompt = true }
+            if fileAccessPending {
+                fileAccessHadPrompt = fileAccessWindow != nil
+            } else {
+                let completedWindow = recentlyCompletedFileAccessWindow
+                recentlyCompletedFileAccessWindow = nil
+                guard uptime() <= fileAccessCompletionDeadline, let completedWindow,
+                      Self.canRestore(completedWindow) else { return }
+                Self.logger.notice("Restoring viewer after late Files and Folders consent notification")
+                restoreAfterConsent(completedWindow)
+            }
         } else if bundleIdentifier == "com.apple.finder" {
             let restoredWindow = recentlyRestoredWindow
             recentlyRestoredWindow = nil
@@ -84,6 +104,7 @@ final class ViewerAuthorizationFocusRecovery {
             window = nil
             fileAccessWindow = nil
             fileAccessHadPrompt = false
+            recentlyCompletedFileAccessWindow = nil
             recentlyRestoredWindow = nil
         }
     }

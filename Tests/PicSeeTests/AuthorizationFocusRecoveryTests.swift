@@ -102,6 +102,39 @@ struct AuthorizationFocusRecoveryTests {
         #expect(restores == 2, "A late system handoff to Finder must restore the requesting viewer")
     }
 
+    @Test func folderConsentTracksViewerBeforeItsFirstPresentation() {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var restored: [NSWindow] = []
+        let recovery = ViewerAuthorizationFocusRecovery { restored.append($0) }
+        window.simulatedVisible = false
+        recovery.setFileAccessPending(true, for: window)
+        recovery.applicationActivated(bundleIdentifier: "com.apple.UserNotificationCenter")
+        window.simulatedVisible = true
+        recovery.setFileAccessPending(false, for: window)
+        #expect(restored == [window])
+    }
+
+    @Test func folderConsentAcceptsPromptNotificationShortlyAfterFileAccessCompletes() {
+        _ = NSApplication.shared
+        let window = AuthorizationTestWindow()
+        var now: TimeInterval = 100
+        var restores = 0
+        let recovery = ViewerAuthorizationFocusRecovery(uptime: { now }) { _ in restores += 1 }
+        recovery.setFileAccessPending(true, for: window)
+        recovery.setFileAccessPending(false, for: window)
+        #expect(restores == 0)
+        recovery.applicationActivated(bundleIdentifier: "com.apple.SecurityAgent")
+        recovery.applicationActivated(bundleIdentifier: "com.apple.SecurityAgent")
+        #expect(restores == 1)
+
+        recovery.setFileAccessPending(true, for: window)
+        recovery.setFileAccessPending(false, for: window)
+        now += 2
+        recovery.applicationActivated(bundleIdentifier: "com.apple.SecurityAgent")
+        #expect(restores == 1)
+    }
+
     @Test func folderConsentAlsoHandlesLateFinderActivationOnlyOnce() {
         _ = NSApplication.shared
         let window = AuthorizationTestWindow()

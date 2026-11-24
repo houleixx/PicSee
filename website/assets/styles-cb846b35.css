@@ -594,6 +594,11 @@ a {
   html[lang="en"] .hero-badge { font-size: clamp(9px, 3cqi, 16px); padding: 7px 10px; flex-shrink: 0; }
 }
 
+/* Align the image edge with the visible title rather than its line box. */
+@media (min-width: 1001px) {
+  .hero-image { margin-top: clamp(8px, 1vw, 16px); }
+}
+
 /* Anchor artwork independently of translated copy height. On narrow desktops,
    leave room for the English title to extend into the column gap. */
 @media (min-width: 769px) and (max-width: 1000px) {

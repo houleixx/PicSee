@@ -129,7 +129,7 @@ PicSee 提供简洁的无边框看图界面，可直接查看图片信息，并�
 - 幻灯片：自动播放当前文件夹，支持间隔调整、循环、暂停与继续；窗口和全屏均可播放
 - 双击图片进入或退出 macOS 原生全屏
 - `Esc` 在幻灯片中先结束播放，在全屏时退出全屏；普通窗口下退出应用
-- 右键菜单支持复制图片路径、切换跟随系统 / 浅色 / 深色主题
+- 右键菜单支持复制图片路径、在访达中显示当前图片、切换跟随系统 / 浅色 / 深色主题
 - 含有透明或半透明像素的图片按需显示 Photoshop 风格的灰白棋盘格；普通照片及完全不透明的 PNG 不显示。透明度判断按图片缓存，主图、切图过渡和缩略导航图共用结果。棋盘格仅用于预览，不会写入导出的图片。
 - 右键「移到废纸篓」、按 `Delete` 或 `⌘⌫` 删除当前图片，自动切到下一张（末尾则切到上一张）；支持 `⌘Z` 或右键「撤销移到废纸篓」逐次恢复。撤销记录在关闭窗口或单窗口模式成功打开另一张外部图片时清空，恢复时不会覆盖同名文件。删完后显示空文件夹提示，可撤销或退出
 - 删除前默认显示确认框，回车或 Escape 取消；确认删除时勾选「以后不再询问」可关闭后续确认，重启应用后仍生效
@@ -172,7 +172,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.101 PICSEE_BUILD_NUMBER=101 Scripts/build-app.sh
+PICSEE_VERSION=0.2.102 PICSEE_BUILD_NUMBER=102 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -189,15 +189,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.101.dmg`
+- DMG: `build/dmg/PicSee-0.2.102.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.101 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.102 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.101.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.102.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -331,14 +331,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.101
-git push origin v0.2.101
+git tag v0.2.102
+git push origin v0.2.102
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.101`
-- Asset: `PicSee-0.2.101.dmg`
+- Release: `v0.2.102`
+- Asset: `PicSee-0.2.102.dmg`
 
 ## Release 说明
 

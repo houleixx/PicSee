@@ -1753,6 +1753,11 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
         onTrashImage?()
     }
 
+    @objc func showImageInFinderForMenu(_ sender: Any?) {
+        guard let imageURL, imageURL.isFileURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([imageURL])
+    }
+
     @objc func undoDeletionForMenu(_ sender: Any?) {
         guard canUndoDeletion else { return }
         onUndoDeletion?()
@@ -1780,6 +1785,7 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             menuItem.state = menuItem.representedObject as? String == snapshot.imageDisplayMode.rawValue ? .on : .off
         }
         if menuItem.action == #selector(trashImageForMenu(_:)) { return canTrashImage }
+        if menuItem.action == #selector(showImageInFinderForMenu(_:)) { return imageURL?.isFileURL == true }
         if menuItem.action == #selector(undoDeletionForMenu(_:)) { return canUndoDeletion }
         if menuItem.action == #selector(checkForUpdatesForMenu(_:)) { return onCheckForUpdates != nil }
         if menuItem.action == #selector(setDesktopWallpaperForMenu(_:)) { return image != nil && !isSettingWallpaper }
@@ -1977,6 +1983,13 @@ final class CanvasNSView: NSView, NSMenuItemValidation {
             pathItem.isEnabled = imageURL != nil
             menu.addItem(pathItem)
         }
+
+        let finderItem = NSMenuItem(title: L10n.text("在访达中显示"), action: #selector(showImageInFinderForMenu(_:)), keyEquivalent: "")
+        finderItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+        LanguageSettings.bind(finderItem) { $0.title = L10n.text("在访达中显示") }
+        finderItem.target = self
+        finderItem.isEnabled = imageURL?.isFileURL == true
+        menu.addItem(finderItem)
 
         menu.addItem(makeOpenWithMenuItem())
 

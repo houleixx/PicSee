@@ -97,16 +97,23 @@ final class AppMenuTests: XCTestCase {
             XCTAssertFalse(menu.items.contains { $0.action == action })
         }
         XCTAssertEqual(menu.items.first?.action, #selector(CanvasNSView.copyImagePathForMenu(_:)))
-        XCTAssertEqual(menu.items[1].title, L10n.text("图片打开方式"))
-        XCTAssertTrue(menu.items[1].image === PhosphorImages.image(named: "squares-four"))
-        XCTAssertFalse(menu.items[1].isEnabled)
-        XCTAssertEqual(menu.items[2].action, #selector(CanvasNSView.exportImageForMenu(_:)))
-        let wallpaper = menu.items[3]
+        let finder = menu.items[1]
+        XCTAssertEqual(finder.action, #selector(CanvasNSView.showImageInFinderForMenu(_:)))
+        XCTAssertEqual(finder.title, L10n.text("在访达中显示"))
+        XCTAssertTrue(finder.target === view)
+        XCTAssertFalse(view.validateMenuItem(finder))
+        XCTAssertEqual(menu.items[2].title, L10n.text("图片打开方式"))
+        XCTAssertTrue(menu.items[2].image === PhosphorImages.image(named: "squares-four"))
+        XCTAssertFalse(menu.items[2].isEnabled)
+        XCTAssertEqual(menu.items[3].action, #selector(CanvasNSView.exportImageForMenu(_:)))
+        let wallpaper = menu.items[4]
         XCTAssertEqual(wallpaper.action, #selector(CanvasNSView.setDesktopWallpaperForMenu(_:)))
         XCTAssertEqual(wallpaper.title, L10n.text("设为桌面壁纸"))
         XCTAssertTrue(wallpaper.target === view)
         XCTAssertFalse(view.validateMenuItem(wallpaper))
-        view.image = NSImage(size: NSSize(width: 12, height: 8))
+        view.setImage(NSImage(size: NSSize(width: 12, height: 8)),
+                      url: URL(fileURLWithPath: "/tmp/PicSee.jpg"))
+        XCTAssertTrue(view.validateMenuItem(finder))
         XCTAssertTrue(view.validateMenuItem(wallpaper))
     }
 
@@ -142,7 +149,7 @@ final class AppMenuTests: XCTestCase {
         let image = NSImage(size: NSSize(width: 12, height: 8))
         view.setImage(image, url: first)
         let firstMenu = try XCTUnwrap(view.menu(for: rightClickEvent()))
-        let openWith = try XCTUnwrap(firstMenu.items[1].submenu)
+        let openWith = try XCTUnwrap(firstMenu.items[2].submenu)
         XCTAssertEqual(openWith.items.filter { !$0.isSeparatorItem }.map(\.title),
                        ["Photo Editor", L10n.text("其他…")])
         let choice = try XCTUnwrap(openWith.items.first)
@@ -150,7 +157,7 @@ final class AppMenuTests: XCTestCase {
         view.setImage(image, url: second)
         let secondMenu = NSMenu()
         view.debugAppendPicSeeContextMenuItems(to: secondMenu)
-        let otherOnly = try XCTUnwrap(secondMenu.items[1].submenu)
+        let otherOnly = try XCTUnwrap(secondMenu.items[2].submenu)
         XCTAssertEqual(otherOnly.items.map(\.title), [L10n.text("其他…")])
         XCTAssertEqual(queriedFiles, [first, second])
         XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(choice.action), to: choice.target, from: choice))

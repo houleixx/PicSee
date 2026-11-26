@@ -5,12 +5,14 @@ import Foundation
 enum UpdateInstaller {
     enum Failure: LocalizedError {
         case invalidResponse
+        case unsupportedInstalledSignature
         case invalidApplication
         case command(String)
 
         var errorDescription: String? {
             switch self {
             case .invalidResponse: L10n.text("更新下载不完整或服务器响应无效，请重试。")
+            case .unsupportedInstalledSignature: L10n.text("当前安装的 PicSee 缺少正式发布签名，无法自动更新。请从发布页面下载并安装官方版本。")
             case .invalidApplication: L10n.text("更新应用未通过身份或签名验证，请从发布页面手动安装。")
             case .command(let details): L10n.text("更新安装失败，原版本已保留。\n%1$@", details)
             }
@@ -66,11 +68,11 @@ enum UpdateInstaller {
         }
         let identity = try run("/usr/bin/codesign", ["-dv", "--verbose=4", target.path])
         guard let teamLine = identity.split(separator: "\n").first(where: { $0.hasPrefix("TeamIdentifier=") }) else {
-            throw Failure.invalidApplication
+            throw Failure.unsupportedInstalledSignature
         }
         let team = String(teamLine.dropFirst("TeamIdentifier=".count))
         guard team.count == 10, team.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else {
-            throw Failure.invalidApplication
+            throw Failure.unsupportedInstalledSignature
         }
         _ = try run("/usr/bin/codesign", verificationArguments(application: source, team: team))
         _ = try run("/usr/sbin/spctl", ["--assess", "--type", "execute", source.path])

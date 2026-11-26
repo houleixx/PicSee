@@ -38,7 +38,6 @@
 "打开或切换图片时，自动调整窗口大小。固定窗口后不可用。" = "Automatically resize the window when opening or switching images. Unavailable when the window size and position are fixed.";
 "窗口缩放动画" = "Window Resize Animation";
 "切换图片时，平滑过渡到新的窗口大小。" = "Smoothly transition to the new window size when switching images.";
-"发现更新" = "Update Available";
 "记住当前看图窗口的大小和位置，用于之后打开的图片。" = "Save the current viewer window’s size and position for images opened later.";
 "下载地址：" = "Download:";
 "问题反馈" = "Send Feedback";
@@ -51,9 +50,7 @@
 "发现新版本 %1$@" = "Version %1$@ is available";
 "已经是最新版本了" = "You’re up to date";
 "正在下载更新…" = "Downloading update…";
-"下载中 · %1$@" = "Downloading · %1$@";
 "下载失败，请重试。" = "Download failed. Please try again.";
-"重试下载" = "Retry Download";
 "下载并安装" = "Download and Install";
 "默认图片打开方式" = "Default Image App";
 "选择双击时使用 PicSee 打开的图片格式。已设为默认的格式会自动勾选。" = "Choose the image formats to open with PicSee when double-clicked. Formats that already use PicSee by default are selected automatically.";
@@ -128,11 +125,10 @@
 "截图与标注" = "Screenshot and Annotate";
 "截取图片区域并标注（⌘⇧A）" = "Capture and annotate an image region (⌘⇧A)";
 "关闭图片参数" = "Close Image Details";
-"忽略" = "Dismiss";
+"忽略" = "Skip Version";
 "下载中..." = "Downloading…";
 "重试" = "Retry";
-"更新" = "Update";
-"下载失败" = "Download failed";
+"更新失败" = "Update Failed";
 "按选择尺寸保存" = "Save at Selected Size";
 "按原图尺寸保存" = "Save at Original Image Scale";
 "（当前显示比例 %1$@%）" = "(Current display scale: %1$@%)";
@@ -279,6 +275,7 @@
 
 "显示选项" = "Display Options";
 "更新下载不完整或服务器响应无效，请重试。" = "The update download is incomplete or the server response is invalid. Please retry.";
+"当前安装的 PicSee 缺少正式发布签名，无法自动更新。请从发布页面下载并安装官方版本。" = "The installed copy of PicSee lacks an official release signature and can’t update automatically. Download and install the official version from the releases page.";
 "更新应用未通过身份或签名验证，请从发布页面手动安装。" = "The update failed identity or signature verification. Please install it manually from the releases page.";
 "更新安装失败，原版本已保留。\n%1$@" = "Update installation failed. The previous version has been retained.\n%1$@";
 "更新安装失败，原版本已保留。" = "Update installation failed. The previous version has been retained.";

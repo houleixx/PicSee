@@ -728,7 +728,7 @@ enum PicSeeResourceBundle {
     }
 }
 
-private struct ViewerBottomControlsLayout: Layout {
+struct ViewerBottomControlsLayout: Layout {
     let inset: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -750,10 +750,10 @@ private struct ViewerBottomControlsLayout: Layout {
         let promptBottom: CGFloat
         if toolbarSize.height == 0 {
             promptBottom = bottom
-        } else if promptLeading + promptSize.width > toolbarLeading {
+        } else if promptLeading + promptSize.width + inset > toolbarLeading {
             promptBottom = bottom - toolbarSize.height - inset
         } else {
-            promptBottom = bottom - (toolbarSize.height - promptSize.height) / 2
+            promptBottom = bottom - max(0, toolbarSize.height - promptSize.height) / 2
         }
         prompt.place(at: CGPoint(x: promptLeading, y: promptBottom), anchor: .bottomLeading, proposal: promptProposal)
     }
@@ -763,8 +763,10 @@ private struct UpdatePromptView: View {
     @ObservedObject private var language = LanguageSettings.shared
     @ObservedObject var updateChecker: UpdateChecker
     let isCheckingFromMenu: Bool
-    @State private var detailsVisible = false
-    private let detailWidth: CGFloat = 240
+    private var detailWidth: CGFloat {
+        if updateChecker.status == .failed { return 240 }
+        return L10n.languageCode == "zh-Hans" ? 192 : 216
+    }
 
     @ViewBuilder
     var body: some View {
@@ -778,23 +780,8 @@ private struct UpdatePromptView: View {
             .modifier(UpdateCapsuleStyle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(L10n.text("正在检查更新…"))
-        } else if let update = updateChecker.availableUpdate, updateChecker.status != .downloaded {
-            Button {
-                detailsVisible = true
-            } label: {
-                Text(capsuleTitle)
-                    .modifier(UpdateCapsuleStyle())
-            }
-            .buttonStyle(.plain)
-            .background(alignment: .leading) {
-                // Keep the popover anchored as the capsule text changes width.
-                Color.clear
-                    .frame(width: 32)
-                    .popover(isPresented: $detailsVisible, arrowEdge: .top) {
-                        details(for: update)
-                    }
-            }
-            .onDisappear { detailsVisible = false }
+        } else if let update = updateChecker.availableUpdate {
+            details(for: update)
         }
     }
 
@@ -815,55 +802,40 @@ private struct UpdatePromptView: View {
                     .accessibilityLabel(L10n.text("正在下载更新…"))
             } else {
                 Text(L10n.text("发现新版本 %1$@", update.version.displayString))
-                    .fontWeight(.medium)
+                    .font(.system(size: 13, weight: .semibold))
                     .fixedSize(horizontal: false, vertical: true)
 
                 if updateChecker.status == .failed {
-                    let error = Text(updateChecker.downloadError ?? L10n.text("下载失败，请重试。"))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ViewThatFits(in: .vertical) {
-                        error
-                        ScrollView {
-                            error.frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                    .frame(maxHeight: 40, alignment: .topLeading)
+                    Text(L10n.text("更新失败")).fontWeight(.medium)
+                    UpdateErrorDetails(message: updateChecker.downloadError ?? L10n.text("下载失败，请重试。"))
                 }
 
                 HStack(spacing: 8) {
                     Button {
                         Task { await updateChecker.downloadAvailableUpdate() }
                     } label: {
-                        Text(updateChecker.status == .failed ? L10n.text("重试") : L10n.text("更新"))
-                            .frame(minWidth: 42)
+                        Text(updateChecker.status == .failed ? L10n.text("重试") : L10n.text("下载并安装"))
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Button(action: updateChecker.ignoreAvailableUpdate) {
-                        Text(L10n.text("忽略"))
-                            .frame(minWidth: 42)
-                    }
-                    .buttonStyle(.bordered)
+                    Spacer(minLength: 0)
+
+                    Button(L10n.text("忽略"), action: updateChecker.ignoreAvailableUpdate)
+                        .buttonStyle(.link)
                 }
                 .controlSize(.regular)
             }
         }
         .font(.system(size: 12))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
+        .padding(.vertical, 12)
+        .padding(.horizontal, updateChecker.status == .failed ? 12 : 10)
         .frame(width: detailWidth)
-    }
-
-    private var capsuleTitle: String {
-        switch updateChecker.status {
-        case .downloading:
-            return L10n.text("下载中 · %1$@", downloadPercentage)
-        case .failed:
-            return L10n.text("下载失败")
-        default:
-            return L10n.text("发现更新")
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(.primary.opacity(0.14))
+                .allowsHitTesting(false)
         }
     }
 

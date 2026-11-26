@@ -172,7 +172,7 @@ PICSEE_SKIP_LOCAL_INSTALL=1 Scripts/build-app.sh
 指定版本号构建：
 
 ```bash
-PICSEE_VERSION=0.2.102 PICSEE_BUILD_NUMBER=102 Scripts/build-app.sh
+PICSEE_VERSION=0.2.103 PICSEE_BUILD_NUMBER=103 Scripts/build-app.sh
 ```
 
 ## 生成 DMG 安装包
@@ -189,15 +189,15 @@ Scripts/build-dmg.sh
 
 构建完成后会得到：
 
-- DMG: `build/dmg/PicSee-0.2.102.dmg`
+- DMG: `build/dmg/PicSee-0.2.103.dmg`
 
 同样可以指定版本号：
 
 ```bash
-PICSEE_VERSION=0.2.102 Scripts/build-dmg.sh
+PICSEE_VERSION=0.2.103 Scripts/build-dmg.sh
 ```
 
-可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.102.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
+可运行 `bash Tests/build-dmg-tests.sh` 检查打包参数传递，运行 `bash Tests/verify-dmg.sh build/dmg/PicSee-0.2.103.dmg` 挂载并验证实际安装包的应用签名、应用内容与构建产物一致、Applications 链接、背景和图标布局。GitHub Actions 会在公证前执行安装包验证。
 
 ## 使用方式
 
@@ -331,14 +331,14 @@ git push origin master
 再创建版本标签并推送：
 
 ```bash
-git tag v0.2.102
-git push origin v0.2.102
+git tag v0.2.103
+git push origin v0.2.103
 ```
 
 工作流会自动生成：
 
-- Release: `v0.2.102`
-- Asset: `PicSee-0.2.102.dmg`
+- Release: `v0.2.103`
+- Asset: `PicSee-0.2.103.dmg`
 
 ## Release 说明
 
@@ -397,6 +397,8 @@ bash Scripts/test-swift.sh all
 PR 会运行 `.github/workflows/check.yml`，检查逻辑测试、本地化、网站语言和 DMG 脚本；直接推送 master 不触发检查。版本标签触发发布工作流后，必须先通过同一检查，再构建、验证和发布安装包。
 
 ### 应用内更新
+
+看图时发现新版本，窗口左下角会直接显示版本号和「下载并安装」。选择「忽略」会跳过该版本的自动提醒，手动检查仍可重新找到它。
 
 应用退出前会验证下载响应和长度、DMG、应用标识及版本，检查新应用与当前应用属于同一 Developer ID 团队，并通过系统签名与 Gatekeeper 验证，再准备同目录的替换副本。替换或启动失败时恢复旧应用，不移除 quarantine 属性。
 

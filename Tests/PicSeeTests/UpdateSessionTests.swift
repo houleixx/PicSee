@@ -1,10 +1,127 @@
 import AppKit
-import XCTest
 import SwiftUI
+import XCTest
 @testable import PicSee
 
 @MainActor
 final class UpdateSessionTests: XCTestCase {
+    func testTallUpdateCardStaysAboveWindowBottomWhenBesideToolbar() async throws {
+        _ = NSApplication.shared
+        let measured = expectation(description: "Update card layout")
+        let width: CGFloat = 900
+        let height: CGFloat = 360
+        let inset: CGFloat = 12
+        let host = NSHostingView(rootView: ViewerBottomControlsLayout(inset: inset) {
+            Color.clear.frame(width: 240, height: 140)
+                .onGeometryChange(for: CGRect.self) {
+                    $0.frame(in: .named("viewer"))
+                } action: { frame in
+                    guard frame.height == 140 else { return }
+                    XCTAssertEqual(frame.maxY, height - inset, accuracy: 1)
+                    measured.fulfill()
+                }
+            Color.clear.frame(width: 250, height: 32)
+        }
+        .frame(width: width, height: height)
+        .coordinateSpace(name: "viewer"))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        defer { window.close() }
+        await fulfillment(of: [measured], timeout: 2)
+    }
+
+    func testUpdateErrorDetailsScrollAtViewerAndSettingsWidths() async throws {
+        _ = NSApplication.shared
+        let longMessage = (1...36).map { "第 \($0) 行，更新校验失败。Update verification failed." }
+            .joined(separator: "\n")
+
+        for width: CGFloat in [216, 420] {
+            let host = NSHostingView(rootView: UpdateErrorDetails(message: longMessage)
+                .font(.system(size: 12))
+                .frame(width: width))
+            let size = host.fittingSize
+            let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                                  styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            window.orderFront(nil)
+            defer { window.close() }
+            host.layoutSubtreeIfNeeded()
+            let deadline = ContinuousClock.now + .seconds(2)
+            while ContinuousClock.now < deadline {
+                if let scrollView = findScrollView(in: host),
+                   let document = scrollView.documentView,
+                   document.bounds.height > scrollView.contentView.bounds.height {
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(20))
+                host.layoutSubtreeIfNeeded()
+            }
+
+            XCTAssertEqual(host.frame.height, 96, accuracy: 1)
+            let scrollView = try XCTUnwrap(findScrollView(in: host))
+            let document = try XCTUnwrap(scrollView.documentView)
+            XCTAssertGreaterThan(document.bounds.height, scrollView.contentView.bounds.height)
+
+            let clip = scrollView.contentView
+            let bottom = document.isFlipped ? document.bounds.maxY - clip.bounds.height : document.bounds.minY
+            clip.scroll(to: NSPoint(x: clip.bounds.minX, y: bottom))
+            scrollView.reflectScrolledClipView(clip)
+            let visible = scrollView.documentVisibleRect
+            let distanceFromEnd = document.isFlipped
+                ? document.bounds.maxY - visible.maxY
+                : visible.minY - document.bounds.minY
+            XCTAssertEqual(distanceFromEnd, 0, accuracy: 1)
+        }
+    }
+
+    func testCompactUpdateCardMovesAboveToolbarAsViewerNarrows() async {
+        _ = NSApplication.shared
+        let besideToolbar = expectation(description: "Card beside toolbar")
+        let aboveToolbar = expectation(description: "Card above toolbar")
+        let height: CGFloat = 360
+        let inset: CGFloat = 12
+        let toolbarHeight: CGFloat = 32
+        let wide = NSSize(width: 900, height: height)
+        let narrow = NSSize(width: 650, height: height)
+        let host = NSHostingView(rootView: ViewerBottomControlsLayout(inset: inset) {
+            Color.clear.frame(width: 192, height: 72)
+                .onGeometryChange(for: CGRect.self) {
+                    $0.frame(in: .named("viewer"))
+                } action: { frame in
+                    guard frame.width == 192 else { return }
+                    if abs(frame.maxY - (height - inset)) < 1 {
+                        besideToolbar.fulfill()
+                    } else if abs(frame.maxY - (height - toolbarHeight - 2 * inset)) < 1 {
+                        aboveToolbar.fulfill()
+                    }
+                }
+            Color.clear.frame(width: 250, height: toolbarHeight)
+        }
+        .coordinateSpace(name: "viewer"))
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: wide),
+                              styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderFront(nil)
+        defer { window.close() }
+
+        await fulfillment(of: [besideToolbar], timeout: 2)
+        window.setContentSize(narrow)
+        await fulfillment(of: [aboveToolbar], timeout: 2)
+    }
+
+    private func findScrollView(in view: NSView) -> NSScrollView? {
+        if let scrollView = view as? NSScrollView { return scrollView }
+        for subview in view.subviews {
+            if let scrollView = findScrollView(in: subview) { return scrollView }
+        }
+        return nil
+    }
+
     func testSessionIsOneShotAndNormalLaunchDoesNotRestore() throws {
         let state = UpdateSession(viewer: .init(url: URL(fileURLWithPath: "/tmp/image with spaces.png"),
             frame: CGRect(x: 100, y: 80, width: 640, height: 480), zoom: 2.5,
